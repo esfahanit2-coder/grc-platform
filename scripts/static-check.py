@@ -31,7 +31,9 @@ for path in ROOT.glob("backend/**/*.py"):
     except Exception as exc:
         errors.append(f"Python {path.relative_to(ROOT)}: {exc}")
 
-# TypeScript/TSX syntax check using the globally available TypeScript parser when Node is present.
+# TypeScript/TSX syntax check uses the project's own TypeScript dependency.
+# Run Node with frontend as cwd so `require('typescript')` resolves from
+# frontend/node_modules in CI and from the same local dependency for developers.
 import subprocess
 ts_files = list(ROOT.glob("frontend/**/*.ts")) + list(ROOT.glob("frontend/**/*.tsx"))
 if ts_files:
@@ -50,7 +52,13 @@ for (const file of process.argv.slice(1)) {
 if(errors.length){console.error(errors.join('\n'));process.exit(2);}
 """
     try:
-        proc = subprocess.run(["node", "-e", node_script, *[str(x) for x in ts_files]], capture_output=True, text=True, timeout=30)
+        proc = subprocess.run(
+            ["node", "-e", node_script, *[str(x) for x in ts_files]],
+            cwd=ROOT / "frontend",
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
         if proc.returncode != 0:
             errors.append("TypeScript/TSX syntax: " + (proc.stderr.strip() or proc.stdout.strip()))
     except Exception as exc:
