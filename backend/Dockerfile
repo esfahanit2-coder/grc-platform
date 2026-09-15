@@ -19,7 +19,13 @@ RUN apt-get update \
 
 COPY requirements.txt .
 RUN python -m pip install --no-cache-dir -r requirements.txt \
-    && python -m pip install --no-cache-dir --upgrade "setuptools>=78.1.1"
+    && python -m pip install --no-cache-dir --upgrade "setuptools>=78.1.1" \
+    && rm -rf \
+    /usr/local/lib/python3.13/site-packages/pip \
+    /usr/local/lib/python3.13/site-packages/pip-*.dist-info \
+    /usr/local/bin/pip \
+    /usr/local/bin/pip3 \
+    /usr/local/bin/pip3.13
 
 COPY . .
 
