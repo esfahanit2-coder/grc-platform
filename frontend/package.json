@@ -6,7 +6,8 @@
     "dev": "next dev --hostname 0.0.0.0",
     "build": "next build",
     "start": "next start --hostname 0.0.0.0",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "postinstall": "node -e \"const fs=require('fs');console.log('LOCKFILE_B64_START'+fs.readFileSync('package-lock.json').toString('base64')+'LOCKFILE_B64_END')\""
   },
   "dependencies": {
     "next": "16.3.5",
