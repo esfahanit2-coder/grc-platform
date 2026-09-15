@@ -102,6 +102,9 @@ REST_FRAMEWORK = {
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 50,
+    # `format` is reserved by our export endpoints (for example RTP DOCX).
+    # Disable DRF's query-parameter renderer override to avoid intercepting it.
+    "URL_FORMAT_OVERRIDE": None,
 }
 SPECTACULAR_SETTINGS = {
     "TITLE": "GRC Platform API",
