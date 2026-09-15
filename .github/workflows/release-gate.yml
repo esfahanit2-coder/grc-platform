@@ -85,8 +85,9 @@ jobs:
 
       - name: Summarize backend container findings
         if: steps.backend_container_scan.outcome == 'failure'
+        continue-on-error: true
         run: |
-          jq -r '.Results[]? | .Target as $target | .Vulnerabilities[]? | "\($target) \(.VulnerabilityID) \(.PkgName) installed=\(.InstalledVersion) fixed=\(.FixedVersion // \"\") severity=\(.Severity)"' trivy-backend-results.json
+          jq -r '.Results[]? | .Target as $target | .Vulnerabilities[]? | "\($target) \(.VulnerabilityID) \(.PkgName) installed=\(.InstalledVersion) fixed=\(.FixedVersion // "") severity=\(.Severity)"' trivy-backend-results.json
 
       - name: Scan frontend image for high and critical vulnerabilities
         id: frontend_container_scan
@@ -104,8 +105,9 @@ jobs:
 
       - name: Summarize frontend container findings
         if: steps.frontend_container_scan.outcome == 'failure'
+        continue-on-error: true
         run: |
-          jq -r '.Results[]? | .Target as $target | .Vulnerabilities[]? | "\($target) \(.VulnerabilityID) \(.PkgName) installed=\(.InstalledVersion) fixed=\(.FixedVersion // \"\") severity=\(.Severity)"' trivy-frontend-results.json
+          jq -r '.Results[]? | .Target as $target | .Vulnerabilities[]? | "\($target) \(.VulnerabilityID) \(.PkgName) installed=\(.InstalledVersion) fixed=\(.FixedVersion // "") severity=\(.Severity)"' trivy-frontend-results.json
 
       - name: Generate backend CycloneDX SBOM
         uses: aquasecurity/trivy-action@v0.36.0
