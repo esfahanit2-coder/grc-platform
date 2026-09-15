@@ -1,9 +1,19 @@
 #!/usr/bin/env python3
 from pathlib import Path
+import argparse
 import ast
 import json
+import subprocess
 import sys
 import yaml
+
+parser = argparse.ArgumentParser(description="Validate repository static contracts.")
+parser.add_argument(
+    "--skip-typescript",
+    action="store_true",
+    help="Skip the TypeScript parser check when frontend dependencies are validated in a separate CI job.",
+)
+args = parser.parse_args()
 
 ROOT = Path(__file__).resolve().parents[1]
 errors = []
@@ -32,11 +42,10 @@ for path in ROOT.glob("backend/**/*.py"):
         errors.append(f"Python {path.relative_to(ROOT)}: {exc}")
 
 # TypeScript/TSX syntax check uses the project's own TypeScript dependency.
-# Run Node with frontend as cwd so `require('typescript')` resolves from
-# frontend/node_modules in CI and from the same local dependency for developers.
-import subprocess
+# Backend CI may skip this parser because the frontend job independently runs
+# eslint + the production Next.js build. Release/local full checks should not skip it.
 ts_files = list(ROOT.glob("frontend/**/*.ts")) + list(ROOT.glob("frontend/**/*.tsx"))
-if ts_files:
+if ts_files and not args.skip_typescript:
     node_script = r"""
 const fs=require('fs'); const ts=require('typescript');
 let errors=[];
@@ -149,4 +158,7 @@ if errors:
 
 print("STATIC CHECK PASSED")
 print("Python files parsed:", sum(1 for _ in ROOT.glob("backend/**/*.py")))
-print("TypeScript/TSX files parsed:", len(ts_files))
+if args.skip_typescript:
+    print("TypeScript/TSX parser: skipped (validated by frontend CI job)")
+else:
+    print("TypeScript/TSX files parsed:", len(ts_files))
