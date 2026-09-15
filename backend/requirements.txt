@@ -1,5 +1,5 @@
 Django>=5.2.17,<5.3
-djangorestframework>=3.16,<3.17
+djangorestframework>=3.17.2,<3.18
 djangorestframework-simplejwt>=5.5,<5.6
 drf-spectacular>=0.28,<0.29
 psycopg[binary]>=3.2,<3.3
@@ -10,12 +10,12 @@ boto3>=1.40,<2
 django-cors-headers>=4.7,<5
 
 pyotp>=2.9,<3
-cryptography>=46,<47
+cryptography>=50.0.0,<51
 
 openpyxl>=3.1,<4
 
 python-docx>=1.1,<2
 Jinja2>=3.1,<4
-weasyprint>=66,<67
+weasyprint>=70.0,<71
 pgvector>=0.4,<0.5
 ldap3>=2.9,<3
