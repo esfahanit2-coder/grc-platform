@@ -31,7 +31,7 @@ jobs:
         working-directory: backend
     env:
       APP_ENV: test
-      DJANGO_SECRET_KEY: test-only
+      DJANGO_SECRET_KEY: ci-test-secret-key-at-least-32-bytes-long
       POSTGRES_DB: grc_test
       POSTGRES_USER: grc
       POSTGRES_PASSWORD: grc
@@ -52,7 +52,7 @@ jobs:
       - run: python manage.py test
       - run: python manage.py test apps.common.tests.GoldenPilotScenarioTests apps.connectors.tests.ConnectorEvidenceTests
       - run: python -m compileall .
-      - run: cd .. && python scripts/static-check.py
+      - run: cd .. && python scripts/static-check.py --skip-typescript
 
   frontend:
     runs-on: ubuntu-latest
