@@ -5,7 +5,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get update \
+    && apt-get upgrade -y \
+    && apt-get install -y --no-install-recommends \
     curl \
     libcairo2 \
     libpango-1.0-0 \
@@ -16,7 +18,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN python -m pip install --no-cache-dir -r requirements.txt \
+    && python -m pip install --no-cache-dir --upgrade "setuptools>=78.1.1" \
+    && rm -rf \
+    /usr/local/lib/python3.13/site-packages/pip \
+    /usr/local/lib/python3.13/site-packages/pip-*.dist-info \
+    /usr/local/bin/pip \
+    /usr/local/bin/pip3 \
+    /usr/local/bin/pip3.13
 
 COPY . .
 

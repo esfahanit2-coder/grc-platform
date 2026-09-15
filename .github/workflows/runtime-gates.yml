@@ -1,0 +1,72 @@
+name: runtime-gates
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:0.8.6-pg18-trixie
+        env:
+          POSTGRES_DB: grc_test
+          POSTGRES_USER: grc
+          POSTGRES_PASSWORD: grc
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U grc -d grc_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      APP_ENV: test
+      DJANGO_SECRET_KEY: ci-test-secret-key-at-least-32-bytes-long
+      POSTGRES_DB: grc_test
+      POSTGRES_USER: grc
+      POSTGRES_PASSWORD: grc
+      POSTGRES_HOST: 127.0.0.1
+      POSTGRES_PORT: 5432
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - run: pip install -r requirements.txt
+      - run: pip install pip-audit
+      - run: pip-audit -r requirements.txt
+      - run: python manage.py makemigrations --check --dry-run
+      - run: python manage.py migrate
+      - run: python manage.py test
+      - run: python manage.py test apps.common.tests.GoldenPilotScenarioTests apps.connectors.tests.ConnectorEvidenceTests
+      - run: python -m compileall .
+      - run: cd .. && python scripts/static-check.py --skip-typescript
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Require committed npm lockfile
+        run: test -f package-lock.json || (echo "frontend/package-lock.json is required" && exit 1)
+      - run: npm ci --ignore-scripts
+      - run: npm audit --audit-level=high
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run build
