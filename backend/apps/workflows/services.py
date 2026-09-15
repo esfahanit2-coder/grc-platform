@@ -38,7 +38,11 @@ def start_workflow(*,tenant,user,definition,object_type,object_id,request=None):
 
 @transaction.atomic
 def transition_workflow(*,tenant,user,instance,transition,comment='',request=None):
-    instance=WorkflowInstance.objects.select_for_update().select_related('current_state','organization_unit').get(id=instance.id,tenant=tenant)
+    # Lock only the workflow row. organization_unit is nullable, so locking every
+    # joined row would make PostgreSQL reject FOR UPDATE on the outer join.
+    instance=(WorkflowInstance.objects.select_for_update(of=('self',))
+              .select_related('current_state','organization_unit')
+              .get(id=instance.id,tenant=tenant))
     if instance.status!='active': raise ValidationError('Workflow is not active.')
     if transition.definition_id!=instance.definition_id or transition.from_state_id!=instance.current_state_id: raise ValidationError('Transition is not allowed from the current state.')
     code=transition.required_permission_code or 'workflow.transition'
