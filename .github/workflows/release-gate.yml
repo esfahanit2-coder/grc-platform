@@ -1,0 +1,23 @@
+name: release-gate
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+jobs:
+  reproducibility:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require committed npm lockfile
+        run: test -f frontend/package-lock.json || (echo "frontend/package-lock.json is required for a release" && exit 1)
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: cd frontend && npm ci --ignore-scripts
+      - run: cd frontend && npm audit --audit-level=high
+      - name: Reject mutable latest image tags in release compose
+        run: '! grep -nE "image:.*:latest([[:space:]]|$)" docker-compose.pilot.yml'
+      - name: Validate static contract
+        run: python scripts/static-check.py
