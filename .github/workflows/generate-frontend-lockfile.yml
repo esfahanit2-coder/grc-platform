@@ -1,0 +1,38 @@
+name: generate-frontend-lockfile
+
+on:
+  push:
+    branches:
+      - fix/frontend-lockfile-release-gate
+
+permissions:
+  contents: read
+
+jobs:
+  generate-and-validate:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          registry-url: https://registry.npmjs.org
+      - name: Generate lockfile with npm
+        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+      - name: Prove clean reproducible install
+        run: |
+          rm -rf node_modules
+          npm ci --ignore-scripts
+      - run: npm audit --audit-level=high
+      - run: npm run lint
+      - run: npm run build
+      - name: Upload generated lockfile
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-package-lock
+          path: frontend/package-lock.json
+          if-no-files-found: error
+          retention-days: 1
