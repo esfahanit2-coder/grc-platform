@@ -75,12 +75,18 @@ jobs:
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: grc-backend:ci
-          format: table
+          format: json
+          output: trivy-backend-results.json
           exit-code: "1"
           ignore-unfixed: true
           vuln-type: os,library
           severity: CRITICAL,HIGH
           skip-setup-trivy: true
+
+      - name: Summarize backend container findings
+        if: steps.backend_container_scan.outcome == 'failure'
+        run: |
+          jq -r '.Results[]? | .Target as $target | .Vulnerabilities[]? | "\($target) \(.VulnerabilityID) \(.PkgName) installed=\(.InstalledVersion) fixed=\(.FixedVersion // \"\") severity=\(.Severity)"' trivy-backend-results.json
 
       - name: Scan frontend image for high and critical vulnerabilities
         id: frontend_container_scan
@@ -88,12 +94,18 @@ jobs:
         uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: grc-frontend:ci
-          format: table
+          format: json
+          output: trivy-frontend-results.json
           exit-code: "1"
           ignore-unfixed: true
           vuln-type: os,library
           severity: CRITICAL,HIGH
           skip-setup-trivy: true
+
+      - name: Summarize frontend container findings
+        if: steps.frontend_container_scan.outcome == 'failure'
+        run: |
+          jq -r '.Results[]? | .Target as $target | .Vulnerabilities[]? | "\($target) \(.VulnerabilityID) \(.PkgName) installed=\(.InstalledVersion) fixed=\(.FixedVersion // \"\") severity=\(.Severity)"' trivy-frontend-results.json
 
       - name: Generate backend CycloneDX SBOM
         uses: aquasecurity/trivy-action@v0.36.0
@@ -112,6 +124,19 @@ jobs:
           output: sbom-frontend.cdx.json
           exit-code: "0"
           skip-setup-trivy: true
+
+      - name: Upload security scan reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-security-reports-${{ github.sha }}
+          path: |
+            bandit-results.json
+            trivy-secret-results.json
+            trivy-backend-results.json
+            trivy-frontend-results.json
+          if-no-files-found: warn
+          retention-days: 30
 
       - name: Upload release SBOMs
         uses: actions/upload-artifact@v7
