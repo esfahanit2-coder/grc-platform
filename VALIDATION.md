@@ -1,91 +1,93 @@
 # Product Hardening & Pilot Validation Report
 
-## Scope
+## Status
 
-This validation covers the post-Sprint-6 pilot hardening layer: pgvector semantic RAG, read-only evidence connectors, golden end-to-end scenario, pilot deployment compose, release reproducibility gate, and an original redistribution-safe ISMS/security baseline.
+The repository is a **Pilot Candidate**, not a production release. Static validation was performed during the staged build, and connected runtime validation is now running in GitHub Actions on PR #9.
 
-## Checks executed in this environment
+## Connected runtime validation proven in GitHub Actions
+
+The first full connected CI execution on PR #9 (`ci` run #48) proved the following against the GitHub-hosted runtime:
 
 PASS:
-- Static checker passed across Python, TypeScript/TSX, JSON and YAML.
-- Python bytecode compilation passed for backend source.
-- 249 Python files parsed successfully.
-- 38 TypeScript/TSX files parsed successfully.
-- 28 migration files are present and all local migration dependency references resolve.
-- 20 Django app packages are present.
-- Pilot framework JSON parses and contains 16 requirements.
-- `docker-compose.yml`, `docker-compose.pilot.yml`, CI and release-gate YAML parse successfully.
-- Actual Persian PDF rendering smoke test passed with WeasyPrint (`%PDF` output, non-empty file).
-- Release packaging files are checksum-manifested before ZIP creation.
+- Python dependencies installed successfully on Python 3.13.
+- `pip-audit -r backend/requirements.txt` reported no known vulnerabilities.
+- PostgreSQL 18.6 with pgvector started successfully.
+- `python manage.py makemigrations --check --dry-run` reported no model drift.
+- A clean database migration applied all project migrations successfully.
+- Full Django test suite passed: **51 tests**.
+- Golden Pilot Scenario and Connector Evidence targeted tests passed: **2 tests**.
+- Python bytecode compilation passed.
+- Frontend dependency installation passed on Node 22.
+- `npm audit --audit-level=high` passed.
+- Frontend ESLint passed.
+- Next.js production build passed.
+
+The only failure in that run was CI topology, not application/runtime behavior: the backend job invoked the repository static checker before frontend `node_modules` existed, so the optional TypeScript parser could not resolve the `typescript` package. The CI/static-check contract was subsequently corrected so the backend job uses `--skip-typescript`; TypeScript is independently validated by the frontend lint and production-build job. The tagged release gate still performs the full static check after `npm ci`.
+
+## Static/staged validation already completed
+
+PASS:
+- Python source parsing and bytecode compilation.
+- TypeScript/TSX parser-level validation in the staged build environment.
+- JSON and YAML parsing.
+- Migration dependency-reference scan.
+- Actual Persian PDF rendering smoke test with WeasyPrint.
+- Pilot security/ISMS content-pack parsing.
+- Docker Compose and GitHub workflow YAML parsing.
 
 ## Product hardening implemented
 
 ### Semantic RAG
 - PostgreSQL remains the source of truth.
-- pgvector extension migration is included.
-- Knowledge chunks can hold embeddings plus model/dimension provenance.
-- Retrieval supports `lexical`, `semantic`, and `hybrid` modes.
-- Semantic retrieval applies tenant and organization scope filtering before similarity ordering.
-- Multiple embedding models can coexist during pilot; exact cosine search is used until a production model/dimension is standardized.
-- Local Ollama `/api/embed`, OpenAI-compatible `/embeddings`, vLLM/private compatible endpoints, and deterministic Mock embeddings are supported through the provider adapter boundary.
+- pgvector extension migration is included and has migrated successfully in connected CI.
+- Knowledge chunks support embeddings plus model/dimension provenance.
+- Retrieval supports lexical, semantic and hybrid modes.
+- Tenant and organization-scope filtering is applied before similarity ordering.
+- Ollama, OpenAI-compatible, vLLM/private-compatible and deterministic Mock embedding adapters are available.
 
 ### Connector framework
 - Active Directory / LDAP read-only inventory adapter.
 - Tenable-compatible read-only scan inventory adapter.
 - Veeam Enterprise Manager read-only backup/session evidence adapter.
-- FortiGate read-only REST `/api/v2/` collection adapter.
-- Connector raw secret values are not stored in DB; DB records only reference environment-variable names.
-- Production HTTP connectors require HTTPS and TLS verification.
-- HTTP redirects are rejected and response sizes are bounded.
-- Connector outputs become ordinary Evidence objects; connectors do not directly declare a control compliant/effective.
-- Connector runs are audit-logged and retain success/failure history.
+- FortiGate read-only REST collection adapter.
+- Raw connector secrets are not stored in the database; records reference environment-variable names.
+- Production HTTP connectors require HTTPS/TLS verification, reject redirects and bound response sizes.
+- Connector output becomes auditable Evidence and does not autonomously declare a control effective/compliant.
 
 ### Pilot lifecycle
-- Golden Django test covers Tenant/Organization → Framework/Requirement → Common Control → Control Implementation → Asset → Risk → Inherent/Residual Evaluation → Treatment/Action → Compliance Assessment → Evidence → Finding/CAPA → RTP payload.
-- Original pilot security/ISMS baseline is included without reproducing ISO/COBIT/AFTA copyrighted requirement text.
+- Golden Django test covers Tenant/Organization → Framework/Requirement → Common Control → Control Implementation → Asset → Risk → Evaluation → Treatment/Action → Assessment → Evidence → Finding/CAPA → RTP payload.
+- The original pilot security/ISMS baseline is redistribution-safe and does not reproduce proprietary ISO/COBIT/AFTA requirement text.
 
 ### Release hardening
-- Normal CI uses pgvector PostgreSQL 18 for migration/runtime tests.
+- PR CI uses PostgreSQL 18 + pgvector for real migration/runtime tests.
 - Tagged/manual release gate requires a committed `frontend/package-lock.json` and uses `npm ci`.
 - Release gate rejects mutable `:latest` image tags in the pilot compose file.
-- Pilot compose uses pgvector PostgreSQL and version-pinned infrastructure image tags.
-- `.env.pilot.example` ships production-oriented cookie/TLS/security defaults and external secret placeholders.
-- `pilot_readiness` management command checks database/pgvector and production security basics.
-- `reindex_knowledge` management command builds embeddings for authorized tenant knowledge chunks.
+- `.env.pilot.example` contains production-oriented security defaults and secret placeholders only.
+- `pilot_readiness` checks database/pgvector and production security basics.
+- `reindex_knowledge` builds embeddings for authorized tenant knowledge chunks.
 
-## Runtime checks not executable in this environment
+## Still not proven by CI alone
 
-NOT EXECUTED here:
-- Django `makemigrations --check` / `migrate`.
-- Full Django/DRF test suite against PostgreSQL/pgvector.
-- Golden pilot Django test at runtime.
-- Connector adapter integration calls to real AD, Tenable, Veeam or FortiGate systems.
-- Docker / Docker Compose boot and health checks.
-- Next.js lint and production build.
-- Celery worker/beat runtime integration.
-- Real AI/embedding model calls.
-
-Reason:
-- Django, DRF and pgvector Python packages are not installed in this execution environment.
-- Docker/Podman are not installed.
-- npm registry access timed out, so a trustworthy `package-lock.json` could not be generated here.
-
-These runtime checks are deliberately left to connected CI/pilot infrastructure. No unexecuted runtime check is reported as passed.
+The following require pilot/target infrastructure and remain open work:
+- Integration calls to real AD, Tenable/Nessus, Veeam and FortiGate systems.
+- Full Docker/Compose clean-host pilot deployment and health checks.
+- Celery worker/beat operational integration under pilot load.
+- Real local/private AI model calls and confidential-data policy validation.
+- Database/object-storage backup and restore drill.
+- Production reverse-proxy/TLS deployment checks.
+- External/manual security validation focused on tenant isolation, IDOR, RBAC, file upload, cookie/CSRF auth, connector SSRF and AI/RAG leakage boundaries.
 
 ## Release blocker
 
-A tagged production release is intentionally blocked until `frontend/package-lock.json` is generated in a connected trusted environment, reviewed, committed, and passes `npm ci` plus the dependency audit. Normal source CI can continue to use `npm install` until then.
+A tagged production release remains intentionally blocked until `frontend/package-lock.json` is generated by npm in a trusted connected environment, reviewed, committed and passes `npm ci` plus dependency audit. See issue #2 and `RELEASE_BLOCKERS.md`.
 
 ## Pilot acceptance recommendation
 
-Do not call the repository production-ready until all of the following pass in the target pilot environment:
-1. Full CI on PostgreSQL/pgvector.
-2. `python manage.py pilot_readiness`.
-3. Golden pilot scenario test.
-4. Frontend lint/build.
-5. One real scoped AD evidence sync.
-6. One real FortiGate or Tenable evidence sync.
-7. One real Veeam evidence sync where applicable.
-8. Tenant/scope security tests and manual IDOR verification.
-9. Local-AI semantic RAG smoke test using approved confidential-data policy.
-10. Backup/restore test for database and object storage.
+Before calling the product production-ready, complete:
+1. Green PR CI and tagged release gate.
+2. `python manage.py pilot_readiness` in the target environment.
+3. At least one real scoped connector evidence sync, including FortiGate/Tenable and Veeam where applicable.
+4. Local/private AI semantic-RAG smoke test under approved data-classification policy.
+5. Backup/restore drill for database and object storage.
+6. Production deployment hardening review.
+7. Tenant/scope security tests and external/manual penetration testing.
