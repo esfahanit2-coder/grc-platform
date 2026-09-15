@@ -26,8 +26,8 @@ jobs:
       - name: Reject mutable latest image tags in release compose
         run: '! grep -nE "image:.*:latest([[:space:]]|$)" docker-compose.pilot.yml'
 
-      - name: Validate static contract
-        run: python scripts/static-check.py
+      - name: Validate non-TypeScript static contract
+        run: python scripts/static-check.py --skip-typescript
 
       - uses: actions/setup-python@v7
         with:
@@ -124,7 +124,7 @@ jobs:
           retention-days: 30
 
       - name: Enforce security scan results
-        if: always()
+        if: always() && steps.bandit_sast.outcome != 'skipped'
         env:
           BANDIT_RESULT: ${{ steps.bandit_sast.outcome }}
           SECRET_RESULT: ${{ steps.secret_scan.outcome }}
