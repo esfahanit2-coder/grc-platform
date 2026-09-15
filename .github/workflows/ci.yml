@@ -56,6 +56,8 @@ jobs:
 
   frontend:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     defaults:
       run:
         working-directory: frontend
@@ -67,13 +69,6 @@ jobs:
           registry-url: https://registry.npmjs.org
       - name: Generate real npm lockfile for Issue #2
         run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
-      - name: Upload generated lockfile
-        uses: actions/upload-artifact@v4
-        with:
-          name: frontend-package-lock
-          path: frontend/package-lock.json
-          if-no-files-found: error
-          retention-days: 1
       - name: Prove clean reproducible install
         run: |
           rm -rf node_modules
@@ -81,3 +76,17 @@ jobs:
       - run: npm audit --audit-level=high
       - run: npm run lint
       - run: npm run build
+      - name: Commit generated lockfile to this PR branch
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.head_ref == 'fix/frontend-lockfile-release-gate'
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          if git diff --quiet -- package-lock.json; then
+            echo "package-lock.json already matches npm output"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package-lock.json
+          git commit -m "build: add npm-generated frontend lockfile"
+          git push origin "HEAD:${HEAD_REF}"
