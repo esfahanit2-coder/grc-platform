@@ -1,0 +1,52 @@
+services:
+  postgres:
+    image: pgvector/pgvector:0.8.6-pg18-trixie
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-grc}
+      POSTGRES_USER: ${POSTGRES_USER:-grc}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+    volumes: [postgres_pilot_data:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-grc} -d ${POSTGRES_DB:-grc}"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+  redis:
+    image: redis:8.2.1-alpine
+    command: ["redis-server","--appendonly","yes"]
+    volumes: [redis_pilot_data:/data]
+  backend:
+    build: ./backend
+    env_file: [.env]
+    command: sh -c "python manage.py migrate && python manage.py check --deploy && gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 3 --threads 4 --timeout 90"
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_started}
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health/ready', timeout=2)\""]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+  worker:
+    build: ./backend
+    env_file: [.env]
+    command: celery -A config worker -l INFO
+    depends_on: [backend,redis]
+  beat:
+    build: ./backend
+    env_file: [.env]
+    command: celery -A config beat -l INFO
+    depends_on: [backend,redis]
+  frontend:
+    build: ./frontend
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: /api/v1
+    depends_on: [backend]
+  gateway:
+    image: nginx:1.28.0-alpine
+    ports: ["8080:80"]
+    volumes: ["./infra/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro"]
+    depends_on: [frontend,backend]
+volumes:
+  postgres_pilot_data:
+  redis_pilot_data:
