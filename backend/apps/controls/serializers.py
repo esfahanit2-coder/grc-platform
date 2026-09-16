@@ -1,15 +1,23 @@
+from django.db.models import Count
 from rest_framework import serializers
 
 from apps.frameworks.models import Requirement
-from apps.identity.services import has_tenant_permission
 from apps.tenancy.models import TenantMembership
 from .models import Control, ControlCategory, ControlImplementation, ControlRequirement
-from .services import require_local_control, validate_control_requirement
+from .services import validate_control_requirement
 
 
 def _validate_member(user, tenant, field):
     if user and not TenantMembership.objects.filter(tenant=tenant, user=user, is_active=True).exists():
         raise serializers.ValidationError(f"{field} must be an active member of the tenant.")
+
+
+def _root_ids(serializer,obj):
+    instance=getattr(serializer.root,"instance",None)
+    if instance is None: return [obj.pk]
+    if hasattr(instance,"pk"): return [instance.pk]
+    try: return [row.pk for row in instance]
+    except TypeError: return [obj.pk]
 
 
 class ControlCategorySerializer(serializers.ModelSerializer):
@@ -30,12 +38,20 @@ class ControlSerializer(serializers.ModelSerializer):
         model = Control
         fields = ["id", "code", "title", "description", "objective", "category", "category_name", "control_type", "nature", "frequency", "automation_level", "status", "metadata", "is_global", "frameworks_count", "implementations_count", "created_at", "updated_at"]
         read_only_fields = ["created_at", "updated_at", "is_global"]
-    def get_frameworks_count(self, obj):
-        return obj.requirement_mappings.filter(deleted_at__isnull=True).values("requirement__framework_version__framework_id").distinct().count()
-    def get_implementations_count(self, obj):
-        tenant = self.context.get("tenant")
-        qs = obj.implementations.filter(deleted_at__isnull=True)
-        return qs.filter(tenant=tenant).count() if tenant else qs.count()
+    def _count_cache(self,obj):
+        cache=self.context.get("_control_relation_count_cache")
+        if cache is not None: return cache
+        ids=_root_ids(self,obj)
+        framework_counts={row["control_id"]:row["count"] for row in ControlRequirement.objects.filter(control_id__in=ids,deleted_at__isnull=True).values("control_id").annotate(count=Count("requirement__framework_version__framework",distinct=True))}
+        implementations=ControlImplementation.objects.filter(control_id__in=ids,deleted_at__isnull=True)
+        tenant=self.context.get("tenant")
+        if tenant is not None: implementations=implementations.filter(tenant=tenant)
+        implementation_counts={row["control_id"]:row["count"] for row in implementations.values("control_id").annotate(count=Count("id"))}
+        cache={"frameworks":framework_counts,"implementations":implementation_counts}
+        self.context["_control_relation_count_cache"]=cache
+        return cache
+    def get_frameworks_count(self, obj): return self._count_cache(obj)["frameworks"].get(obj.id,0)
+    def get_implementations_count(self, obj): return self._count_cache(obj)["implementations"].get(obj.id,0)
     def validate_category(self, category):
         tenant = self.context["tenant"]
         if category and category.tenant_id not in {None, tenant.id}:
