@@ -16,7 +16,7 @@ from apps.tenancy.services import resolve_tenant_for_request
 from .clients import connector_for
 from .models import ConnectorConfig, ConnectorRun
 from .serializers import ConnectorConfigSerializer, ConnectorRunSerializer
-from .services import run_connector
+from .services import redacted_connector_error, run_connector
 
 
 class TenantMixin:
@@ -78,7 +78,8 @@ class ConnectorConfigViewSet(TenantMixin, viewsets.ModelViewSet):
         self._require_active(cfg)
         try:
             result = connector_for(cfg).health()
-        except Exception:
+        except Exception as exc:
+            safe_error = redacted_connector_error(cfg, exc)
             record_audit_event(
                 request.user,
                 cfg.tenant,
@@ -86,10 +87,10 @@ class ConnectorConfigViewSet(TenantMixin, viewsets.ModelViewSet):
                 "connector_config",
                 cfg.id,
                 outcome="failure",
-                metadata={"connector_type": cfg.connector_type},
+                metadata={"connector_type": cfg.connector_type, "error": safe_error},
                 request=request,
             )
-            raise
+            raise ValidationError(safe_error) from None
         record_audit_event(
             request.user,
             cfg.tenant,
