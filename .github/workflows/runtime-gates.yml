@@ -46,6 +46,22 @@ jobs:
       - run: pip-audit -r requirements.txt
       - run: python manage.py makemigrations --check --dry-run
       - run: python manage.py migrate
+      - name: Validate upgrade/restore guard on current schema
+        run: |
+          mkdir -p /tmp/grc-upgrade-guard
+          python manage.py pilot_upgrade_guard snapshot \
+            --output /tmp/grc-upgrade-guard/schema.json \
+            --release-id ci \
+            --source-commit "${GITHUB_SHA}"
+          python manage.py pilot_upgrade_guard preflight \
+            --baseline /tmp/grc-upgrade-guard/schema.json \
+            --rollback-strategy reversible \
+            --release-id ci \
+            --source-commit "${GITHUB_SHA}" \
+            --report /tmp/grc-upgrade-guard/preflight.json
+          python manage.py pilot_upgrade_guard restore-check \
+            --manifest /tmp/grc-upgrade-guard/schema.json \
+            --report /tmp/grc-upgrade-guard/restore-check.json
       - run: python manage.py test
       - run: python manage.py test apps.common.tests.GoldenPilotScenarioTests apps.connectors.tests.ConnectorEvidenceTests
       - run: python -m compileall .
@@ -59,6 +75,7 @@ jobs:
           docker compose --env-file .env.pilot.example -f docker-compose.pilot.yml -f docker-compose.pilot.tls.yml --profile local-ai --profile ops config >/dev/null
           bash -n scripts/pilot-backup.sh
           bash -n scripts/pilot-restore.sh
+          bash -n scripts/pilot-upgrade-rehearsal.sh
           mkdir -p /tmp/grc-tls
           openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj '/CN=grc-ci.local' \
             -keyout /tmp/grc-tls/server.key -out /tmp/grc-tls/server.crt >/dev/null 2>&1
