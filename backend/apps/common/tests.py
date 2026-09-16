@@ -40,9 +40,8 @@ class GoldenPilotScenarioTests(APITestCase):
         TenantMembership.objects.create(tenant=tenant, user=viewer, role_code="member")
         roles = bootstrap_tenant_rbac(tenant, admin_user=user)
 
-        owner_token = self._token(user)
         headers = {"HTTP_X_TENANT_ID": str(tenant.id)}
-        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {owner_token}")
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {self._token(user)}")
 
         create_unit = self.client.post(
             "/api/v1/organization-units/",
@@ -52,7 +51,6 @@ class GoldenPilotScenarioTests(APITestCase):
         )
         self.assertEqual(create_unit.status_code, 201)
         unit = OrganizationUnit.objects.get(tenant=tenant, code="HQ")
-
         create_sibling = self.client.post(
             "/api/v1/organization-units/",
             {"unit_type": "company", "code": "BRANCH", "name": "Sibling Branch"},
@@ -78,14 +76,15 @@ class GoldenPilotScenarioTests(APITestCase):
                 }
             ],
         }
-        preview_upload = SimpleUploadedFile(
-            "pilot-baseline.json",
-            json.dumps(framework_payload).encode("utf-8"),
-            content_type="application/json",
-        )
         preview = self.client.post(
             "/api/v1/frameworks/import/?dry_run=true",
-            {"file": preview_upload},
+            {
+                "file": SimpleUploadedFile(
+                    "pilot-baseline.json",
+                    json.dumps(framework_payload).encode("utf-8"),
+                    content_type="application/json",
+                )
+            },
             format="multipart",
             **headers,
         )
@@ -93,14 +92,15 @@ class GoldenPilotScenarioTests(APITestCase):
         self.assertTrue(preview.data["dry_run"])
         self.assertFalse(Framework.objects.filter(tenant=tenant, code="pilot-baseline").exists())
 
-        commit_upload = SimpleUploadedFile(
-            "pilot-baseline.json",
-            json.dumps(framework_payload).encode("utf-8"),
-            content_type="application/json",
-        )
         imported = self.client.post(
             "/api/v1/frameworks/import/?dry_run=false",
-            {"file": commit_upload},
+            {
+                "file": SimpleUploadedFile(
+                    "pilot-baseline.json",
+                    json.dumps(framework_payload).encode("utf-8"),
+                    content_type="application/json",
+                )
+            },
             format="multipart",
             **headers,
         )
@@ -108,6 +108,16 @@ class GoldenPilotScenarioTests(APITestCase):
         framework = Framework.objects.get(tenant=tenant, code="pilot-baseline")
         version = framework.versions.get(version_code="2026.1")
         req = version.requirements.get(code="IAM.1")
+        lock_version = self.client.post(
+            f"/api/v1/framework-versions/{version.id}/lock/",
+            {},
+            format="json",
+            **headers,
+        )
+        self.assertEqual(lock_version.status_code, 200)
+        version.refresh_from_db()
+        self.assertTrue(version.is_locked)
+        self.assertEqual(version.status, "active")
 
         category = ControlCategory.objects.create(tenant=tenant, code="iam", name="Identity")
         control = Control.objects.create(
@@ -146,12 +156,11 @@ class GoldenPilotScenarioTests(APITestCase):
             owner=user,
             criticality=5,
         )
-        risk_cat = RiskCategory.objects.create(tenant=tenant, code="cyber", name="Cyber")
         risk = Risk.objects.create(
             tenant=tenant,
             organization_unit=unit,
             asset=asset,
-            category=risk_cat,
+            category=RiskCategory.objects.create(tenant=tenant, code="cyber", name="Cyber"),
             code="RISK-001",
             title="Privileged account compromise",
             scenario="A privileged account is compromised.",
@@ -311,14 +320,12 @@ class GoldenPilotScenarioTests(APITestCase):
         )
         self.assertEqual(assign_scope.status_code, 201)
 
-        viewer_token = self._token(viewer)
-        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {viewer_token}")
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {self._token(viewer)}")
         scoped_list = self.client.get("/api/v1/organization-units/", **headers)
         self.assertEqual(scoped_list.status_code, 200)
         scoped_codes = {row["code"] for row in scoped_list.data["results"]}
         self.assertIn("HQ", scoped_codes)
         self.assertNotIn("BRANCH", scoped_codes)
-
         escape_scope = self.client.post(
             "/api/v1/organization-units/",
             {"unit_type": "company", "code": "ESCAPE", "name": "Escaped root"},
@@ -337,12 +344,13 @@ class GoldenPilotScenarioTests(APITestCase):
         self.assertEqual(residual.level, "medium")
         self.assertEqual(assessment.overall_score, Decimal("100.000"))
         self.assertTrue(EvidenceLink.objects.filter(object_id=item.id).exists())
-        rtp_payload_data = rtp_payload(risk)
-        self.assertEqual(len(rtp_payload_data["treatments"]), 1)
-        self.assertEqual(len(rtp_payload_data["treatments"][0]["actions"]), 1)
+        rtp_data = rtp_payload(risk)
+        self.assertEqual(len(rtp_data["treatments"]), 1)
+        self.assertEqual(len(rtp_data["treatments"][0]["actions"]), 1)
         self.assertTrue(Finding.objects.filter(id=finding.id, audit_workpaper=workpaper).exists())
 
         audit_actions = set(AuditEvent.objects.filter(tenant=tenant).values_list("action", flat=True))
         self.assertIn("organization.create", audit_actions)
         self.assertIn("framework.import", audit_actions)
+        self.assertIn("framework_version.lock", audit_actions)
         self.assertIn("role.assign", audit_actions)
