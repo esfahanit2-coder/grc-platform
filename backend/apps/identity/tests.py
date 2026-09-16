@@ -1,5 +1,7 @@
 import pyotp
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
+from django.test import override_settings
 from rest_framework.test import APITestCase
 from rest_framework_simplejwt.tokens import RefreshToken
 
@@ -72,6 +74,7 @@ class RBACScopeTests(APITestCase):
 
 class MFAFlowTests(APITestCase):
     def setUp(self):
+        cache.clear()
         self.user = User.objects.create_user(username="mfa-user", password="StrongPassword123!")
         self.tenant = Tenant.objects.create(name="Secure", code="secure")
         TenantMembership.objects.create(tenant=self.tenant, user=self.user, role_code="member")
@@ -82,9 +85,23 @@ class MFAFlowTests(APITestCase):
         device.save(update_fields=["is_active", "updated_at"])
         response = self.client.post("/api/v1/auth/token", {"username": "mfa-user", "password": "StrongPassword123!"}, format="json")
         self.assertEqual(response.status_code, 202)
-        verify = self.client.post("/api/v1/auth/mfa/verify-login", {"challenge": response.data["challenge"], "otp": pyotp.TOTP(secret).now()}, format="json")
+        otp = pyotp.TOTP(secret).now()
+        verify = self.client.post("/api/v1/auth/mfa/verify-login", {"challenge": response.data["challenge"], "otp": otp}, format="json")
         self.assertEqual(verify.status_code, 200)
         self.assertIn("access", verify.data)
+
+    def test_accepted_totp_cannot_be_replayed(self):
+        device, secret, _ = create_pending_mfa_device(self.user)
+        device.is_active = True
+        device.save(update_fields=["is_active", "updated_at"])
+        login = self.client.post("/api/v1/auth/token", {"username": "mfa-user", "password": "StrongPassword123!"}, format="json")
+        otp = pyotp.TOTP(secret).now()
+        first = self.client.post("/api/v1/auth/mfa/verify-login", {"challenge": login.data["challenge"], "otp": otp}, format="json")
+        second = self.client.post("/api/v1/auth/mfa/verify-login", {"challenge": login.data["challenge"], "otp": otp}, format="json")
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(second.status_code, 401)
+        device.refresh_from_db()
+        self.assertIsNotNone(device.last_used_step)
 
     def test_tenant_required_mfa_enrollment(self):
         self.tenant.settings = {"security": {"require_mfa": True, "password_min_length": 12, "session_minutes": 60}}
@@ -101,3 +118,48 @@ class MFAFlowTests(APITestCase):
         self.assertEqual(finish.status_code, 200)
         self.assertTrue(finish.data["mfa_enabled"])
         self.assertIn("access", finish.data)
+
+    @override_settings(
+        REST_FRAMEWORK={
+            "DEFAULT_THROTTLE_RATES": {
+                "auth_login": "2/min",
+                "auth_mfa": "100/min",
+                "auth_refresh": "100/min",
+            }
+        }
+    )
+    def test_login_is_rate_limited_by_public_auth_throttle(self):
+        cache.clear()
+        payload = {"username": "mfa-user", "password": "wrong-password"}
+        first = self.client.post("/api/v1/auth/token", payload, format="json", REMOTE_ADDR="203.0.113.10")
+        second = self.client.post("/api/v1/auth/token", payload, format="json", REMOTE_ADDR="203.0.113.10")
+        third = self.client.post("/api/v1/auth/token", payload, format="json", REMOTE_ADDR="203.0.113.10")
+        self.assertEqual(first.status_code, 401)
+        self.assertEqual(second.status_code, 401)
+        self.assertEqual(third.status_code, 429)
+
+    @override_settings(AUTH_COOKIE_MODE=True, SESSION_COOKIE_SECURE=False, CSRF_COOKIE_SECURE=False)
+    def test_cookie_authenticated_unsafe_request_requires_matching_csrf(self):
+        login = self.client.post("/api/v1/auth/token", {"username": "mfa-user", "password": "StrongPassword123!"}, format="json")
+        self.assertEqual(login.status_code, 200)
+        csrf = self.client.cookies["csrftoken"].value
+
+        missing = self.client.post("/api/v1/auth/logout", {}, format="json")
+        wrong = self.client.post("/api/v1/auth/logout", {}, format="json", HTTP_X_CSRFTOKEN="0" * 32)
+        ok = self.client.post("/api/v1/auth/logout", {}, format="json", HTTP_X_CSRFTOKEN=csrf)
+
+        self.assertEqual(missing.status_code, 403)
+        self.assertEqual(wrong.status_code, 403)
+        self.assertEqual(ok.status_code, 200)
+
+    @override_settings(AUTH_COOKIE_MODE=True, SESSION_COOKIE_SECURE=False, CSRF_COOKIE_SECURE=False)
+    def test_cookie_refresh_requires_matching_csrf(self):
+        login = self.client.post("/api/v1/auth/token", {"username": "mfa-user", "password": "StrongPassword123!"}, format="json")
+        self.assertEqual(login.status_code, 200)
+        csrf = self.client.cookies["csrftoken"].value
+
+        missing = self.client.post("/api/v1/auth/token/refresh", {}, format="json")
+        ok = self.client.post("/api/v1/auth/token/refresh", {}, format="json", HTTP_X_CSRFTOKEN=csrf)
+
+        self.assertEqual(missing.status_code, 403)
+        self.assertEqual(ok.status_code, 200)
