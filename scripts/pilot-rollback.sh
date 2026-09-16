@@ -14,12 +14,22 @@ if [[ "${CONFIRM_ROLLBACK:-NO}" != "YES" ]]; then
   echo "ERROR: rollback is destructive. Set CONFIRM_ROLLBACK=YES after incident/change approval." >&2
   exit 2
 fi
+if ! git diff --quiet || ! git diff --cached --quiet; then
+  echo "ERROR: tracked working-tree changes are not allowed during rollback." >&2
+  exit 2
+fi
 
 MANIFEST="$ROOT/backups/$NAME/backup-manifest.json"
-if [[ ! -s "$MANIFEST" ]]; then
-  echo "ERROR: backup manifest not found: $MANIFEST" >&2
+SUMS="$ROOT/backups/$NAME/SHA256SUMS"
+if [[ ! -s "$MANIFEST" || ! -s "$SUMS" ]]; then
+  echo "ERROR: backup manifest/checksums not found for: $NAME" >&2
   exit 3
 fi
+
+(
+  cd "$ROOT/backups/$NAME"
+  sha256sum -c SHA256SUMS
+)
 
 read_manifest() {
   python - "$MANIFEST" "$1" <<'PY'
@@ -41,7 +51,7 @@ PY
 SCHEMA="$(read_manifest schema)"
 BACKUP_SOURCE_COMMIT="$(read_manifest source_commit)"
 BACKUP_QUIESCED="$(read_manifest release_consistent_quiesce)"
-CURRENT_SOURCE_COMMIT="$(git rev-parse HEAD 2>/dev/null || echo unknown)"
+ROLLBACK_FROM_COMMIT="$(git rev-parse HEAD 2>/dev/null || echo unknown)"
 
 if [[ "$SCHEMA" != "grc-backup-manifest-v1" ]]; then
   echo "ERROR: unsupported backup manifest schema: $SCHEMA" >&2
@@ -51,12 +61,29 @@ if [[ "$BACKUP_QUIESCED" != "true" ]]; then
   echo "ERROR: release rollback requires a quiesced pre-upgrade backup." >&2
   exit 3
 fi
-if [[ "$CURRENT_SOURCE_COMMIT" != "$BACKUP_SOURCE_COMMIT" ]]; then
-  echo "ERROR: checkout commit $CURRENT_SOURCE_COMMIT does not match backup source $BACKUP_SOURCE_COMMIT." >&2
-  echo "Check out the exact backup source commit before rollback; the script will not change Git state for you." >&2
+if [[ ! "$BACKUP_SOURCE_COMMIT" =~ ^[0-9a-fA-F]{40}$ ]] || \
+   ! git cat-file -e "${BACKUP_SOURCE_COMMIT}^{commit}" 2>/dev/null; then
+  echo "ERROR: backup source commit is invalid or unavailable locally." >&2
+  exit 3
+fi
+if [[ "$ROLLBACK_FROM_COMMIT" == "$BACKUP_SOURCE_COMMIT" ]]; then
+  echo "Checkout is already at the backup source commit; proceeding with restore."
+else
+  echo "Switching checkout to exact rollback source commit: $BACKUP_SOURCE_COMMIT"
+  git switch --detach "$BACKUP_SOURCE_COMMIT"
+fi
+
+# The currently running Bash process retains the validated rollback wrapper even
+# after Git switches to the previous release. The restore script invoked below
+# is therefore the restore implementation that belongs to that exact release.
+# The backup directory and .env are ignored/untracked and remain available.
+export CONFIRM_RESTORE=YES
+unset RESTORE_ALLOW_FORWARD_COMPATIBLE
+
+if [[ ! -f scripts/pilot-restore.sh ]]; then
+  echo "ERROR: rollback source release does not contain scripts/pilot-restore.sh." >&2
   exit 4
 fi
 
-export CONFIRM_RESTORE=YES
-unset RESTORE_ALLOW_FORWARD_COMPATIBLE
+echo "Restoring backup $NAME under source release $BACKUP_SOURCE_COMMIT (from $ROLLBACK_FROM_COMMIT)."
 exec bash scripts/pilot-restore.sh "$NAME"
