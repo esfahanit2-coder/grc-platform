@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db.models import Q
 from django.utils import timezone
 from rest_framework import status, viewsets
@@ -51,8 +52,12 @@ class EvidenceViewSet(viewsets.ModelViewSet):
     def download(self,request,pk=None):
         obj=self.get_object()
         if not obj.storage_key: return Response({"detail":"Evidence has no stored file."},status=404)
+        scan_status=str((obj.metadata or {}).get("malware_scan_status") or "not_scanned").lower()
+        if getattr(settings,"EVIDENCE_REQUIRE_CLEAN_DOWNLOAD",False) and scan_status!="clean":
+            record_audit_event(request.user,self._tenant(),"evidence.download","evidence",obj.id,outcome="denied",metadata={"malware_scan_status":scan_status,"reason":"file_not_cleared"},request=request)
+            return Response({"code":"EVIDENCE_NOT_CLEARED","detail":"Evidence file is not cleared for download.","malware_scan_status":scan_status},status=status.HTTP_409_CONFLICT)
         url=S3ObjectStorage().presigned_get(obj.storage_key,expires=300)
-        record_audit_event(request.user,self._tenant(),"evidence.download","evidence",obj.id,request=request)
+        record_audit_event(request.user,self._tenant(),"evidence.download","evidence",obj.id,metadata={"malware_scan_status":scan_status},request=request)
         return Response({"url":url,"expires_in":300,"sha256":obj.sha256})
 
 

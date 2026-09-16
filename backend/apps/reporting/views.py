@@ -24,6 +24,7 @@ class ManagementDashboardView(APIView):
 
 from django.http import HttpResponse
 from rest_framework.exceptions import ValidationError
+from apps.audit.services import record_audit_event
 from apps.documents.models import ReportTemplate
 from apps.identity.services import require_whole_tenant_permission
 from .template_engine import render_html,render_pdf
@@ -36,10 +37,15 @@ class TemplateRenderView(APIView):
         html_template=(template.configuration or {}).get('html_template')
         if not html_template: raise ValidationError('Template configuration has no html_template.')
         context=request.data.get('context') or {};fmt=str(request.data.get('format','html')).lower()
+        if fmt not in {'html','pdf'}: raise ValidationError({'format':'Only html and pdf report formats are supported.'})
         try:
             if fmt=='pdf':
                 payload,_=render_pdf(html_template,context,(template.configuration or {}).get('css',''))
+                record_audit_event(request.user,t,'report.export','report_template',template.id,metadata={'format':'pdf'},request=request)
                 response=HttpResponse(payload,content_type='application/pdf');response['Content-Disposition']=f'attachment; filename="report-{template.id}.pdf"';return response
-            return HttpResponse(render_html(html_template,context),content_type='text/html; charset=utf-8')
+            payload=render_html(html_template,context)
+            record_audit_event(request.user,t,'report.export','report_template',template.id,metadata={'format':'html'},request=request)
+            return HttpResponse(payload,content_type='text/html; charset=utf-8')
         except Exception as exc:
+            record_audit_event(request.user,t,'report.export','report_template',template.id,outcome='failure',metadata={'format':fmt,'error_type':type(exc).__name__},request=request)
             raise ValidationError({'template':f'Render failed: {exc}'}) from exc

@@ -102,6 +102,11 @@ REST_FRAMEWORK = {
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 50,
+    "DEFAULT_THROTTLE_RATES": {
+        "auth_login": os.getenv("AUTH_LOGIN_RATE", "10/min"),
+        "auth_mfa": os.getenv("AUTH_MFA_RATE", "12/min"),
+        "auth_refresh": os.getenv("AUTH_REFRESH_RATE", "30/min"),
+    },
     # `format` is reserved by our export endpoints (for example RTP DOCX).
     # Disable DRF's query-parameter renderer override to avoid intercepting it.
     "URL_FORMAT_OVERRIDE": None,
@@ -156,6 +161,28 @@ AI_RAG_MODE = os.getenv("AI_RAG_MODE", "hybrid")  # lexical | semantic | hybrid
 AI_EMBED_BATCH_SIZE = int(os.getenv("AI_EMBED_BATCH_SIZE", "32"))
 CONNECTOR_HTTP_TIMEOUT = int(os.getenv("CONNECTOR_HTTP_TIMEOUT", "30"))
 CONNECTOR_MAX_RESPONSE_BYTES = int(os.getenv("CONNECTOR_MAX_RESPONSE_BYTES", str(5 * 1024 * 1024)))
+EVIDENCE_REQUIRE_CLEAN_DOWNLOAD = os.getenv(
+    "EVIDENCE_REQUIRE_CLEAN_DOWNLOAD",
+    "1" if APP_ENV == "production" else "0",
+) == "1"
+
+# Security throttles must be shared across production workers. Django's native
+# Redis cache backend keeps login/MFA counters process-independent; tests and
+# development remain self-contained with LocMemCache.
+if APP_ENV == "production":
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.redis.RedisCache",
+            "LOCATION": os.getenv("AUTH_THROTTLE_REDIS_URL", os.getenv("REDIS_URL", "redis://redis:6379/0")),
+        }
+    }
+else:
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+            "LOCATION": "grc-security-throttles",
+        }
+    }
 
 CELERY_BEAT_SCHEDULE = {
     "overdue-action-notifications-hourly": {

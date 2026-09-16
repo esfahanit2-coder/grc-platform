@@ -90,6 +90,9 @@ class MFADevice(UUIDTimeStampedModel):
     is_active = models.BooleanField(default=False)
     confirmed_at = models.DateTimeField(null=True, blank=True)
     last_used_at = models.DateTimeField(null=True, blank=True)
+    # Highest accepted TOTP time-step. Persisted so an accepted code cannot be
+    # replayed across workers or requests during the same validity window.
+    last_used_step = models.BigIntegerField(null=True, blank=True, editable=False)
 
     class Meta:
         ordering = ["-is_active", "created_at"]

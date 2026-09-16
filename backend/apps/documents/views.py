@@ -39,7 +39,8 @@ class DocumentVersionViewSet(TM,viewsets.ModelViewSet):
     def submit(self,request,pk=None):
         v=self.get_object();t=self._tenant();d=v.document;require_tenant_permission(request.user,t,'document.manage',d.organization_unit) if d.organization_unit else require_whole_tenant_permission(request.user,t,'document.manage');v.status=DocumentVersion.Status.REVIEW;v.save(update_fields=['status','updated_at']);d.status=Document.Status.REVIEW;d.save(update_fields=['status','updated_at']);return Response(self.get_serializer(v).data)
     @action(detail=True,methods=['get'])
-    def export(self,request,pk=None): return document_docx(self.get_object())
+    def export(self,request,pk=None):
+        v=self.get_object();t=self._tenant();record_audit_event(request.user,t,'document.export','document_version',v.id,metadata={'document_id':str(v.document_id),'format':'docx'},request=request);return document_docx(v)
 class DocumentApprovalViewSet(TM,viewsets.ModelViewSet):
     serializer_class=DocumentApprovalSerializer
     def get_queryset(self):
@@ -64,4 +65,4 @@ class SoAViewSet(TM,viewsets.ViewSet):
     def generate(self,request,assessment_id=None):
         t=self._tenant();a=Assessment.objects.select_related('organization_unit','framework_version').filter(id=assessment_id,tenant=t,deleted_at__isnull=True).first();
         if not a: raise ValidationError('Assessment not found.')
-        require_tenant_permission(request.user,t,'report.generate',a.organization_unit) if a.organization_unit else require_whole_tenant_permission(request.user,t,'report.generate');return soa_docx(a)
+        require_tenant_permission(request.user,t,'report.generate',a.organization_unit) if a.organization_unit else require_whole_tenant_permission(request.user,t,'report.generate');record_audit_event(request.user,t,'report.export','assessment',a.id,metadata={'report':'soa','format':'docx','framework_version_id':str(a.framework_version_id)},request=request);return soa_docx(a)
