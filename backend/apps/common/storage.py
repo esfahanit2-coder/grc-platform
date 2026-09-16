@@ -1,14 +1,20 @@
 from dataclasses import dataclass
 from typing import BinaryIO
+
 import boto3
 from django.conf import settings
+
 
 class ObjectStorage:
     def put(self, key: str, fileobj: BinaryIO, content_type: str | None = None) -> None:
         raise NotImplementedError
 
+    def open_read(self, key: str) -> BinaryIO:
+        raise NotImplementedError
+
     def presigned_get(self, key: str, expires: int = 300) -> str:
         raise NotImplementedError
+
 
 @dataclass
 class S3ObjectStorage(ObjectStorage):
@@ -27,6 +33,12 @@ class S3ObjectStorage(ObjectStorage):
     def put(self, key: str, fileobj: BinaryIO, content_type: str | None = None) -> None:
         extra = {"ContentType": content_type} if content_type else {}
         self._client().upload_fileobj(fileobj, self.bucket, key, ExtraArgs=extra)
+
+    def open_read(self, key: str) -> BinaryIO:
+        # boto3 StreamingBody implements read()/close() and lets security
+        # integrations inspect large Evidence objects without writing them to
+        # the local filesystem or loading the whole object into application RAM.
+        return self._client().get_object(Bucket=self.bucket, Key=key)["Body"]
 
     def presigned_get(self, key: str, expires: int = 300) -> str:
         return self._client().generate_presigned_url(
