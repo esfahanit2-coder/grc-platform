@@ -1,12 +1,18 @@
+from unittest.mock import patch
+
 from django.contrib.auth import get_user_model
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import override_settings
 from rest_framework.test import APITestCase
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from apps.assessments.models import Assessment, AssessmentItem
+from apps.audit.models import AuditEvent
 from apps.frameworks.models import Framework, FrameworkVersion, Requirement
 from apps.organizations.models import OrganizationUnit
 from apps.tenancy.models import Tenant, TenantMembership
 from .models import Evidence, EvidenceLink
+from .services import store_uploaded_evidence
 
 User=get_user_model()
 
@@ -30,3 +36,41 @@ class EvidenceTests(APITestCase):
         other_item=AssessmentItem.objects.create(assessment=other_assessment,requirement=self.item1.requirement,requirement_code_snapshot='1',requirement_title_snapshot='One')
         r=self.client.post('/api/v1/evidence-links/',{'evidence':str(self.evidence.id),'object_type':'assessment_item','object_id':str(other_item.id)},format='json',**self.headers)
         self.assertEqual(r.status_code,400)
+
+    @patch('apps.evidence.services.S3ObjectStorage.put')
+    def test_new_upload_cannot_self_assert_clean_scan_status(self, put):
+        self.evidence.metadata={'malware_scan_status':'clean'}
+        self.evidence.save(update_fields=['metadata','updated_at'])
+        uploaded=SimpleUploadedFile('policy.pdf',b'%PDF-synthetic',content_type='application/pdf')
+        store_uploaded_evidence(self.evidence,uploaded)
+        self.evidence.refresh_from_db()
+        self.assertEqual(self.evidence.metadata['malware_scan_status'],'pending')
+        self.assertTrue(self.evidence.metadata['malware_scan_required'])
+        put.assert_called_once()
+
+    @patch('apps.evidence.services.S3ObjectStorage.put')
+    def test_active_html_upload_is_rejected_before_storage(self, put):
+        uploaded=SimpleUploadedFile('evidence.html',b'<script>alert(1)</script>',content_type='text/html')
+        with self.assertRaisesMessage(Exception,'Active or executable file types are not accepted as evidence'):
+            store_uploaded_evidence(self.evidence,uploaded)
+        put.assert_not_called()
+
+    @override_settings(EVIDENCE_REQUIRE_CLEAN_DOWNLOAD=True)
+    @patch('apps.evidence.views.S3ObjectStorage.presigned_get')
+    def test_uncleared_file_download_fails_closed_and_is_audited(self, presigned_get):
+        self.evidence.storage_key='tenant/test/evidence.bin';self.evidence.sha256='a'*64;self.evidence.metadata={'malware_scan_status':'pending'};self.evidence.save(update_fields=['storage_key','sha256','metadata','updated_at'])
+        response=self.client.get(f'/api/v1/evidence/{self.evidence.id}/download/',**self.headers)
+        self.assertEqual(response.status_code,409)
+        self.assertEqual(response.data['code'],'EVIDENCE_NOT_CLEARED')
+        presigned_get.assert_not_called()
+        self.assertTrue(AuditEvent.objects.filter(tenant=self.tenant,action='evidence.download',outcome='denied',object_id=self.evidence.id).exists())
+
+    @override_settings(EVIDENCE_REQUIRE_CLEAN_DOWNLOAD=True)
+    @patch('apps.evidence.views.S3ObjectStorage.presigned_get',return_value='https://storage.example/signed')
+    def test_clean_file_download_is_allowed_and_audited(self, presigned_get):
+        self.evidence.storage_key='tenant/test/evidence.bin';self.evidence.sha256='b'*64;self.evidence.metadata={'malware_scan_status':'clean'};self.evidence.save(update_fields=['storage_key','sha256','metadata','updated_at'])
+        response=self.client.get(f'/api/v1/evidence/{self.evidence.id}/download/',**self.headers)
+        self.assertEqual(response.status_code,200)
+        self.assertEqual(response.data['url'],'https://storage.example/signed')
+        presigned_get.assert_called_once()
+        self.assertTrue(AuditEvent.objects.filter(tenant=self.tenant,action='evidence.download',outcome='success',object_id=self.evidence.id).exists())
