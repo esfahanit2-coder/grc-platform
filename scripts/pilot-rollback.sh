@@ -50,6 +50,7 @@ PY
 
 SCHEMA="$(read_manifest schema)"
 BACKUP_SOURCE_COMMIT="$(read_manifest source_commit)"
+BACKUP_RELEASE_VERSION="$(read_manifest release_version)"
 BACKUP_QUIESCED="$(read_manifest release_consistent_quiesce)"
 ROLLBACK_FROM_COMMIT="$(git rev-parse HEAD 2>/dev/null || echo unknown)"
 
@@ -66,6 +67,10 @@ if [[ ! "$BACKUP_SOURCE_COMMIT" =~ ^[0-9a-fA-F]{40}$ ]] || \
   echo "ERROR: backup source commit is invalid or unavailable locally." >&2
   exit 3
 fi
+if [[ -z "$BACKUP_RELEASE_VERSION" || "$BACKUP_RELEASE_VERSION" == "unknown" ]]; then
+  echo "ERROR: release rollback requires a recorded source release version." >&2
+  exit 3
+fi
 if [[ "$ROLLBACK_FROM_COMMIT" == "$BACKUP_SOURCE_COMMIT" ]]; then
   echo "Checkout is already at the backup source commit; proceeding with restore."
 else
@@ -78,6 +83,7 @@ fi
 # is therefore the restore implementation that belongs to that exact release.
 # The backup directory and .env are ignored/untracked and remain available.
 export CONFIRM_RESTORE=YES
+export GRC_RELEASE_VERSION="$BACKUP_RELEASE_VERSION"
 unset RESTORE_ALLOW_FORWARD_COMPATIBLE
 
 if [[ ! -f scripts/pilot-restore.sh ]]; then
@@ -85,5 +91,5 @@ if [[ ! -f scripts/pilot-restore.sh ]]; then
   exit 4
 fi
 
-echo "Restoring backup $NAME under source release $BACKUP_SOURCE_COMMIT (from $ROLLBACK_FROM_COMMIT)."
+echo "Restoring backup $NAME under source release $BACKUP_RELEASE_VERSION / $BACKUP_SOURCE_COMMIT (from $ROLLBACK_FROM_COMMIT)."
 exec bash scripts/pilot-restore.sh "$NAME"

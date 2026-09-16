@@ -94,17 +94,21 @@ Repo اکنون شامل موارد زیر است:
 
 Replication/Failover واقعی و RPO/RTO اندازه‌گیری‌شده همچنان باید در محیط واقعی و تحت #7 اثبات شوند و CI هیچ ادعایی درباره آن‌ها ندارد.
 
-### #22 Offline Release Bundle و Support — برنامه‌ریزی‌شده قبل از v1
+### #22 Offline Release Bundle و Support — کامل از نظر Software/Tooling Contract
 
-**هدف:** نصب، Update و Support در محیط Disconnect باید deterministic باشد.
+Repo اکنون شامل موارد زیر است:
+- Release Manifest قطعی با SHA-256/Size دقیق Payload و ردکردن File اضافه/کم‌شده یا Tamper؛
+- امضای Detached با OpenSSL، با Private Key خارج از Git/CI و Trust Anchor عمومی که از کانال مستقل به Operator می‌رسد؛
+- Archive دقیق Imageهای Backend/Frontend و Infrastructure Pin‌شده به‌همراه Verification بر اساس Docker Image ID؛
+- Git Source Bundle دقیق، CycloneDX SBOM، Migration Inventory و Configuration Schema عمومی؛
+- Reference/Digest برای Security Reportهای نگه‌داری‌شده، بدون قراردادن Raw Secret-scan Output در Media توزیع؛
+- Install/Update آفلاین که قبل از Mutation امضا را Verify می‌کند و فقط از Imageهای Preloaded با `--no-build` استفاده می‌کند؛
+- اتصال Upgrade آفلاین به مسیر Fail-closed و Rollback مبتنی بر Backup/Release Version؛
+- Metadata مدل Local AI به‌صورت Reference-only تا Weightهای Third-party توسط این Release Process بازتوزیع نشوند؛
+- Operator/Support Handbook یکپارچه و Support Evidence Collector با حداقل‌سازی Secret/Customer Data؛
+- Self-test در CI/Release Gate برای Manifest قطعی، امضای Ephemeral، Verification و رد Tamper.
 
-خروجی لازم:
-- Image/Package/Manifest نسخه‌قفل‌شده؛
-- Checksum و Verification؛
-- SBOM و Security Artifact همراه Release؛
-- روش Offline Installation/Update؛
-- Operator/Support Handbook؛
-- Troubleshooting و Escalation Boundary.
+Custody واقعی کلید امضای Production/HSM و مشاهده نصب روی Host واقعاً Disconnect همچنان Evidence سازمان/محیط است و CI چنین ادعایی نمی‌کند.
 
 ### #8 Security Validation مستقل — Automated Hardening کامل، External Proof باقی مانده
 

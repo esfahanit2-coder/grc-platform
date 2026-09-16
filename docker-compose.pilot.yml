@@ -33,6 +33,7 @@ services:
     restart: unless-stopped
 
   backend:
+    image: grc-backend:${GRC_RELEASE_VERSION:-local}
     build: ./backend
     env_file:
       - "${PILOT_ENV_FILE:-.env}"
@@ -49,6 +50,7 @@ services:
     restart: unless-stopped
 
   worker:
+    image: grc-backend:${GRC_RELEASE_VERSION:-local}
     build: ./backend
     env_file:
       - "${PILOT_ENV_FILE:-.env}"
@@ -59,6 +61,7 @@ services:
     restart: unless-stopped
 
   beat:
+    image: grc-backend:${GRC_RELEASE_VERSION:-local}
     build: ./backend
     env_file:
       - "${PILOT_ENV_FILE:-.env}"
@@ -69,6 +72,7 @@ services:
     restart: unless-stopped
 
   frontend:
+    image: grc-frontend:${GRC_RELEASE_VERSION:-local}
     build: ./frontend
     environment:
       NEXT_PUBLIC_API_BASE_URL: /api/v1
@@ -98,6 +102,7 @@ services:
 
   ops:
     profiles: ["ops"]
+    image: grc-backend:${GRC_RELEASE_VERSION:-local}
     build: ./backend
     env_file:
       - "${PILOT_ENV_FILE:-.env}"
