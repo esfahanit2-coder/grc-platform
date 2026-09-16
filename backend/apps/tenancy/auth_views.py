@@ -7,6 +7,7 @@ from rest_framework import permissions, status
 from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
+from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenRefreshView
 
@@ -72,16 +73,55 @@ class CookieTokenRefreshView(TokenRefreshView):
         if not getattr(settings, "AUTH_COOKIE_MODE", False):
             return Response(payload)
         response = Response({"cookie_auth": True})
-        response.set_cookie(getattr(settings, "AUTH_ACCESS_COOKIE", "grc_access"), payload["access"], max_age=15*60, httponly=True, secure=bool(getattr(settings, "SESSION_COOKIE_SECURE", False)), samesite=getattr(settings, "AUTH_COOKIE_SAMESITE", "Strict"), path="/")
+        secure = bool(getattr(settings, "SESSION_COOKIE_SECURE", False))
+        samesite = getattr(settings, "AUTH_COOKIE_SAMESITE", "Strict")
+        response.set_cookie(
+            getattr(settings, "AUTH_ACCESS_COOKIE", "grc_access"),
+            payload["access"],
+            max_age=15 * 60,
+            httponly=True,
+            secure=secure,
+            samesite=samesite,
+            path="/",
+        )
+        if payload.get("refresh"):
+            response.set_cookie(
+                getattr(settings, "AUTH_REFRESH_COOKIE", "grc_refresh"),
+                payload["refresh"],
+                max_age=8 * 60 * 60,
+                httponly=True,
+                secure=secure,
+                samesite=samesite,
+                path="/api/v1/auth/token/refresh",
+            )
         return response
 
 
 class LogoutView(APIView):
     def post(self, request):
+        refresh_value = request.data.get("refresh") or request.COOKIES.get(
+            getattr(settings, "AUTH_REFRESH_COOKIE", "grc_refresh"), ""
+        )
+        refresh_revoked = False
+        if refresh_value:
+            try:
+                RefreshToken(str(refresh_value)).blacklist()
+                refresh_revoked = True
+            except TokenError:
+                # Logout remains idempotent and still clears local cookies. Invalid,
+                # expired or already-blacklisted refresh tokens cannot be reused.
+                refresh_revoked = False
         response = Response({"logged_out": True})
         response.delete_cookie(getattr(settings, "AUTH_ACCESS_COOKIE", "grc_access"), path="/")
         response.delete_cookie(getattr(settings, "AUTH_REFRESH_COOKIE", "grc_refresh"), path="/api/v1/auth/token/refresh")
-        record_audit_event(request.user, None, "auth.logout", "user", request=request)
+        record_audit_event(
+            request.user,
+            None,
+            "auth.logout",
+            "user",
+            metadata={"refresh_revoked": refresh_revoked},
+            request=request,
+        )
         return response
 
 
