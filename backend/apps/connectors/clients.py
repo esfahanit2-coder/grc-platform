@@ -37,7 +37,9 @@ def validate_secret_env_name(name):
 
 def _normalize_ip(address):
     ip = ipaddress.ip_address(address)
-    return ip.ipv4_mapped or ip
+    if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped:
+        return ip.ipv4_mapped
+    return ip
 
 
 def validate_network_target(hostname, port):
