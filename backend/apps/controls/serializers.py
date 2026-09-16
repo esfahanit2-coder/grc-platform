@@ -50,7 +50,7 @@ class ControlRequirementSerializer(serializers.ModelSerializer):
     class Meta:
         model = ControlRequirement
         fields = ["id", "control", "control_code", "requirement", "requirement_code", "framework_code", "coverage", "mapping_type", "rationale", "source", "approved", "created_at", "updated_at"]
-        read_only_fields = ["created_at", "updated_at"]
+        read_only_fields = ["approved", "created_at", "updated_at"]
     def validate(self, attrs):
         tenant = self.context["tenant"]
         control = attrs.get("control") or (self.instance.control if self.instance else None)

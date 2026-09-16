@@ -69,7 +69,7 @@ class ControlViewSet(TenantMixin, viewsets.ModelViewSet):
         if Control.objects.filter(tenant=tenant,code=code,deleted_at__isnull=True).exists(): raise ValidationError({"code":"Control code already exists."})
         clone=Control.objects.create(tenant=tenant,code=code,title=request.data.get("title") or source.title,description=source.description,objective=source.objective,category=source.category if source.category_id and source.category.tenant_id in {None,tenant.id} else None,control_type=source.control_type,nature=source.nature,frequency=source.frequency,automation_level=source.automation_level,status=Control.Status.DRAFT,metadata=source.metadata,created_by=request.user)
         for row in source.requirement_mappings.filter(deleted_at__isnull=True).filter(Q(tenant=tenant)|Q(tenant__isnull=True)):
-            ControlRequirement.objects.get_or_create(tenant=tenant,control=clone,requirement=row.requirement,defaults={"coverage":row.coverage,"mapping_type":row.mapping_type,"rationale":row.rationale,"source":"duplicated","approved":row.approved})
+            ControlRequirement.objects.get_or_create(tenant=tenant,control=clone,requirement=row.requirement,defaults={"coverage":row.coverage,"mapping_type":row.mapping_type,"rationale":row.rationale,"source":"duplicated","approved":False})
         return Response(self.get_serializer(clone).data, status=201)
 
 
@@ -82,15 +82,23 @@ class ControlRequirementViewSet(TenantMixin, viewsets.ModelViewSet):
         return qs
     def perform_create(self,serializer):
         tenant=self._tenant(); require_whole_tenant_permission(self.request.user,tenant,"control.manage")
-        obj=serializer.save(tenant=tenant); record_audit_event(self.request.user,tenant,"control_requirement.create","control_requirement",obj.id,request=self.request)
+        obj=serializer.save(tenant=tenant,approved=False); record_audit_event(self.request.user,tenant,"control_requirement.create","control_requirement",obj.id,new_data={"control":str(obj.control_id),"requirement":str(obj.requirement_id),"source":obj.source,"approved":False},request=self.request)
     def perform_update(self,serializer):
         tenant=self._tenant(); require_whole_tenant_permission(self.request.user,tenant,"control.manage")
         if serializer.instance.tenant_id!=tenant.id: raise PermissionDenied("Global mappings are read-only.")
-        serializer.save()
+        obj=serializer.save(approved=False); record_audit_event(self.request.user,tenant,"control_requirement.update","control_requirement",obj.id,new_data={"approved":False,"source":obj.source},request=self.request)
     def perform_destroy(self, instance):
         tenant=self._tenant(); require_whole_tenant_permission(self.request.user,tenant,"control.manage")
         if instance.tenant_id!=tenant.id: raise PermissionDenied("Global mappings are read-only.")
         instance.delete()
+    @action(detail=True,methods=["post"])
+    def approve(self,request,pk=None):
+        tenant=self._tenant(); require_whole_tenant_permission(request.user,tenant,"control.manage")
+        mapping=self.get_object()
+        if mapping.tenant_id!=tenant.id: raise PermissionDenied("Global mappings are read-only.")
+        mapping.approved=True; mapping.save(update_fields=["approved","updated_at"])
+        record_audit_event(request.user,tenant,"control_requirement.approve","control_requirement",mapping.id,new_data={"approved":True,"control":str(mapping.control_id),"requirement":str(mapping.requirement_id),"source":mapping.source},request=request)
+        return Response(self.get_serializer(mapping).data)
 
 
 class ControlImplementationViewSet(TenantMixin, viewsets.ModelViewSet):
