@@ -50,6 +50,13 @@ jobs:
       - run: python manage.py test apps.common.tests.GoldenPilotScenarioTests apps.connectors.tests.ConnectorEvidenceTests
       - run: python -m compileall .
       - run: cd .. && python scripts/static-check.py --skip-typescript
+      - name: Validate pilot compose, TLS override and ops scripts
+        working-directory: .
+        run: |
+          docker compose --env-file .env.pilot.example -f docker-compose.pilot.yml --profile local-ai --profile ops config >/dev/null
+          docker compose --env-file .env.pilot.example -f docker-compose.pilot.yml -f docker-compose.pilot.tls.yml --profile local-ai --profile ops config >/dev/null
+          bash -n scripts/pilot-backup.sh
+          bash -n scripts/pilot-restore.sh
 
   frontend:
     runs-on: ubuntu-latest
