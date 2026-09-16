@@ -27,6 +27,9 @@ No chat transcript is considered canonical after the decision has been consolida
 | `USER_JOURNEYS_FA.md` | Persian primary user journeys and acceptance intent |
 | `COMPETITIVE_LANDSCAPE.md` | Competitor references and the product lessons retained from earlier research |
 | `DECISION_LOG.md` | Stable product/architecture decisions that must not be casually reversed |
+| `AI_AUTOMATION_DIRECTION.md` | Detailed AI/RAG/automation authority, safety and evaluation direction |
+| `CONNECTOR_STRATEGY.md` | Connector contract, security boundaries, evidence model and provider direction |
+| `UX_PRODUCT_SPEC_FA.md` | Persian/RTL enterprise UX specification and screen-level principles |
 | `DEVELOPER_HANDOVER_EN.md` | English onboarding/handover guide |
 | `DEVELOPER_HANDOVER_FA.md` | Persian onboarding/handover guide |
 
