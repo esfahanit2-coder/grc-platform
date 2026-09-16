@@ -1,6 +1,7 @@
 from django.contrib.auth import get_user_model
 from rest_framework.test import APITestCase
 from rest_framework_simplejwt.tokens import RefreshToken
+from apps.audit.models import AuditEvent
 from apps.frameworks.models import Framework,FrameworkVersion,Requirement
 from apps.organizations.models import OrganizationUnit
 from apps.tenancy.models import Tenant,TenantMembership
@@ -18,8 +19,19 @@ class ControlEngineTests(APITestCase):
     def test_one_control_maps_to_multiple_frameworks(self):
         c=Control.objects.create(tenant=self.tenant,code='IAM-001',title='MFA',status='active',created_by=self.user)
         for req in [self.r1,self.r2]:
-            response=self.client.post('/api/v1/control-requirements/',{'control':str(c.id),'requirement':str(req.id),'coverage':'100','mapping_type':'strong','approved':True},format='json',**self.headers);self.assertEqual(response.status_code,201)
+            response=self.client.post('/api/v1/control-requirements/',{'control':str(c.id),'requirement':str(req.id),'coverage':'100','mapping_type':'strong'},format='json',**self.headers);self.assertEqual(response.status_code,201);self.assertFalse(response.json()['approved'])
         self.assertEqual(ControlRequirement.objects.filter(control=c,tenant=self.tenant).values('requirement__framework_version__framework').distinct().count(),2)
+    def test_common_control_mapping_requires_explicit_audited_approval(self):
+        c=Control.objects.create(tenant=self.tenant,code='GOV-001',title='Governance ownership',status='active',created_by=self.user)
+        created=self.client.post('/api/v1/control-requirements/',{'control':str(c.id),'requirement':str(self.r1.id),'coverage':'100','mapping_type':'strong','source':'human-reviewed-crosswalk','rationale':'Pilot crosswalk provenance','approved':True},format='json',**self.headers)
+        self.assertEqual(created.status_code,201);self.assertFalse(created.json()['approved'])
+        mapping_id=created.json()['id']
+        approved=self.client.post(f'/api/v1/control-requirements/{mapping_id}/approve/',{},format='json',**self.headers)
+        self.assertEqual(approved.status_code,200);self.assertTrue(approved.json()['approved'])
+        event=AuditEvent.objects.get(tenant=self.tenant,action='control_requirement.approve',object_id=mapping_id)
+        self.assertEqual(event.actor,self.user);self.assertEqual(event.new_data['approved'],True);self.assertEqual(event.new_data['source'],'human-reviewed-crosswalk')
+        changed=self.client.patch(f'/api/v1/control-requirements/{mapping_id}/',{'rationale':'Updated rationale'},format='json',**self.headers)
+        self.assertEqual(changed.status_code,200);self.assertFalse(changed.json()['approved'])
     def test_cross_tenant_implementation_is_rejected(self):
         c=Control.objects.create(tenant=self.tenant,code='CTL-1',title='Control',status='active',created_by=self.user)
         response=self.client.post('/api/v1/control-implementations/',{'control':str(c.id),'organization_unit':str(self.unit_b.id),'owner':self.user.id,'implementation_status':'implemented','effectiveness':'effective'},format='json',**self.headers)
