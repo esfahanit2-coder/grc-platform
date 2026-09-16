@@ -2,7 +2,7 @@
 
 A sovereign, framework-agnostic, AI-ready Governance, Risk & Compliance platform designed for Persian/English enterprise use, on-premise and air-gapped deployments.
 
-> **Status:** Pilot Candidate — not yet a production release.
+> **Status:** Pilot Candidate / pre-RC hardening — not yet a production release.
 
 ## Why this project exists
 
@@ -29,6 +29,7 @@ A common control can be implemented once and mapped to many requirements. Eviden
 - Permission-safe RAG with pgvector pilot support and lexical fallback.
 - Human-reviewed AI suggestions.
 - Read-only pilot connectors for AD/LDAP, Tenable/Nessus, Veeam and FortiGate.
+- Live tenant-scoped management dashboard and connector operations UI.
 - Docker/on-premise and air-gapped design path.
 
 ## Core architecture
@@ -44,6 +45,12 @@ Authorized Data -> Permission-safe RAG -> AI -> Suggestion -> Human Review
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) and the ADRs under `docs/`.
 
+## Canonical product knowledge
+
+The bilingual product brain, feature map, detailed roadmap, user journeys, competitive-landscape lessons, AI/connector direction and developer handover are indexed in [`docs/product/README.md`](docs/product/README.md).
+
+Use those documents for product intent and rationale; use merged `main` code for actual current behavior.
+
 ## Technology
 
 - Backend: Python / Django 5.2 LTS / Django REST Framework
@@ -57,7 +64,7 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) and the ADRs under `docs/`.
 
 ## Quick start
 
-A real tagged release is intentionally blocked until the frontend lockfile is generated and committed in a connected environment.
+The frontend lockfile is committed and reproducible npm builds are part of CI/release gating. Tagged/manual releases remain blocked by the configured runtime/security/release gates until all required checks pass.
 
 For development/pilot use:
 
@@ -99,22 +106,22 @@ scripts/             Validation/bootstrap utilities
 
 ## Pilot workflow
 
-1. Run CI against PostgreSQL/pgvector.
-2. Generate and commit `frontend/package-lock.json`.
-3. Bring up a clean pilot environment.
-4. Run Golden E2E scenario.
-5. Import an authorized framework pack.
-6. Run a real assessment with evidence/findings/actions.
-7. Generate RTP/SoA/audit outputs.
-8. Validate local AI.
-9. Validate AD/FortiGate/Veeam/Tenable evidence connectors.
-10. Validate backup/restore and TLS/cookie hardening.
+1. Run CI against PostgreSQL/pgvector and confirm reproducible backend/frontend builds.
+2. Bring up a clean pilot environment.
+3. Run Golden E2E scenario.
+4. Import an authorized framework pack.
+5. Run a real assessment with evidence/findings/actions.
+6. Generate RTP/SoA/audit outputs.
+7. Validate local AI.
+8. Validate AD/FortiGate/Veeam/Tenable evidence connectors.
+9. Validate backup/restore, RPO/RTO and TLS/cookie hardening.
+10. Complete the remaining pre-RC performance, HA/DR, offline-release and independent security validation gates.
 
-See [ROADMAP.md](ROADMAP.md), [docs/PILOT_PLAN.md](docs/PILOT_PLAN.md), and [RELEASE_BLOCKERS.md](RELEASE_BLOCKERS.md).
+See [ROADMAP.md](ROADMAP.md), [docs/product/ROADMAP_DETAILED_EN.md](docs/product/ROADMAP_DETAILED_EN.md), [docs/product/ROADMAP_DETAILED_FA.md](docs/product/ROADMAP_DETAILED_FA.md), [docs/PILOT_PLAN.md](docs/PILOT_PLAN.md), and [RELEASE_BLOCKERS.md](RELEASE_BLOCKERS.md).
 
 ## Licensing and standards content
 
-Do **not** commit or redistribute copyrighted ISO/COBIT content unless the project has appropriate rights. The platform supports licensed and customer-provided content packs specifically so product code can remain independent of restricted standards text.
+Do **not** commit or redistribute copyrighted ISO/COBIT/AFTA or other restricted content unless the project has appropriate rights. The platform supports licensed and customer-provided content packs specifically so product code can remain independent of restricted standards text.
 
 ## Security
 

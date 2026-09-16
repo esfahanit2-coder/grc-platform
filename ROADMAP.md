@@ -2,7 +2,9 @@
 
 ## Current state: Pilot Candidate / pre-RC hardening
 
-Implemented foundations include multi-tenancy, scoped RBAC, MFA, framework engine, common controls, asset/risk management, assessments, evidence, findings/CAPA, audit/workpapers, control testing, documents/report factory, workflows, notifications, AI gateway, permission-safe RAG and read-only pilot connectors.
+Implemented foundations include multi-tenancy, scoped RBAC, MFA, framework engine, common controls, asset/risk management, assessments, evidence, findings/CAPA, audit/workpapers, control testing, documents/report factory, workflows, notifications, AI gateway, permission-safe RAG, read-only pilot connectors, a live operational dashboard and Connector Operations UI.
+
+For the rationale, Definition of Done and Persian/English explanations behind these gates, see `docs/product/ROADMAP_DETAILED_EN.md` and `docs/product/ROADMAP_DETAILED_FA.md`.
 
 ## Gate 0 — Repository and CI normalization — complete
 
@@ -30,19 +32,19 @@ Implemented foundations include multi-tenancy, scoped RBAC, MFA, framework engin
 - [ ] Approve at least one real AFTA/ISMS/internal Common Control mapping with human review. (#5)
 - [x] Produce SoA, RTP and audit/report outputs in the Golden E2E engine.
 
-## Gate 3 — Connector pilot — implementation complete, live proof pending
+## Gate 3 — Connector pilot — implementation/UI complete, live proof pending
 
 - [x] AD/LDAP provider contract, normalization and security boundaries.
 - [x] FortiGate provider contract, normalization and security boundaries.
 - [x] Veeam provider contract, normalization and security boundaries.
 - [x] Tenable/Nessus provider contract, normalization and security boundaries.
 - [x] Secret-reference, SSRF, read-only Evidence provenance and human-review guardrails.
-- [ ] Add production operational dashboard and connector health/sync history UI. (#19)
+- [x] Add production operational dashboard and connector health/sync history UI. (#19)
 - [ ] Run authorized live health/sync and create real Evidence from at least three connector types. (#6)
 
 ## Gate 4 — v1.0 Release Candidate
 
-- [ ] Replace remaining production-facing demo UI and complete critical operational UI polish. (#19)
+- [x] Remove production-facing demo dashboard values and complete the first critical operational UI batch. (#19)
 - [ ] Establish repeatable performance/load validation and pilot engineering budgets. (#20)
 - [ ] Complete/schedule independent penetration testing and final security sign-off. (#8)
 - [ ] Publish HA/DR reference topology and rehearse upgrade/rollback behavior. (#21)
