@@ -11,7 +11,7 @@ This document is the implementation/runbook record for Issue #21. It deliberatel
 - a pull request can rehearse the forward migration from its base commit to its head commit against disposable PostgreSQL 18 + pgvector;
 - a pre-upgrade backup can quiesce application writers and record the deployed source commit, PostgreSQL major version, checksums and object-store archive metadata;
 - restore refuses checksum failures, unsupported manifest schemas, PostgreSQL-major mismatches and unapproved cross-version paths;
-- rollback requires the checkout to match the exact source commit recorded in the pre-upgrade backup;
+- rollback validates the backup, switches the clean checkout to the exact source commit recorded in the pre-upgrade backup and invokes that release's restore implementation;
 - an ancestor backup may be restored into a newer checkout only with explicit forward-compatible approval and another migration-safety audit.
 
 ### Reference architecture assumptions, not CI proof
@@ -120,7 +120,7 @@ For pull requests, CI uses the PR base commit as the rehearsal baseline. This is
 
 ## 5. Backup compatibility contract
 
-`scripts/pilot-backup.sh` now writes `backup-manifest.json` with schema `grc-backup-manifest-v1`, including:
+`scripts/pilot-backup.sh` writes `backup-manifest.json` with schema `grc-backup-manifest-v1`, including:
 
 - backup name and timestamp;
 - deployed source commit;
@@ -173,29 +173,37 @@ Do not delete the pre-upgrade backup until the release observation window is for
 
 ## 7. Rollback procedure
 
-Rollback uses the source commit recorded in the quiesced pre-upgrade backup. The rollback helper intentionally does **not** modify Git state.
+Rollback uses the source commit recorded in the quiesced pre-upgrade backup and is intentionally destructive. Run the helper from the current/failed target checkout; do **not** manually switch to the old commit first because older releases may not contain the current rollback wrapper.
 
-1. Read `backups/<name>/backup-manifest.json` and identify `source_commit`.
-2. Check out that exact commit using the organization's approved deployment procedure.
-3. Confirm configuration/TLS paths appropriate to the host.
-4. Run:
+Prerequisites:
+
+- the pre-upgrade backup is present and checksum-verifiable;
+- the repository has no tracked working-tree changes;
+- the backup source commit is available in the local Git object database;
+- incident/change approval has authorized rollback.
+
+Run:
 
 ```bash
 CONFIRM_ROLLBACK=YES \
   bash scripts/pilot-rollback.sh pre-upgrade-001
 ```
 
-The helper refuses to continue unless:
+The helper:
 
-- the backup manifest is supported;
-- the backup was made with release-consistent quiescing; and
-- current `git HEAD` exactly matches the backup source commit.
+1. verifies `SHA256SUMS` before changing Git state;
+2. validates the backup manifest and requires a release-consistent quiesced backup;
+3. validates that the recorded source commit exists locally;
+4. switches the clean checkout to that **exact** source commit in detached-HEAD mode when needed;
+5. invokes `scripts/pilot-restore.sh` from that exact source release.
 
-It then invokes the destructive restore path, which also verifies checksums and PostgreSQL-major compatibility before restoring data.
+The currently running rollback wrapper remains in the active Bash process across the Git switch, while the restore implementation executed afterward comes from the release that created the application state being restored. The ignored `backups/` directory and `.env` remain outside tracked Git state.
+
+After service recovery, record the rollback/incident evidence and deliberately return the repository to the organization's normal deployment branch/ref before the next release operation.
 
 ## 8. Forward-compatible disaster recovery
 
-Normal release rollback requires exact commit equality. A different case is restoring an **older** compatible backup into a newer application checkout during disaster recovery.
+Normal release rollback restores the previous release under its exact source commit. A different case is restoring an **older** compatible backup into a newer application checkout during disaster recovery.
 
 That is blocked by default. When deliberately approved, use:
 
