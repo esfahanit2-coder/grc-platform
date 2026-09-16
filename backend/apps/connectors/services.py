@@ -1,9 +1,11 @@
+import base64
 import hashlib
 import json
 import os
 import urllib.parse
 
 from django.utils import timezone
+from rest_framework.exceptions import ValidationError
 
 from apps.audit.services import record_audit_event
 from apps.evidence.models import Evidence
@@ -12,8 +14,9 @@ from .clients import connector_for, validate_secret_env_name
 from .models import ConnectorRun
 
 
-def _redacted_error(config, exc):
+def redacted_connector_error(config, exc):
     text = str(exc)
+    secret_values = []
     for env_name in (
         config.username_env_var,
         config.secret_env_var,
@@ -27,7 +30,20 @@ def _redacted_error(config, exc):
             continue
         value = os.getenv(env_name, "")
         if value:
-            text = text.replace(value, "[REDACTED]")
+            secret_values.append(value)
+
+    # Scrub common derived credential forms in addition to the raw values.
+    derived = set(secret_values)
+    for value in secret_values:
+        derived.add(urllib.parse.quote(value, safe=""))
+        derived.add(urllib.parse.quote_plus(value))
+    username = os.getenv(config.username_env_var, "") if config.username_env_var else ""
+    password = os.getenv(config.secret_env_var, "") if config.secret_env_var else ""
+    if username and password:
+        derived.add(base64.b64encode(f"{username}:{password}".encode("utf-8")).decode("ascii"))
+
+    for material in sorted((item for item in derived if item), key=len, reverse=True):
+        text = text.replace(material, "[REDACTED]")
     return text[:4000]
 
 
@@ -119,7 +135,7 @@ def run_connector(config, *, user, request=None):
         )
         return run, evidence
     except Exception as exc:
-        safe_error = _redacted_error(config, exc)
+        safe_error = redacted_connector_error(config, exc)
         run.status = ConnectorRun.Status.FAILED
         run.finished_at = timezone.now()
         run.error = safe_error
@@ -142,4 +158,4 @@ def run_connector(config, *, user, request=None):
             },
             request=request,
         )
-        raise
+        raise ValidationError(safe_error) from None
