@@ -48,7 +48,7 @@ For the rationale, Definition of Done and Persian/English explanations behind th
 - [x] Establish repeatable performance/load validation and pilot engineering budgets. (#20)
 - [ ] Complete/schedule independent penetration testing and final security sign-off. (#8)
 - [x] Publish HA/DR reference topology and rehearse upgrade/rollback behavior. (#21)
-- [ ] Build deterministic signed/verifiable offline release bundle process and support handbook. (#22)
+- [x] Build deterministic signed/verifiable offline release bundle process and support handbook. (#22)
 - [ ] Finish actual clean-host operational proof. (#7)
 - [ ] Finish authorized content/crosswalk proof. (#5)
 - [ ] Finish live connector proof. (#6)
