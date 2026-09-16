@@ -1,3 +1,4 @@
+import ipaddress
 import os
 import socket
 from unittest.mock import patch
@@ -10,7 +11,7 @@ from apps.evidence.models import Evidence
 from apps.organizations.models import OrganizationUnit
 from apps.tenancy.models import Tenant, TenantMembership
 
-from .clients import ConnectorResult, validate_http_base_url
+from .clients import ConnectorResult, _normalize_ip, validate_http_base_url
 from .models import ConnectorConfig, ConnectorRun
 from .serializers import ConnectorConfigSerializer
 from .services import run_connector
@@ -84,18 +85,30 @@ class ConnectorEvidenceTests(TestCase):
         self.assertEqual(cfg.last_status, "failed")
         self.assertEqual(cfg.last_error, run.error)
 
-    def test_serializer_rejects_literal_secret_and_url_credentials(self):
+    def test_serializer_rejects_literal_secret_reference(self):
         serializer = ConnectorConfigSerializer(
             data={
-                "name": "unsafe",
+                "name": "unsafe-secret",
                 "connector_type": ConnectorConfig.ConnectorType.FORTIGATE,
-                "base_url": "https://admin:password@fg.example",
+                "base_url": "https://fg.example",
                 "secret_env_var": "literal-secret!",
                 "configuration": {"read_paths": ["/api/v2/cmdb/system/global"]},
             }
         )
         self.assertFalse(serializer.is_valid())
         self.assertIn("secret_env_var", serializer.errors)
+
+    def test_serializer_rejects_url_credentials(self):
+        serializer = ConnectorConfigSerializer(
+            data={
+                "name": "unsafe-url",
+                "connector_type": ConnectorConfig.ConnectorType.FORTIGATE,
+                "base_url": "https://admin:password@fg.example",
+                "secret_env_var": "FG_TOKEN",
+                "configuration": {"read_paths": ["/api/v2/cmdb/system/global"]},
+            }
+        )
+        self.assertFalse(serializer.is_valid())
         self.assertIn("base_url", serializer.errors)
 
     def test_serializer_rejects_fortigate_host_escape_path(self):
@@ -110,6 +123,10 @@ class ConnectorEvidenceTests(TestCase):
         )
         self.assertFalse(serializer.is_valid())
         self.assertIn("configuration", serializer.errors)
+
+    def test_normalize_ipv4_mapped_ipv6(self):
+        self.assertEqual(_normalize_ip("10.10.20.30"), ipaddress.ip_address("10.10.20.30"))
+        self.assertEqual(_normalize_ip("::ffff:10.10.20.30"), ipaddress.ip_address("10.10.20.30"))
 
     @patch("apps.connectors.clients.socket.getaddrinfo")
     def test_http_target_blocks_loopback(self, getaddrinfo):
