@@ -45,8 +45,14 @@ Status values: **Implemented**, **Implemented / real-world proof pending**, **In
 | Reports | SoA | Generate Statement of Applicability from GRC data | Implemented |
 | Reports | RTP | Generate Risk Treatment Plan | Implemented |
 | Reports | Management/compliance/risk/audit outputs | Make data consumable by decision-makers | Implemented foundation; UX/report expansion ongoing |
+| Reports | DOCX/PDF/XLSX/CSV/JSON output direction | Support operational and management export needs across structured and document formats | Partial foundation; broader format coverage planned |
+| Reports | Configurable Template Designer | Let organizations control report/document layouts without hard-coding templates | Product target / post-v1 maturity |
 | Workflow | Generic assignment/due date/approval | Shared orchestration across modules | Implemented foundation |
+| Workflow | Cross-module Task Inbox / Work Center | Give users one view of assigned reviews, approvals, actions and due work | Retained product/UX target; not yet complete |
+| Workflow | Configurable workflow/indicator/model direction | Support organization-specific governance processes and management indicators | Foundation exists; broader configuration planned |
 | Notifications | User/system notifications | Surface tasks and events | Implemented foundation |
+| Integration | REST API integration surface | Allow approved systems/tools to integrate through the same authorization model | Implemented foundation |
+| Integration | MCP/tool adapter direction | Enable approved AI/tool orchestration without bypassing RBAC/audit boundaries | Retained direction / planned |
 | AI | Provider-independent AI gateway | Avoid vendor lock-in and support local/private AI | Implemented |
 | AI | Ollama/vLLM/OpenAI-compatible providers | Support cloud, private and air-gapped AI paths | Implemented foundation / real-host proof pending |
 | AI | AISuggestion / human review | Prevent AI from becoming authoritative business data | Implemented principle and supporting flows |
@@ -56,10 +62,11 @@ Status values: **Implemented**, **Implemented / real-world proof pending**, **In
 | Connectors | AD/LDAP read-only evidence connector | Collect identity/account facts | Implemented / live proof pending |
 | Connectors | FortiGate read-only connector | Collect security/network facts | Implemented / live proof pending |
 | Connectors | Veeam read-only connector | Collect backup/assurance facts | Implemented / live proof pending |
-| Connectors | Tenable/Nessus read-only connector | Collect vulnerability/scanning facts | Implemented / live proof pending |
+| Connectors | Tenable/Nessus read-only connector | Collect vulnerability/scanning facts from an external scanner; GRC is not itself the scanner | Implemented / live proof pending |
 | Connectors | Normalized Evidence contract | Make provider data reusable and auditable | Implemented |
 | Connectors | Health/sync/run history UI | Operate connectors without exposing secrets | Implemented |
 | Dashboard | Live tenant-scoped management dashboard | Replace demo data with authoritative operational metrics | Implemented |
+| Dashboard | Configurable management indicators/KPIs | Let organizations derive traceable management views from authoritative GRC data | Retained direction / expansion target |
 | Security | Auth throttling / TOTP anti-replay / CSRF boundaries | Reduce brute force/replay/browser attack surface | Implemented |
 | Security | Cross-tenant IDOR tests | Prove object identifiers do not bypass scope | Implemented |
 | Security | Report fetch/SSRF boundaries | Prevent renderer-driven network/local-file exposure | Implemented |
@@ -68,6 +75,7 @@ Status values: **Implemented**, **Implemented / real-world proof pending**, **In
 | Deployment | TLS reverse proxy | Production browser/security boundary | Implemented foundation / real-host proof pending |
 | Deployment | S3-compatible local storage | Sovereign local file storage | Implemented foundation |
 | Deployment | Local AI profile | Optional air-gapped AI runtime | Implemented foundation / no-egress proof pending |
+| Deployment | Explicit external-egress policy direction | Avoid assuming customer data may leave an on-prem/air-gapped environment | Product/deployment requirement |
 | Operations | Backup/restore tooling | Restore DB/object/config state after failure | Implemented foundation / destructive real drill pending |
 | Operations | RPO/RTO measurement | Quantify recoverability instead of assuming it | Real-world proof pending |
 | Performance | Query amplification/N+1 regression | Stop list APIs from degrading linearly with row count | In progress (#20) |
