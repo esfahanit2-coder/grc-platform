@@ -5,6 +5,7 @@ from django.middleware.csrf import get_token
 from django.utils import timezone
 from rest_framework import permissions, status
 from rest_framework.response import Response
+from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenRefreshView
@@ -12,7 +13,8 @@ from rest_framework_simplejwt.views import TokenRefreshView
 from apps.audit.services import record_audit_event
 from apps.identity.models import MFADevice
 from apps.identity.authentication import enforce_csrf
-from apps.identity.services import create_pending_mfa_device, tenant_requires_mfa, verify_mfa_device
+from apps.identity.mfa_security import verify_mfa_device_once
+from apps.identity.services import create_pending_mfa_device, tenant_requires_mfa
 
 User = get_user_model()
 CHALLENGE_SALT = "grc.mfa.challenge.v1"
@@ -54,6 +56,9 @@ def _auth_response(tokens, *, request=None, status_code=200):
 class CookieTokenRefreshView(TokenRefreshView):
     authentication_classes = []
     permission_classes = [permissions.AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "auth_refresh"
+
     def post(self, request, *args, **kwargs):
         data = request.data.copy() if hasattr(request.data, "copy") else dict(request.data)
         from_cookie = not data.get("refresh")
@@ -83,6 +88,8 @@ class LogoutView(APIView):
 class LoginView(APIView):
     permission_classes = [permissions.AllowAny]
     authentication_classes = []
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "auth_login"
 
     def post(self, request):
         username = str(request.data.get("username", "")).strip()
@@ -111,13 +118,15 @@ class LoginView(APIView):
 class MFAVerifyLoginView(APIView):
     permission_classes = [permissions.AllowAny]
     authentication_classes = []
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "auth_mfa"
 
     def post(self, request):
         user = _user_from_challenge(request.data.get("challenge", ""), "verify")
         if not user:
             return Response({"code": "INVALID_MFA_CHALLENGE", "message": "MFA challenge is invalid or expired."}, status=401)
         device = MFADevice.objects.filter(user=user, is_active=True).first()
-        if not device or not verify_mfa_device(device, request.data.get("otp")):
+        if not device or not verify_mfa_device_once(device, request.data.get("otp")):
             record_audit_event(user, None, "auth.mfa_verify", "user", metadata={"result": "failed"}, outcome="failure", request=request)
             return Response({"code": "INVALID_OTP", "message": "The verification code is invalid."}, status=401)
         tokens = _issue_tokens(user)
@@ -128,6 +137,8 @@ class MFAVerifyLoginView(APIView):
 class MFAEnrollChallengeView(APIView):
     permission_classes = [permissions.AllowAny]
     authentication_classes = []
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "auth_mfa"
 
     def post(self, request):
         user = _user_from_challenge(request.data.get("challenge", ""), "enroll")
@@ -142,13 +153,15 @@ class MFAEnrollChallengeView(APIView):
 class MFAEnrollVerifyView(APIView):
     permission_classes = [permissions.AllowAny]
     authentication_classes = []
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "auth_mfa"
 
     def post(self, request):
         user = _user_from_challenge(request.data.get("challenge", ""), "enroll_verify")
         if not user:
             return Response({"code": "INVALID_MFA_CHALLENGE", "message": "Enrollment challenge is invalid or expired."}, status=401)
         device = MFADevice.objects.filter(user=user, id=request.data.get("device_id"), is_active=False).first()
-        if not device or not verify_mfa_device(device, request.data.get("otp")):
+        if not device or not verify_mfa_device_once(device, request.data.get("otp")):
             return Response({"code": "INVALID_OTP", "message": "The verification code is invalid."}, status=400)
         device.is_active = True
         device.confirmed_at = timezone.now()
@@ -170,6 +183,9 @@ class MFAStatusView(APIView):
 
 
 class MFASetupView(APIView):
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "auth_mfa"
+
     def post(self, request):
         device, secret, uri = create_pending_mfa_device(request.user, str(request.data.get("name", "Authenticator"))[:100])
         record_audit_event(request.user, None, "auth.mfa_setup", "mfa_device", device.id, request=request)
@@ -177,9 +193,12 @@ class MFASetupView(APIView):
 
 
 class MFAConfirmView(APIView):
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "auth_mfa"
+
     def post(self, request):
         device = MFADevice.objects.filter(user=request.user, id=request.data.get("device_id"), is_active=False).first()
-        if not device or not verify_mfa_device(device, request.data.get("otp")):
+        if not device or not verify_mfa_device_once(device, request.data.get("otp")):
             return Response({"code": "INVALID_OTP", "message": "The verification code is invalid."}, status=400)
         device.is_active = True
         device.confirmed_at = timezone.now()
@@ -189,9 +208,12 @@ class MFAConfirmView(APIView):
 
 
 class MFADisableView(APIView):
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "auth_mfa"
+
     def post(self, request):
         device = MFADevice.objects.filter(user=request.user, is_active=True).first()
-        if not device or not verify_mfa_device(device, request.data.get("otp")):
+        if not device or not verify_mfa_device_once(device, request.data.get("otp")):
             return Response({"code": "INVALID_OTP", "message": "A valid OTP is required to disable MFA."}, status=400)
         MFADevice.objects.filter(user=request.user, is_active=True).update(is_active=False, updated_at=timezone.now())
         record_audit_event(request.user, None, "auth.mfa_disable", "user", request=request)
