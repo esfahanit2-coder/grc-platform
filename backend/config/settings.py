@@ -166,6 +166,19 @@ EVIDENCE_REQUIRE_CLEAN_DOWNLOAD = os.getenv(
     "1" if APP_ENV == "production" else "0",
 ) == "1"
 
+# Evidence malware scanning is deliberately disabled until an approved scanner
+# endpoint exists. Production download remains fail-closed while status is not
+# clean. clamd TCP provides no authentication or encryption; use only a trusted
+# private/protected network path or an equivalent approved transport boundary.
+EVIDENCE_MALWARE_SCANNER = os.getenv("EVIDENCE_MALWARE_SCANNER", "disabled").strip().lower()
+EVIDENCE_MALWARE_SCAN_AUTOSUBMIT = os.getenv("EVIDENCE_MALWARE_SCAN_AUTOSUBMIT", "1") == "1"
+EVIDENCE_MALWARE_SCAN_MAX_RETRIES = int(os.getenv("EVIDENCE_MALWARE_SCAN_MAX_RETRIES", "3"))
+EVIDENCE_MALWARE_SCAN_RETRY_SECONDS = int(os.getenv("EVIDENCE_MALWARE_SCAN_RETRY_SECONDS", "30"))
+CLAMD_HOST = os.getenv("CLAMD_HOST", "").strip()
+CLAMD_PORT = int(os.getenv("CLAMD_PORT", "3310"))
+CLAMD_TIMEOUT_SECONDS = float(os.getenv("CLAMD_TIMEOUT_SECONDS", "15"))
+CLAMD_CHUNK_SIZE = int(os.getenv("CLAMD_CHUNK_SIZE", str(1024 * 1024)))
+
 # Security throttles must be shared across production workers. Django's native
 # Redis cache backend keeps login/MFA counters process-independent; tests and
 # development remain self-contained with LocMemCache.
