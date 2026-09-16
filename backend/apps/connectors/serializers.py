@@ -37,6 +37,9 @@ class ConnectorConfigSerializer(serializers.ModelSerializer):
         configuration = attrs.get("configuration", getattr(instance, "configuration", {}) or {}) or {}
         verify_tls = attrs.get("verify_tls", getattr(instance, "verify_tls", True))
 
+        if not isinstance(configuration, dict):
+            raise serializers.ValidationError({"configuration": "Connector configuration must be an object."})
+
         for field in ("username_env_var", "secret_env_var", "secondary_secret_env_var"):
             value = attrs.get(field, getattr(instance, field, ""))
             try:
@@ -64,6 +67,8 @@ class ConnectorConfigSerializer(serializers.ModelSerializer):
                     {"configuration": f"FortiGate collection_profile must be one of {sorted(FORTIGATE_COLLECTION_PROFILES)}."}
                 )
             paths = configuration.get("read_paths") or []
+            if not isinstance(paths, list):
+                raise serializers.ValidationError({"configuration": "FortiGate read_paths must be a list."})
             if len(paths) > 10:
                 raise serializers.ValidationError({"configuration": "At most 10 FortiGate read paths are allowed."})
             if any(not isinstance(path, str) or not path.startswith("/api/v2/") for path in paths):
@@ -74,7 +79,10 @@ class ConnectorConfigSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError({"configuration": "AD connector requires configuration.host or base_url."})
             if not configuration.get("base_dn"):
                 raise serializers.ValidationError({"configuration": "AD connector requires configuration.base_dn."})
-            size_limit = int(configuration.get("size_limit", 5000))
+            try:
+                size_limit = int(configuration.get("size_limit", 5000))
+            except (TypeError, ValueError) as exc:
+                raise serializers.ValidationError({"configuration": "AD size_limit must be an integer."}) from exc
             if size_limit < 1 or size_limit > 10000:
                 raise serializers.ValidationError({"configuration": "AD size_limit must be between 1 and 10000."})
             privileged_groups = configuration.get("privileged_groups") or []
