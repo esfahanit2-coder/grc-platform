@@ -46,6 +46,10 @@ PY
 STARTED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 START_EPOCH="$(date +%s)"
 
+export PREVIOUS_BACKEND_IMAGE CANDIDATE_BACKEND_IMAGE ROLLBACK_STRATEGY
+export PREVIOUS_RELEASE_ID CANDIDATE_RELEASE_ID PREVIOUS_SOURCE_COMMIT CANDIDATE_SOURCE_COMMIT
+export STARTED_AT
+
 cleanup() {
   docker rm -f "$POSTGRES_CONTAINER" >/dev/null 2>&1 || true
   docker network rm "$NETWORK" >/dev/null 2>&1 || true
@@ -151,13 +155,18 @@ fi
 
 # Whether rollback used reverse migrations or backup restore, the database must now
 # exactly match the captured previous schema before a second forward pass.
-run_candidate python manage.py pilot_upgrade_guard preflight \
-  --baseline /rehearsal/baseline-schema.json \
-  --rollback-strategy "$ROLLBACK_STRATEGY" \
-  $([[ "$ROLLBACK_STRATEGY" == "restore" ]] && printf '%s' '--backup-verified') \
-  --release-id "$CANDIDATE_RELEASE_ID" \
-  --source-commit "$CANDIDATE_SOURCE_COMMIT" \
+AFTER_ROLLBACK_PREFLIGHT=(
+  python manage.py pilot_upgrade_guard preflight
+  --baseline /rehearsal/baseline-schema.json
+  --rollback-strategy "$ROLLBACK_STRATEGY"
+  --release-id "$CANDIDATE_RELEASE_ID"
+  --source-commit "$CANDIDATE_SOURCE_COMMIT"
   --report /rehearsal/preflight-after-rollback.json
+)
+if [[ "$ROLLBACK_STRATEGY" == "restore" ]]; then
+  AFTER_ROLLBACK_PREFLIGHT+=(--backup-verified)
+fi
+run_candidate "${AFTER_ROLLBACK_PREFLIGHT[@]}"
 
 echo "[7/8] Reapplying candidate migrations to prove repeatability..."
 run_candidate python manage.py migrate --noinput
@@ -169,6 +178,7 @@ run_candidate python manage.py pilot_upgrade_guard snapshot \
 
 COMPLETED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 DURATION="$(( $(date +%s) - START_EPOCH ))"
+export COMPLETED_AT DURATION
 python3 - "$WORKDIR" "$REPORT_PATH" <<'PY'
 import json
 import os
