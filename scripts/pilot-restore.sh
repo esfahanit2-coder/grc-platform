@@ -47,8 +47,10 @@ COMPOSE=(docker compose --env-file .env -f docker-compose.pilot.yml)
 if [[ "${PILOT_TLS:-NO}" == "YES" ]]; then
   COMPOSE+=(-f docker-compose.pilot.tls.yml)
 fi
+LOCAL_AI=0
 if [[ "${PILOT_LOCAL_AI:-NO}" == "YES" ]]; then
   COMPOSE+=(--profile local-ai)
+  LOCAL_AI=1
 fi
 
 START_EPOCH="$(date +%s)"
@@ -71,7 +73,11 @@ echo "[4/6] Restoring object storage..."
   --replace
 
 echo "[5/6] Starting application services and waiting for health..."
-"${COMPOSE[@]}" up -d --wait backend worker beat frontend gateway
+APP_SERVICES=(backend worker beat frontend gateway)
+if [[ "$LOCAL_AI" == "1" ]]; then
+  APP_SERVICES+=(ollama)
+fi
+"${COMPOSE[@]}" up -d --wait "${APP_SERVICES[@]}"
 
 READINESS=(python manage.py pilot_readiness)
 if [[ -n "${AI_PROVIDER_ID:-}" ]]; then
