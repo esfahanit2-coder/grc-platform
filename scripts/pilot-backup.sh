@@ -27,8 +27,10 @@ chmod 700 "$ROOT/backups" "$DEST" 2>/dev/null || true
 COMPOSE=(docker compose --env-file .env -f docker-compose.pilot.yml)
 START_EPOCH="$(date +%s)"
 START_ISO="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+SOURCE_COMMIT="$(git rev-parse HEAD 2>/dev/null || echo unknown)"
+RELEASE_ID="${GRC_RELEASE_VERSION:-$SOURCE_COMMIT}"
 
-echo "[1/5] Checking required services..."
+echo "[1/6] Checking required services..."
 "${COMPOSE[@]}" up -d postgres redis objectstore backend >/dev/null
 READY=0
 for _ in $(seq 1 12); do
@@ -44,7 +46,7 @@ if [[ "$READY" != "1" ]]; then
   exit 3
 fi
 
-echo "[2/5] Backing up PostgreSQL..."
+echo "[2/6] Backing up PostgreSQL..."
 "${COMPOSE[@]}" exec -T postgres sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc' > "$DEST/postgres.dump"
 
 if [[ ! -s "$DEST/postgres.dump" ]]; then
@@ -52,7 +54,7 @@ if [[ ! -s "$DEST/postgres.dump" ]]; then
   exit 3
 fi
 
-echo "[3/5] Backing up S3-compatible object storage..."
+echo "[3/6] Backing up S3-compatible object storage..."
 "${COMPOSE[@]}" --profile ops run --rm ops \
   python manage.py pilot_objectstore_archive export \
   --archive "/backups/$NAME/objectstore.zip"
@@ -62,18 +64,39 @@ if [[ ! -s "$DEST/objectstore.zip" ]]; then
   exit 3
 fi
 
-echo "[4/5] Capturing configuration and image manifest..."
+echo "[4/6] Capturing schema compatibility, configuration and image manifest..."
+"${COMPOSE[@]}" --profile ops run --rm ops \
+  python manage.py pilot_upgrade_guard snapshot \
+  --output "/backups/$NAME/schema-manifest.json" \
+  --release-id "$RELEASE_ID" \
+  --source-commit "$SOURCE_COMMIT"
+
+if [[ ! -s "$DEST/schema-manifest.json" ]]; then
+  echo "ERROR: schema compatibility manifest is missing or empty." >&2
+  exit 3
+fi
+
 install -m 600 .env "$DEST/config.env"
 install -m 600 docker-compose.pilot.yml "$DEST/docker-compose.pilot.yml"
 if [[ -f docker-compose.pilot.tls.yml ]]; then
   install -m 600 docker-compose.pilot.tls.yml "$DEST/docker-compose.pilot.tls.yml"
 fi
 "${COMPOSE[@]}" config --images | sort -u > "$DEST/images.txt"
-(git rev-parse HEAD 2>/dev/null || echo unknown) > "$DEST/source-commit.txt"
+printf '%s\n' "$SOURCE_COMMIT" > "$DEST/source-commit.txt"
+printf '%s\n' "$RELEASE_ID" > "$DEST/release-id.txt"
 
+echo "[5/6] Writing integrity manifest and observation metadata..."
 (
   cd "$DEST"
-  sha256sum postgres.dump objectstore.zip config.env docker-compose.pilot.yml images.txt source-commit.txt > SHA256SUMS
+  sha256sum \
+    postgres.dump \
+    objectstore.zip \
+    schema-manifest.json \
+    config.env \
+    docker-compose.pilot.yml \
+    images.txt \
+    source-commit.txt \
+    release-id.txt > SHA256SUMS
   if [[ -f docker-compose.pilot.tls.yml ]]; then
     sha256sum docker-compose.pilot.tls.yml >> SHA256SUMS
   fi
@@ -85,6 +108,9 @@ DURATION="$((END_EPOCH - START_EPOCH))"
 cat > "$DEST/backup-observation.json" <<EOF
 {
   "backup_name": "$NAME",
+  "release_id": "$RELEASE_ID",
+  "source_commit": "$SOURCE_COMMIT",
+  "schema_manifest": "schema-manifest.json",
   "started_at": "$START_ISO",
   "completed_at": "$END_ISO",
   "duration_seconds": $DURATION,
@@ -96,5 +122,5 @@ cat > "$DEST/backup-observation.json" <<EOF
 EOF
 chmod 600 "$DEST"/*
 
-echo "[5/5] Backup complete: $DEST"
+echo "[6/6] Backup complete: $DEST"
 echo "IMPORTANT: this directory contains config secrets. Store it only on approved encrypted backup media."
