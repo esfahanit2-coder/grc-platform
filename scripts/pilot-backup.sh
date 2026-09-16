@@ -28,14 +28,21 @@ COMPOSE=(docker compose --env-file .env -f docker-compose.pilot.yml)
 START_EPOCH="$(date +%s)"
 START_ISO="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
-cleanup() {
-  "${COMPOSE[@]}" --profile ops run --rm --no-deps ops sh -c 'rm -f /tmp/pilot-backup-cleanup-marker' >/dev/null 2>&1 || true
-}
-trap cleanup EXIT
-
 echo "[1/5] Checking required services..."
 "${COMPOSE[@]}" up -d postgres redis objectstore backend >/dev/null
-"${COMPOSE[@]}" exec -T backend python manage.py pilot_readiness >/dev/null
+READY=0
+for _ in $(seq 1 12); do
+  if "${COMPOSE[@]}" exec -T backend python manage.py pilot_readiness >/dev/null 2>&1; then
+    READY=1
+    break
+  fi
+  sleep 5
+done
+if [[ "$READY" != "1" ]]; then
+  echo "ERROR: pilot readiness did not pass before backup." >&2
+  "${COMPOSE[@]}" exec -T backend python manage.py pilot_readiness || true
+  exit 3
+fi
 
 echo "[2/5] Backing up PostgreSQL..."
 "${COMPOSE[@]}" exec -T postgres sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc' > "$DEST/postgres.dump"
