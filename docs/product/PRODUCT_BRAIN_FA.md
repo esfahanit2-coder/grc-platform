@@ -4,7 +4,7 @@
 
 پلتفرم GRC یک سامانه بومی، ماژولار، مستقل از چارچوب و مناسب استفاده سازمانی فارسی/انگلیسی است که برای مدیریت یکپارچه Governance, Risk & Compliance طراحی شده است. هدف این است که هم الزامات و چارچوب‌های داخلی ایران و هم استانداردهای بین‌المللی در یک هسته مشترک پوشش داده شوند، بدون اینکه منطق برنامه برای هر استاندارد جداگانه hard-code شود.
 
-چارچوب‌ها و Content Packهای هدف که برای محصول در نظر گرفته شده‌اند شامل محتوای مجاز افتا، ISMS/ISO/IEC 27001، COBIT، ISO 9001، ISO 31000، مدل‌های بلوغ تحول دیجیتال، NIST، CIS، BCM و در آینده چارچوب‌های حاکمیت هوش مصنوعی مانند ISO 42001 در صورت داشتن مجوز مناسب هستند.
+چارچوب‌ها و Content Packهای هدف شامل محتوای مجاز افتا، ISMS/ISO/IEC 27001، COBIT، ISO 9001، ISO 31000، مدل‌های بلوغ تحول دیجیتال، NIST، CIS، BCM و در آینده چارچوب‌های حاکمیت هوش مصنوعی مانند ISO 42001 در صورت داشتن مجوز مناسب هستند.
 
 هدف انتشار پروژه ابتدا `v0.9.0-pilot` و سپس `v1.0.0-rc1` است و GitHub منبع اصلی و رسمی پروژه محسوب می‌شود.
 
@@ -32,7 +32,7 @@ Evidence باید منبع، محدوده، زمان جمع‌آوری، provena
 خروجی AI پیشنهاد است. تصمیم‌هایی مثل effective بودن کنترل، compliant بودن Requirement، پذیرش ریسک یا بستن Finding نباید مستقیماً توسط AI انجام شوند. نتایج مهم باید از مسیر Human Review و `AISuggestion` یا Workflow معادل عبور کنند.
 
 ### On-Prem و Air-Gapped یک حالت اصلی محصول است
-استقرار داخلی و بدون اینترنت جزو طراحی اصلی است، نه قابلیت فرعی. معماری باید Docker، PostgreSQL/pgvector، Redis/Celery، Object Storage سازگار با S3 و AI محلی مانند Ollama/vLLM-compatible را پشتیبانی کند.
+استقرار داخلی و بدون اینترنت جزو طراحی اصلی است، نه قابلیت فرعی. معماری باید Docker، PostgreSQL/pgvector، Redis/Celery، Object Storage سازگار با S3 و AI محلی مانند Ollama/vLLM-compatible را پشتیبانی کند. خروج داده به بیرون باید تابع Policy صریح Deployment/مشتری باشد، نه رفتار پیش‌فرض.
 
 ## ۳. معماری اصلی
 
@@ -43,6 +43,7 @@ Evidence باید منبع، محدوده، زمان جمع‌آوری، provena
 - Queue/Cache: Redis + Celery
 - File Storage: abstraction سازگار با S3
 - AI Gateway: مستقل از Provider با OpenAI-compatible، Ollama، vLLM و Endpoint خصوصی
+- Integration Surface: REST API به‌عنوان مسیر اصلی؛ MCP/Integration Adapterها فقط در صورت رعایت همان Boundaryهای Tenant/Scope/Audit
 - سبک معماری: Modular Monolith
 
 ## ۴. زنجیره‌های اصلی دامنه
@@ -89,19 +90,24 @@ Risk Register، Methodology، مقیاس Likelihood/Impact، ارزیابی‌ه
 Audit Engagement، Scope، Workpaper، Finding، Action و تولید Audit Report. تا جای ممکن از همان Evidence و Assurance Objectهای مشترک استفاده می‌شود.
 
 ### Documents، Policy و Report Factory
-Versioning و Approval اسناد و تولید خروجی‌های رسمی. خروجی‌های اصلی شامل SoA، Risk Treatment Plan، Audit Report و گزارش‌های Management/Compliance/Risk هستند. تولید Policy/Procedure با AI می‌تواند انجام شود، اما Approval نهایی انسانی است.
+Versioning و Approval اسناد و تولید خروجی‌های رسمی. خروجی‌های موردنظر شامل SoA، Risk Treatment Plan، Audit Plan/Report، NCR/CAPA، Policy/Procedure و گزارش‌های Management/Compliance/Risk هستند. در برنامه قبلی، خروجی‌های DOCX/PDF/XLSX/CSV/JSON و Template Designer قابل تنظیم نیز صراحتاً جزو جهت محصول بوده‌اند. پیاده‌سازی فعلی Foundation است و هنوز معادل Template Designer کامل نیست. تولید Policy/Procedure با AI مجاز است، اما Approval نهایی انسانی باقی می‌ماند.
 
 ### Workflow، Task و Notification
-مکانیزم عمومی Assignment، Due Date، Approval و Notification که Assessment، Risk، Finding، Audit، Document و ماژول‌های آینده از آن استفاده می‌کنند.
+مکانیزم عمومی Assignment، Due Date، Approval و Notification که Assessment، Risk، Finding، Audit، Document و ماژول‌های آینده از آن استفاده می‌کنند. Task Inbox / Work Center مشترک نیز جهت حفظ‌شده UX است تا Review، Approval، Action و کارهای موعددار از چند ماژول در یک نمای عملیاتی دیده شوند.
 
 ### AI و RAG
-AI برای Draft، خلاصه‌سازی، Mapping Suggestion، Remediation Suggestion، Document/Report Assistance و جست‌وجو روی داده مجاز استفاده می‌شود. Permission Filtering باید قبل از Retrieval انجام شود. Context بازیابی‌شده untrusted محسوب می‌شود و نباید Instruction داخلی آن اجرا شود.
+AI برای Draft، خلاصه‌سازی، Mapping Suggestion، Evidence Analysis، Risk/CAPA Assistance، Remediation Suggestion، Document/Report Assistance و جست‌وجو روی داده مجاز استفاده می‌شود. Copilot یا Agentهای محدود می‌توانند Taskهای مجاز را Orchestrate کنند، اما همچنان Permission و Human Review را دور نمی‌زنند. Permission Filtering باید قبل از Retrieval انجام شود. Context بازیابی‌شده untrusted محسوب می‌شود و نباید Instruction داخلی آن اجرا شود.
+
+### API، Integration و MCP Direction
+REST API مسیر اصلی Integration است. MCP-style Adapter یا Integrationهای دیگر می‌توانند برای Tool/AI Orchestration اضافه شوند، اما باید دقیقاً همان Tenant Scope، Organization Scope، Audit و Permissionهای UI/API را رعایت کنند. Integration نباید Backdoor برای دورزدن RBAC یا Human Review باشد.
 
 ### Connectors
 Connectorهای Pilot فعلی شامل AD/LDAP، FortiGate، Veeam و Tenable/Nessus هستند. ماهیت آن‌ها read-oriented و Evidence-focused است و فقط Fact/Evidence جمع می‌کنند؛ حق اعلام Compliance یا Effectiveness ندارند.
 
-### Dashboard و Reporting
-Dashboard باید داده واقعی Tenant را نشان دهد و نباید KPI یا Risk ساختگی در مسیر production داشته باشد. Connector Operations شامل Health، Sync History و خطاهای redacted است و بعداً نماهای عملیاتی Risk/Compliance/Audit گسترش پیدا می‌کنند.
+پلتفرم GRC قرار نیست خودش Vulnerability Scanner شود. Tenable/Nessus معیار و Integration Target برای Evidenceهای Vulnerability است؛ از جمله Discovery، Credentialed/Uncredentialed Scan Result، CVE/CVSS، Configuration/Compliance Finding، Remediation Context و Scan History. Scannerهای هم‌تراز یا قوی‌تر باید از همان Connector Abstraction قابل اتصال باشند.
+
+### Dashboard، Indicator و Reporting
+Dashboard باید داده واقعی Tenant را نشان دهد و نباید KPI یا Risk ساختگی در مسیر production داشته باشد. Connector Operations شامل Health، Sync History و خطاهای redacted است و نماهای عملیاتی Risk/Compliance/Audit باید توسعه پیدا کنند. Indicator/KPI و Modelهای مدیریتی قابل تنظیم جهت حفظ‌شده محصول هستند، اما هر شاخص باید از داده Authoritative و Traceable مشتق شود.
 
 ## ۶. الزامات تجربه کاربری
 
@@ -111,6 +117,7 @@ Dashboard باید داده واقعی Tenant را نشان دهد و نباید
 - تفاوت واضح بین داده قطعی، پیشنهاد AI، Evidence خودکار و Approval انسانی.
 - Loading/Empty/Error State واقعی به‌جای داده نمونه ساختگی.
 - اولویت Traceability، Auditability و Explainability بر پیچیدگی تزئینی UI.
+- Work/Task View مشترک باید در بلوغ محصول Review، Approval، Finding Action و Due Work را یکجا نشان دهد.
 
 ## ۷. قواعد حقوقی Content
 
@@ -125,6 +132,7 @@ Dashboard باید داده واقعی Tenant را نشان دهد و نباید
 - فارسی/انگلیسی/RTL به‌عنوان نیاز اصلی محصول.
 - Connectorهای Read-only و Evidence-focused.
 - استفاده از AI برای شتاب‌دهی، نه تصمیم‌گیری مستقل درباره Compliance.
+- Document/Report Generation، Workflow قابل تنظیم و Task Management عملیاتی به‌عنوان خروجی اصلی محصول.
 
 ## ۹. وضعیت فعلی
 
@@ -136,4 +144,4 @@ Validation واقعی هنوز برای Connectorهای داخلی، Clean Host 
 
 ## ۱۰. جهت Post-v1
 
-TPRM/Vendor Portal، BCM/BIA، Incident Management، Continuous Control Monitoring، Connector Packهای بیشتر، Quantitative Risk/FAIR/Monte Carlo، Document Generation پیشرفته، AI Governance/ISO 42001، Digital Transformation Maturity و Mobile/PWA Approval Experience از اولویت‌های Post-v1 هستند.
+TPRM/Vendor Portal، BCM/BIA، Incident Management، Continuous Control Monitoring، Connector Packهای بیشتر، Quantitative Risk/FAIR/Monte Carlo، Document Generation پیشرفته و بلوغ Template Designer، AI Governance/ISO 42001، Digital Transformation Maturity و Mobile/PWA Approval Experience از اولویت‌های Post-v1 هستند.
