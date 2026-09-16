@@ -129,6 +129,24 @@ class MFAFlowTests(APITestCase):
         self.assertTrue(all(response.status_code == 401 for response in responses[:10]))
         self.assertEqual(responses[10].status_code, 429)
 
+    def test_refresh_rotation_blacklists_the_previous_refresh_token(self):
+        original = str(RefreshToken.for_user(self.user))
+        first = self.client.post("/api/v1/auth/token/refresh", {"refresh": original}, format="json")
+        self.assertEqual(first.status_code, 200)
+        self.assertIn("refresh", first.data)
+        self.assertNotEqual(first.data["refresh"], original)
+        replay = self.client.post("/api/v1/auth/token/refresh", {"refresh": original}, format="json")
+        self.assertEqual(replay.status_code, 401)
+
+    def test_logout_blacklists_presented_refresh_token(self):
+        refresh = RefreshToken.for_user(self.user)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {refresh.access_token}")
+        logout = self.client.post("/api/v1/auth/logout", {"refresh": str(refresh)}, format="json")
+        self.assertEqual(logout.status_code, 200)
+        self.client.credentials()
+        replay = self.client.post("/api/v1/auth/token/refresh", {"refresh": str(refresh)}, format="json")
+        self.assertEqual(replay.status_code, 401)
+
     @override_settings(AUTH_COOKIE_MODE=True, SESSION_COOKIE_SECURE=False, CSRF_COOKIE_SECURE=False)
     def test_cookie_authenticated_unsafe_request_requires_matching_csrf(self):
         client = APIClient(enforce_csrf_checks=True)
@@ -150,9 +168,12 @@ class MFAFlowTests(APITestCase):
         login = client.post("/api/v1/auth/token", {"username": "mfa-user", "password": "StrongPassword123!"}, format="json")
         self.assertEqual(login.status_code, 200)
         csrf = client.cookies["csrftoken"].value
+        original_refresh = client.cookies["grc_refresh"].value
 
         missing = client.post("/api/v1/auth/token/refresh", {}, format="json")
         ok = client.post("/api/v1/auth/token/refresh", {}, format="json", HTTP_X_CSRFTOKEN=csrf)
 
         self.assertEqual(missing.status_code, 403)
         self.assertEqual(ok.status_code, 200)
+        self.assertIn("grc_refresh", client.cookies)
+        self.assertNotEqual(client.cookies["grc_refresh"].value, original_refresh)
