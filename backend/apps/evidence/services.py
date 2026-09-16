@@ -14,6 +14,23 @@ from apps.risks.models import Risk
 
 SUPPORTED_LINK_TYPES = {"assessment", "assessment_item", "control_implementation", "risk", "finding", "action", "requirement", "audit_workpaper", "control_test_run", "document"}
 
+# Active/executable formats are not useful as inline GRC evidence and create a
+# disproportionate execution/XSS risk if later served by an object store.
+BLOCKED_EVIDENCE_EXTENSIONS = {
+    ".bat", ".cmd", ".com", ".dll", ".exe", ".hta", ".htm", ".html",
+    ".jar", ".js", ".jse", ".msi", ".msp", ".ps1", ".scr", ".svg",
+    ".vbe", ".vbs", ".wsf", ".wsh",
+}
+BLOCKED_EVIDENCE_MIME_TYPES = {
+    "application/javascript",
+    "application/x-javascript",
+    "application/x-msdownload",
+    "application/x-msdos-program",
+    "image/svg+xml",
+    "text/html",
+    "text/javascript",
+}
+
 
 def link_scope(tenant, object_type, object_id):
     if object_type not in SUPPORTED_LINK_TYPES:
@@ -53,23 +70,45 @@ def link_scope(tenant, object_type, object_id):
     return obj, None
 
 
-def store_uploaded_evidence(evidence, uploaded):
+def _safe_upload_name(uploaded):
+    raw_name = str(getattr(uploaded, "name", "") or "upload.bin")
+    return raw_name.replace("\\", "/").rsplit("/", 1)[-1] or "upload.bin"
+
+
+def validate_evidence_upload(uploaded):
     max_size = int(getattr(settings, "EVIDENCE_MAX_FILE_SIZE", 25 * 1024 * 1024))
     if uploaded.size > max_size:
         raise ValidationError({"file": f"Evidence file exceeds maximum size of {max_size} bytes."})
+
+    safe_name = _safe_upload_name(uploaded)
+    lowered = safe_name.lower()
+    extension = "." + lowered.rsplit(".", 1)[-1] if "." in lowered else ""
+    content_type = (
+        getattr(uploaded, "content_type", "")
+        or mimetypes.guess_type(safe_name)[0]
+        or "application/octet-stream"
+    ).split(";", 1)[0].strip().lower()
+
+    if extension in BLOCKED_EVIDENCE_EXTENSIONS or content_type in BLOCKED_EVIDENCE_MIME_TYPES:
+        raise ValidationError({"file": "Active or executable file types are not accepted as evidence."})
+    return safe_name, content_type
+
+
+def store_uploaded_evidence(evidence, uploaded):
+    safe_name, content_type = validate_evidence_upload(uploaded)
     raw = uploaded.read()
     digest = hashlib.sha256(raw).hexdigest()
-    safe_name = uploaded.name.replace("/", "_").replace("\\", "_")
     key = f"tenant/{evidence.tenant_id}/evidence/{evidence.id}/{uuid.uuid4().hex}-{safe_name}"
-    content_type = getattr(uploaded, "content_type", "") or mimetypes.guess_type(uploaded.name)[0] or "application/octet-stream"
     S3ObjectStorage().put(key, io.BytesIO(raw), content_type=content_type)
     evidence.storage_key = key
-    evidence.original_filename = uploaded.name[:255]
+    evidence.original_filename = safe_name[:255]
     evidence.mime_type = content_type[:160]
     evidence.size = len(raw)
     evidence.sha256 = digest
     metadata = dict(evidence.metadata or {})
-    metadata.setdefault("malware_scan_status", "not_scanned")
+    # Never trust a client-supplied scan claim on a newly uploaded blob.
+    metadata["malware_scan_status"] = "pending"
+    metadata["malware_scan_required"] = True
     evidence.metadata = metadata
     evidence.save(update_fields=["storage_key", "original_filename", "mime_type", "size", "sha256", "metadata", "updated_at"])
     return evidence
