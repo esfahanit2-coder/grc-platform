@@ -23,6 +23,22 @@ def migration_state_hash(nodes):
     return hashlib.sha256(rendered.encode("utf-8")).hexdigest()
 
 
+def applied_frontier(graph, applied):
+    """Return applied migration nodes with no applied child.
+
+    This lets candidate code describe the exact schema frontier of an older database
+    even when candidate-only migrations are present in the graph but not yet applied.
+    """
+    frontier = []
+    for node in applied:
+        graph_node = graph.node_map.get(node)
+        if graph_node is None:
+            continue
+        if not any(child.key in applied for child in graph_node.children):
+            frontier.append(node)
+    return sorted(frontier)
+
+
 def irreversible_operations(plan):
     findings = []
     for migration, backwards in plan:
@@ -90,6 +106,14 @@ class Command(BaseCommand):
         parser.add_argument("--release-id", default=os.getenv("GRC_RELEASE_VERSION", "unknown"))
         parser.add_argument("--source-commit", default=os.getenv("GRC_SOURCE_COMMIT", "unknown"))
         parser.add_argument(
+            "--allow-pending",
+            action="store_true",
+            help=(
+                "Allow snapshotting an older database with candidate migrations pending. "
+                "Use only for upgrade rehearsal/baseline capture; normal backup snapshots must omit this flag."
+            ),
+        )
+        parser.add_argument(
             "--rollback-strategy",
             choices=["reversible", "restore"],
             help="Required for preflight: reversible schema rollback or backup/restore rollback.",
@@ -140,14 +164,21 @@ class Command(BaseCommand):
         executor = self._executor()
         leaves = executor.loader.graph.leaf_nodes()
         pending = executor.migration_plan(leaves)
-        if pending:
+        if pending and not options.get("allow_pending"):
             names = ", ".join(_migration_key((m.app_label, m.name)) for m, _ in pending[:10])
             raise CommandError(
                 "Refusing schema snapshot because pending migrations exist. "
                 f"Migrate the release first. Pending: {names}"
             )
         applied = set(executor.loader.applied_migrations)
-        leaf_targets = [node for node in leaves if node in applied]
+        graph_nodes = set(executor.loader.graph.nodes)
+        unknown_applied = sorted(applied - graph_nodes)
+        if unknown_applied:
+            raise CommandError(
+                "Current code does not contain definitions for applied database migrations: "
+                + ", ".join(_migration_key(node) for node in unknown_applied[:20])
+            )
+        leaf_targets = applied_frontier(executor.loader.graph, applied)
         payload = {
             "schema_version": MANIFEST_SCHEMA,
             "generated_at": timezone.now().isoformat(),
@@ -160,13 +191,19 @@ class Command(BaseCommand):
                 {"app": app, "name": name} for app, name in sorted(applied)
             ],
             "leaf_targets": [
-                {"app": app, "name": name} for app, name in sorted(leaf_targets)
+                {"app": app, "name": name} for app, name in leaf_targets
             ],
+            "candidate_pending_migrations": [
+                _migration_key((migration.app_label, migration.name)) for migration, backwards in pending if not backwards
+            ],
+            "fully_migrated_to_current_code": not bool(pending),
+            "pending_snapshot_explicitly_allowed": bool(options.get("allow_pending")),
         }
         _write_json(options["output"], payload)
+        qualifier = "baseline capture" if pending else "fully migrated release"
         self.stdout.write(
             self.style.SUCCESS(
-                f"Schema manifest written: {options['output']} ({len(applied)} applied migrations)"
+                f"Schema manifest written: {options['output']} ({len(applied)} applied migrations; {qualifier})"
             )
         )
 
@@ -242,6 +279,10 @@ class Command(BaseCommand):
         if not manifest_path:
             raise CommandError("restore-check requires --manifest.")
         manifest = _load_manifest(manifest_path)
+        if not manifest.get("fully_migrated_to_current_code", False):
+            raise CommandError(
+                "Manifest was captured with pending candidate migrations and is not valid as a release backup compatibility manifest."
+            )
         backup_nodes = _manifest_nodes(manifest)
         executor = self._executor()
         graph_nodes = set(executor.loader.graph.nodes)
