@@ -109,7 +109,20 @@ if [[ -f docker-compose.pilot.tls.yml ]]; then
   install -m 600 docker-compose.pilot.tls.yml "$DEST/docker-compose.pilot.tls.yml"
 fi
 "${COMPOSE[@]}" config --images | sort -u > "$DEST/images.txt"
-SOURCE_COMMIT="$(git rev-parse HEAD 2>/dev/null || echo unknown)"
+
+if [[ -n "${BACKUP_SOURCE_COMMIT:-}" ]]; then
+  SOURCE_COMMIT="$BACKUP_SOURCE_COMMIT"
+  if [[ ! "$SOURCE_COMMIT" =~ ^[0-9a-fA-F]{40}$ ]] || ! git cat-file -e "${SOURCE_COMMIT}^{commit}" 2>/dev/null; then
+    echo "ERROR: BACKUP_SOURCE_COMMIT must be a known 40-character Git commit." >&2
+    exit 3
+  fi
+else
+  SOURCE_COMMIT="$(git rev-parse HEAD 2>/dev/null || echo unknown)"
+fi
+if [[ ! "$SOURCE_COMMIT" =~ ^[0-9a-fA-F]{40}$ ]]; then
+  echo "ERROR: unable to record a verifiable source commit for the backup." >&2
+  exit 3
+fi
 printf '%s\n' "$SOURCE_COMMIT" > "$DEST/source-commit.txt"
 
 PG_VERSION_NUM="$("${COMPOSE[@]}" exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atqc "SHOW server_version_num"' | tr -d '\r[:space:]')"
