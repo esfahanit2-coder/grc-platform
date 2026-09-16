@@ -57,6 +57,7 @@ def run_connector(config, *, user, request=None):
             separators=(",", ":"),
         )
         payload_sha256 = hashlib.sha256(payload_text.encode("utf-8")).hexdigest()
+        contract = result.payload if isinstance(result.payload, dict) else {}
         evidence = Evidence.objects.create(
             tenant=config.tenant,
             organization_unit=config.organization_unit,
@@ -75,6 +76,10 @@ def run_connector(config, *, user, request=None):
                 "source_host": _source_host(config),
                 "collected_at": collected_at.isoformat(),
                 "payload_sha256": payload_sha256,
+                "provider_schema_version": contract.get("schema_version"),
+                "provider": contract.get("provider") or config.connector_type,
+                "dataset": contract.get("dataset"),
+                "summary": contract.get("summary") if isinstance(contract.get("summary"), dict) else {},
                 "automated": True,
                 "collection_mode": "read_only",
                 "human_review_required": True,
@@ -87,6 +92,9 @@ def run_connector(config, *, user, request=None):
             "evidence_id": str(evidence.id),
             "title": result.title,
             "payload_sha256": payload_sha256,
+            "provider_schema_version": contract.get("schema_version"),
+            "dataset": contract.get("dataset"),
+            "fact_summary": contract.get("summary") if isinstance(contract.get("summary"), dict) else {},
         }
         run.save(update_fields=["status", "finished_at", "summary", "updated_at"])
         config.last_sync_at = run.finished_at
@@ -104,6 +112,8 @@ def run_connector(config, *, user, request=None):
                 "connector_run_id": str(run.id),
                 "evidence_id": str(evidence.id),
                 "payload_sha256": payload_sha256,
+                "provider_schema_version": contract.get("schema_version"),
+                "dataset": contract.get("dataset"),
             },
             request=request,
         )
