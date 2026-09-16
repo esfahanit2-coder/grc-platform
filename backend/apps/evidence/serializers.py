@@ -1,5 +1,8 @@
 from rest_framework import serializers
+
 from apps.tenancy.models import TenantMembership
+
+from .malware import SERVER_MANAGED_MALWARE_METADATA_KEYS
 from .models import Evidence, EvidenceLink
 from .services import link_scope
 
@@ -24,6 +27,24 @@ class EvidenceSerializer(serializers.ModelSerializer):
 
     def get_links_count(self, obj):
         return obj.links.filter(deleted_at__isnull=True).count()
+
+    def validate_metadata(self, value):
+        if not isinstance(value, dict):
+            raise serializers.ValidationError("Evidence metadata must be an object.")
+        forbidden = sorted(SERVER_MANAGED_MALWARE_METADATA_KEYS.intersection(value.keys()))
+        if forbidden:
+            raise serializers.ValidationError(
+                "Malware scan metadata is server-managed and cannot be supplied by API clients."
+            )
+        if self.instance:
+            # A normal metadata edit must not erase or overwrite quarantine state.
+            existing = dict(self.instance.metadata or {})
+            merged = dict(value)
+            for key in SERVER_MANAGED_MALWARE_METADATA_KEYS:
+                if key in existing:
+                    merged[key] = existing[key]
+            return merged
+        return value
 
     def validate(self, attrs):
         tenant = self.context["tenant"]
