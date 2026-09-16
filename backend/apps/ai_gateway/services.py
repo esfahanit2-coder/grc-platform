@@ -25,6 +25,8 @@ def redact_text(value: str) -> str:
 
 
 def select_provider(tenant, provider_id=None):
+    if not getattr(settings, "AI_ENABLED", True):
+        raise ValidationError("AI capabilities are disabled for this deployment.")
     qs = AIProviderConfig.objects.filter(tenant=tenant, is_active=True, deleted_at__isnull=True)
     if provider_id:
         provider = qs.filter(id=provider_id).first()
@@ -111,7 +113,6 @@ def upsert_knowledge_chunk(*, tenant, organization_unit, source_type, source_id,
 
 
 
-
 def embedding_model_name(provider_cfg):
     return str((provider_cfg.configuration or {}).get("embedding_model") or provider_cfg.model_name)
 
@@ -141,6 +142,7 @@ def semantic_retrieve_chunks(*, tenant, user, query, provider_cfg, permission_co
     if not whole:
         qs = qs.filter(Q(organization_unit_id__in=allowed) | Q(organization_unit__isnull=True, classification="public"))
     return list(qs.annotate(distance=CosineDistance("embedding", query_vector)).order_by("distance")[:limit])
+
 
 def retrieve_chunks(*, tenant, user, query, permission_code="ai.knowledge.view", limit=8):
     terms = [item.lower() for item in re.findall(r"[\w\u0600-\u06FF-]{3,}", query or "")][:12]

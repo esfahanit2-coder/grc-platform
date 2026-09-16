@@ -149,6 +149,7 @@ SECURE_HSTS_SECONDS = int(os.getenv("SECURE_HSTS_SECONDS", "31536000" if APP_ENV
 SECURE_HSTS_INCLUDE_SUBDOMAINS = SECURE_HSTS_SECONDS > 0
 SECURE_HSTS_PRELOAD = os.getenv("SECURE_HSTS_PRELOAD", "0") == "1"
 CSRF_TRUSTED_ORIGINS = [x.strip() for x in os.getenv("CSRF_TRUSTED_ORIGINS", "").split(",") if x.strip()]
+AI_ENABLED = os.getenv("AI_ENABLED", "1") == "1"
 AI_DEFAULT_CLASSIFICATION = os.getenv("AI_DEFAULT_CLASSIFICATION", "internal")
 AI_MAX_CONTEXT_CHARS = int(os.getenv("AI_MAX_CONTEXT_CHARS", "24000"))
 AI_RAG_MODE = os.getenv("AI_RAG_MODE", "hybrid")  # lexical | semantic | hybrid
