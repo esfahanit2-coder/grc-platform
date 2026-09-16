@@ -48,3 +48,17 @@ class AuditTrailTests(APITestCase):
         event = record_audit_event(self.user, self.tenant, "tenant.update", "tenant", self.tenant.id)
         with self.assertRaises(AuditIntegrityMutationError):
             event.delete()
+
+    def test_audit_chain_isolated_between_tenants(self):
+        tenant_b = Tenant.objects.create(name="Audit Tenant B", code="audit-tenant-b")
+        TenantMembership.objects.create(tenant=tenant_b, user=self.user, role_code="admin")
+        bootstrap_tenant_rbac(tenant_b, admin_user=self.user)
+
+        first_a = record_audit_event(self.user, self.tenant, "tenant.update", "tenant", self.tenant.id)
+        second_a = record_audit_event(self.user, self.tenant, "tenant.update", "tenant", self.tenant.id)
+        first_b = record_audit_event(self.user, tenant_b, "tenant.update", "tenant", tenant_b.id)
+
+        self.assertEqual(first_a.chain_sequence, 1)
+        self.assertEqual(second_a.chain_sequence, 2)
+        self.assertEqual(first_b.chain_sequence, 1)
+        self.assertNotEqual(second_a.event_hash, first_b.event_hash)
