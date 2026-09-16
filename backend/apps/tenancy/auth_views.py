@@ -20,6 +20,8 @@ from apps.identity.services import create_pending_mfa_device, tenant_requires_mf
 User = get_user_model()
 CHALLENGE_SALT = "grc.mfa.challenge.v1"
 CHALLENGE_MAX_AGE = 300
+AUTH_REFRESH_COOKIE_PATH = "/api/v1/auth/"
+LEGACY_REFRESH_COOKIE_PATH = "/api/v1/auth/token/refresh"
 
 
 def _issue_tokens(user):
@@ -41,6 +43,20 @@ def _user_from_challenge(value, purpose):
     return User.objects.filter(pk=payload.get("user_id"), is_active=True).first()
 
 
+def _set_refresh_cookie(response, value, *, secure, samesite):
+    name = getattr(settings, "AUTH_REFRESH_COOKIE", "grc_refresh")
+    response.delete_cookie(name, path=LEGACY_REFRESH_COOKIE_PATH)
+    response.set_cookie(
+        name,
+        value,
+        max_age=8 * 60 * 60,
+        httponly=True,
+        secure=secure,
+        samesite=samesite,
+        path=AUTH_REFRESH_COOKIE_PATH,
+    )
+
+
 def _auth_response(tokens, *, request=None, status_code=200):
     if not getattr(settings, "AUTH_COOKIE_MODE", False):
         return Response(tokens, status=status_code)
@@ -48,7 +64,7 @@ def _auth_response(tokens, *, request=None, status_code=200):
     secure = bool(getattr(settings, "SESSION_COOKIE_SECURE", False))
     samesite = getattr(settings, "AUTH_COOKIE_SAMESITE", "Strict")
     response.set_cookie(getattr(settings, "AUTH_ACCESS_COOKIE", "grc_access"), tokens["access"], max_age=15*60, httponly=True, secure=secure, samesite=samesite, path="/")
-    response.set_cookie(getattr(settings, "AUTH_REFRESH_COOKIE", "grc_refresh"), tokens["refresh"], max_age=8*60*60, httponly=True, secure=secure, samesite=samesite, path="/api/v1/auth/token/refresh")
+    _set_refresh_cookie(response, tokens["refresh"], secure=secure, samesite=samesite)
     if request is not None:
         response.set_cookie(getattr(settings, "CSRF_COOKIE_NAME", "csrftoken"), get_token(request), max_age=8*60*60, httponly=False, secure=secure, samesite=samesite, path="/")
     return response
@@ -85,15 +101,7 @@ class CookieTokenRefreshView(TokenRefreshView):
             path="/",
         )
         if payload.get("refresh"):
-            response.set_cookie(
-                getattr(settings, "AUTH_REFRESH_COOKIE", "grc_refresh"),
-                payload["refresh"],
-                max_age=8 * 60 * 60,
-                httponly=True,
-                secure=secure,
-                samesite=samesite,
-                path="/api/v1/auth/token/refresh",
-            )
+            _set_refresh_cookie(response, payload["refresh"], secure=secure, samesite=samesite)
         return response
 
 
@@ -108,12 +116,12 @@ class LogoutView(APIView):
                 RefreshToken(str(refresh_value)).blacklist()
                 refresh_revoked = True
             except TokenError:
-                # Logout remains idempotent and still clears local cookies. Invalid,
-                # expired or already-blacklisted refresh tokens cannot be reused.
                 refresh_revoked = False
         response = Response({"logged_out": True})
         response.delete_cookie(getattr(settings, "AUTH_ACCESS_COOKIE", "grc_access"), path="/")
-        response.delete_cookie(getattr(settings, "AUTH_REFRESH_COOKIE", "grc_refresh"), path="/api/v1/auth/token/refresh")
+        refresh_name = getattr(settings, "AUTH_REFRESH_COOKIE", "grc_refresh")
+        response.delete_cookie(refresh_name, path=AUTH_REFRESH_COOKIE_PATH)
+        response.delete_cookie(refresh_name, path=LEGACY_REFRESH_COOKIE_PATH)
         record_audit_event(
             request.user,
             None,
