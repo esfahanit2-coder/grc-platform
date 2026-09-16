@@ -13,9 +13,25 @@ from django.conf import settings
 from rest_framework.exceptions import ValidationError
 
 from .models import ConnectorConfig
+from .normalizers import (
+    normalize_active_directory,
+    normalize_fortigate,
+    normalize_tenable,
+    normalize_veeam,
+)
 
 
 _ENV_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+FORTIGATE_COLLECTION_PROFILES = {
+    "minimal": ["/api/v2/cmdb/system/global"],
+    "baseline": [
+        "/api/v2/monitor/system/status",
+        "/api/v2/cmdb/system/admin",
+        "/api/v2/cmdb/firewall/policy",
+        "/api/v2/cmdb/system/interface",
+    ],
+}
 
 
 @dataclass
@@ -134,7 +150,11 @@ class FortiGateConnector(BaseConnector):
         if not token:
             raise ValidationError("FortiGate API token secret is missing.")
         headers = {"Accept": "application/json", "Authorization": f"Bearer {token}"}
-        paths = (self.config.configuration or {}).get("read_paths") or ["/api/v2/cmdb/system/global"]
+        cfg = self.config.configuration or {}
+        profile = cfg.get("collection_profile") or "baseline"
+        paths = cfg.get("read_paths") or FORTIGATE_COLLECTION_PROFILES.get(profile)
+        if not paths:
+            raise ValidationError("Unknown FortiGate collection_profile and no read_paths were supplied.")
         if len(paths) > 10:
             raise ValidationError("At most 10 FortiGate read paths are allowed per run.")
         results = {}
@@ -143,7 +163,7 @@ class FortiGateConnector(BaseConnector):
                 raise ValidationError("FortiGate connector permits only /api/v2/ read paths.")
             data, _ = self._json(path, headers=headers)
             results[path] = data
-        return ConnectorResult("FortiGate configuration snapshot", {"paths": results})
+        return ConnectorResult("FortiGate security configuration snapshot", normalize_fortigate(results))
 
 
 class TenableConnector(BaseConnector):
@@ -154,17 +174,7 @@ class TenableConnector(BaseConnector):
             raise ValidationError("Tenable access/secret key environment variables are required.")
         headers = {"Accept": "application/json", "X-ApiKeys": f"accessKey={access}; secretKey={secret}"}
         data, _ = self._json("/scans", headers=headers)
-        scans = data.get("scans") or []
-        summary = [
-            {
-                "id": row.get("id"),
-                "name": row.get("name"),
-                "status": row.get("status"),
-                "last_modification_date": row.get("last_modification_date"),
-            }
-            for row in scans[:200]
-        ]
-        return ConnectorResult("Tenable scan inventory", {"scan_count": len(scans), "scans": summary})
+        return ConnectorResult("Tenable / Nessus scan inventory", normalize_tenable(data))
 
 
 class VeeamConnector(BaseConnector):
@@ -190,7 +200,7 @@ class VeeamConnector(BaseConnector):
         headers = {"Accept": "application/json", "X-RestSvcSessionId": token}
         backups, _ = self._json("/api/backups", headers=headers)
         sessions, _ = self._json("/api/backupSessions", headers=headers)
-        return ConnectorResult("Veeam backup assurance snapshot", {"backups": backups, "backup_sessions": sessions})
+        return ConnectorResult("Veeam backup assurance snapshot", normalize_veeam(backups, sessions))
 
 
 class ActiveDirectoryConnector(BaseConnector):
@@ -231,30 +241,40 @@ class ActiveDirectoryConnector(BaseConnector):
             receive_timeout=getattr(settings, "CONNECTOR_HTTP_TIMEOUT", 30),
         )
         search_filter = cfg.get("search_filter") or "(&(objectCategory=person)(objectClass=user))"
-        attributes = cfg.get("attributes") or ["distinguishedName", "sAMAccountName", "userAccountControl", "whenChanged"]
+        attributes = cfg.get("attributes") or [
+            "distinguishedName",
+            "sAMAccountName",
+            "userPrincipalName",
+            "userAccountControl",
+            "memberOf",
+            "whenChanged",
+        ]
         conn.search(
             base_dn,
             search_filter,
             search_scope=SUBTREE,
             attributes=attributes,
-            size_limit=int(cfg.get("size_limit", 5000)),
+            size_limit=min(int(cfg.get("size_limit", 5000)), 10000),
         )
         rows = []
-        disabled = 0
         for entry in conn.entries:
-            record = {attr: str(entry[attr]) for attr in attributes if attr in entry}
-            try:
-                uac = int(str(entry["userAccountControl"])) if "userAccountControl" in entry else 0
-                if uac & 2:
-                    disabled += 1
-            except Exception:
-                pass
+            record = {}
+            for attr in attributes:
+                if attr not in entry:
+                    continue
+                value = entry[attr].value
+                if isinstance(value, (list, tuple, set)):
+                    record[attr] = [str(item) for item in value]
+                elif value is not None:
+                    record[attr] = str(value)
             rows.append(record)
         conn.unbind()
-        return ConnectorResult(
-            "Active Directory account inventory",
-            {"user_count": len(rows), "disabled_count": disabled, "sample": rows[:100]},
+        payload = normalize_active_directory(
+            rows,
+            privileged_groups=cfg.get("privileged_groups") or [],
+            include_sample=bool(cfg.get("include_sample", False)),
         )
+        return ConnectorResult("Active Directory account hygiene snapshot", payload)
 
 
 def connector_for(config):
