@@ -18,6 +18,7 @@ fi
 
 QUIESCE="${BACKUP_QUIESCE:-NO}"
 LEAVE_QUIESCED="${BACKUP_LEAVE_QUIESCED:-NO}"
+REQUIRE_RUNNING="${BACKUP_REQUIRE_RUNNING:-NO}"
 if [[ "$LEAVE_QUIESCED" == "YES" && "$QUIESCE" != "YES" ]]; then
   echo "ERROR: BACKUP_LEAVE_QUIESCED=YES requires BACKUP_QUIESCE=YES." >&2
   exit 2
@@ -42,25 +43,36 @@ on_exit() {
   trap - EXIT
   if [[ "$QUIESCED_NOW" == "1" && ( "$LEAVE_QUIESCED" != "YES" || "$BACKUP_SUCCEEDED" != "1" ) ]]; then
     echo "Restarting application services after backup..."
-    "${COMPOSE[@]}" up -d --wait backend worker beat frontend gateway >/dev/null || true
+    if [[ "$REQUIRE_RUNNING" == "YES" ]]; then
+      "${COMPOSE[@]}" start backend worker beat frontend gateway >/dev/null || true
+    else
+      "${COMPOSE[@]}" up -d --wait backend worker beat frontend gateway >/dev/null || true
+    fi
   fi
   exit "$status"
 }
 trap on_exit EXIT
 
 echo "[1/6] Checking required services..."
-"${COMPOSE[@]}" up -d postgres redis objectstore backend >/dev/null
+if [[ "$REQUIRE_RUNNING" != "YES" ]]; then
+  "${COMPOSE[@]}" up -d postgres redis objectstore backend >/dev/null
+fi
 READY=0
 for _ in $(seq 1 12); do
   if "${COMPOSE[@]}" exec -T backend python manage.py pilot_readiness >/dev/null 2>&1; then
     READY=1
     break
   fi
+  if [[ "$REQUIRE_RUNNING" == "YES" ]]; then
+    break
+  fi
   sleep 5
 done
 if [[ "$READY" != "1" ]]; then
   echo "ERROR: pilot readiness did not pass before backup." >&2
-  "${COMPOSE[@]}" exec -T backend python manage.py pilot_readiness || true
+  if [[ "$REQUIRE_RUNNING" != "YES" ]]; then
+    "${COMPOSE[@]}" exec -T backend python manage.py pilot_readiness || true
+  fi
   exit 3
 fi
 
