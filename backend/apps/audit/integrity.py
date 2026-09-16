@@ -1,6 +1,7 @@
 import hashlib
 import hmac
 import json
+import os
 from datetime import timezone as dt_timezone
 
 from django.conf import settings
@@ -14,7 +15,11 @@ class AuditIntegrityConfigurationError(RuntimeError):
 
 
 def current_integrity_key_id() -> str:
-    value = str(getattr(settings, "AUDIT_INTEGRITY_KEY_ID", "v1") or "").strip()
+    value = str(
+        getattr(settings, "AUDIT_INTEGRITY_KEY_ID", "")
+        or os.getenv("AUDIT_INTEGRITY_KEY_ID", "v1")
+        or ""
+    ).strip()
     if not value or len(value) > 64:
         raise AuditIntegrityConfigurationError("AUDIT_INTEGRITY_KEY_ID must be 1..64 characters")
     return value
@@ -27,7 +32,18 @@ def integrity_key_bytes(key_id: str | None = None) -> bytes:
         raise AuditIntegrityConfigurationError(
             f"integrity key id {requested_id!r} is not available in this deployment"
         )
-    configured = str(getattr(settings, "AUDIT_INTEGRITY_KEY", "") or "")
+
+    configured = str(
+        getattr(settings, "AUDIT_INTEGRITY_KEY", "")
+        or os.getenv("AUDIT_INTEGRITY_KEY", "")
+        or ""
+    )
+    app_env = str(getattr(settings, "APP_ENV", "development") or "development").strip().lower()
+    if app_env == "production" and not configured:
+        raise AuditIntegrityConfigurationError(
+            "AUDIT_INTEGRITY_KEY is required when APP_ENV=production; do not reuse DJANGO_SECRET_KEY"
+        )
+
     value = configured or str(settings.SECRET_KEY)
     if len(value.encode("utf-8")) < 32:
         raise AuditIntegrityConfigurationError("AUDIT_INTEGRITY_KEY must contain at least 32 bytes")
