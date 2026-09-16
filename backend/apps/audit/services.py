@@ -171,6 +171,5 @@ def record_audit_event(
         values["event_hash"] = compute_audit_event_hash(values)
         return AuditEvent.objects.create(
             actor=actor if getattr(actor, "is_authenticated", False) else None,
-            tenant=tenant,
             **values,
         )
