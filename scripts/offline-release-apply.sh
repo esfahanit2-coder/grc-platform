@@ -86,7 +86,6 @@ PY
   )
 }
 
-load_images
 REPOSITORY="$INSTALL_ROOT/repository"
 RELEASE_DIR="$INSTALL_ROOT/release"
 
@@ -95,6 +94,7 @@ if [[ "$MODE" == "install" ]]; then
     echo "ERROR: install root must not already contain files: $INSTALL_ROOT" >&2
     exit 3
   fi
+  load_images
   mkdir -p "$INSTALL_ROOT" "$RELEASE_DIR"
   git init -q "$REPOSITORY"
   git -C "$REPOSITORY" fetch -q "$STAGE/source/grc-platform.bundle" \
@@ -161,6 +161,7 @@ if ! git -C "$REPOSITORY" diff --quiet || ! git -C "$REPOSITORY" diff --cached -
   exit 4
 fi
 
+load_images
 git -C "$REPOSITORY" fetch -q "$STAGE/source/grc-platform.bundle" \
   "refs/grc-release/$VERSION:refs/remotes/offline/$VERSION"
 if ! git -C "$REPOSITORY" cat-file -e "${SOURCE_SHA}^{commit}" 2>/dev/null; then
