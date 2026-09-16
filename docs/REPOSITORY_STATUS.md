@@ -12,17 +12,18 @@ The project is currently in **Pilot Candidate / pre-RC hardening**. Core applica
 
 `ROADMAP.md` is the detailed gate tracker. `RELEASE_BLOCKERS.md` is the concise source for what still prevents v1.0 RC / production rollout.
 
-## Remaining evidence boundary
+## Remaining validation and governance boundary
 
-The open release work is intentionally concentrated in evidence that repository CI cannot manufacture:
+The open release work is intentionally concentrated in things repository CI cannot manufacture or enforce by itself:
 
 - authorized standards/content and crosswalk proof (#5);
 - authorized live connector proof (#6);
 - real clean-host deployment, TLS, backup/restore, RPO/RTO and no-egress local-AI proof (#7);
 - independent security validation, real deployment security evidence and final sign-off (#8);
-- target-environment `check --deploy` and organization-approved immutable deployment image pinning.
+- target-environment `check --deploy` and organization-approved immutable deployment image pinning;
+- repository-admin enforcement of pull-request/status-check protection for `main` (#40).
 
-Do not mark these complete from mock data, repository fixtures, CI success or documentation alone.
+Do not mark the external validation items complete from mock data, repository fixtures, CI success or documentation alone. Do not treat manual merge discipline as equivalent to an active branch protection/ruleset control.
 
 ## Source-of-truth rule
 
