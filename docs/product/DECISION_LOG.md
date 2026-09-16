@@ -105,3 +105,23 @@ These decisions capture previously agreed constraints and should not be casually
 ## D-026 — GitHub is the project source of truth
 **Decision:** significant changes follow Issue -> Branch -> PR -> latest-head CI/release gates -> merge; tagged releases follow release gating.  
 **Reason:** preserve project history, reproducibility and developer handover.
+
+## D-027 — The GRC platform is not a vulnerability scanner
+**Decision:** vulnerability discovery/scanning remains the responsibility of dedicated products such as Tenable/Nessus or equivalent systems; GRC consumes normalized findings/evidence through connectors.  
+**Reason:** scanner engines, plugins and discovery infrastructure are a different product domain. Keeping the boundary avoids duplicating specialist tools while preserving vulnerability evidence in the GRC traceability model.
+
+## D-028 — Every integration path reuses the same authorization and audit boundaries
+**Decision:** REST APIs, future MCP/tool adapters and other integrations must enforce the same tenant, organization-scope, RBAC, audit and human-review rules as the product UI/backend.  
+**Reason:** an integration endpoint must never become a privileged backdoor around the domain security model.
+
+## D-029 — External egress is explicit policy, never an assumed capability
+**Decision:** on-premise/air-gapped deployments may prohibit all external data transfer; cloud AI or external integrations are enabled only under explicit deployment/customer policy.  
+**Reason:** sovereign customers may have organizational or regulatory constraints that make silent/default egress unacceptable.
+
+## D-030 — Documents, reports and templates are first-class product outputs
+**Decision:** SoA, RTP, audit outputs, NCR/CAPA, policies/procedures, structured exports and configurable template direction remain part of the product contract rather than ad-hoc utilities. Authoritative status fields must come from GRC data; AI may assist narrative but cannot invent the underlying state.  
+**Reason:** the practical value of GRC includes producing controlled, reviewable deliverables for operations, management and auditors.
+
+## D-031 — A cross-module Work Center is a retained UX direction
+**Decision:** assignments, reviews, approvals, remediation actions and due work should converge into a unified Task Inbox/Work Center as the UX matures.  
+**Reason:** users should not need to visit every module independently to discover accountable work.
