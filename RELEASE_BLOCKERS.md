@@ -1,6 +1,6 @@
 # Release blockers
 
-The repository remains a **Pilot Candidate / pre-RC hardening** build. Repository CI now proves the software/runtime preparation described below; the remaining blockers depend on authorized content, real infrastructure, a target deployment, independent review, or organization-approved production configuration.
+The repository remains a **Pilot Candidate / pre-RC hardening** build. Repository CI now proves the software/runtime preparation described below; the remaining blockers depend on authorized content, real infrastructure, a target deployment, independent review, organization-approved production configuration, or repository administration.
 
 ## Cleared by repository/runtime gates
 
@@ -25,10 +25,11 @@ The repository remains a **Pilot Candidate / pre-RC hardening** build. Repositor
 4. **Security validation (#8):** complete or formally schedule independent penetration testing, validate the real malware-scanner workflow and relevant immutable/WORM audit-storage deployment controls, complete real-model AI human review, and document final named security sign-off.
 5. **Target-environment Django deployment checks:** run `python manage.py check --deploy` using the actual approved production/pilot environment, secrets, hostname/origin configuration and TLS settings. Repository CI cannot substitute for this target-environment check.
 6. **Final immutable deployment manifest:** pin production infrastructure/application images to organization-approved versions or immutable digests. The repository can enforce safe manifest rules, but it cannot invent the organization-approved production digests.
+7. **Repository governance (#40):** protect `main` with an active branch protection rule or repository ruleset that requires pull-request flow and the applicable CI/Release Gate checks, and blocks unsafe direct/force updates according to policy. The connected GitHub App does not have repository Administration write access to configure this control.
 
 ## What must not be inferred from CI
 
-Green CI and Release Gate do **not** prove real RPO/RTO, clean-host behavior, certificate/private-key handling, air-gapped model operation, live connector access, malware-signature operations, external penetration-test results, legally authorized standards content, or final production image approval.
+Green CI and Release Gate do **not** prove real RPO/RTO, clean-host behavior, certificate/private-key handling, air-gapped model operation, live connector access, malware-signature operations, external penetration-test results, legally authorized standards content, final production image approval, or repository administration policy enforcement.
 
 ## Content/legal boundary
 
