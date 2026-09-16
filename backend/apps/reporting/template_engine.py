@@ -1,5 +1,4 @@
 from io import BytesIO
-from urllib.parse import urlparse
 
 from jinja2 import StrictUndefined
 from jinja2.sandbox import SandboxedEnvironment
@@ -21,26 +20,25 @@ def render_html(template_text, context):
     return template.render(**(context or {}))
 
 
+def _report_url_fetcher():
+    from weasyprint.urls import URLFetcher
+    # WeasyPrint 70's public URL-fetching API. Only self-contained data URLs
+    # are permitted; local files, HTTP(S), FTP and redirects are excluded.
+    return URLFetcher(allowed_protocols={'data'},allow_redirects=False,fail_on_errors=True)
+
+
 def safe_report_url_fetcher(url):
-    """Allow only self-contained data URLs in rendered reports.
-
-    Tenant-controlled report templates must not be able to make network
-    requests or read local files through WeasyPrint's URL fetcher.
-    """
-    from weasyprint import default_url_fetcher
-
-    scheme=urlparse(str(url or '')).scheme.lower()
-    if scheme=='data':
-        return default_url_fetcher(url)
-    raise ValueError('External and local resource fetching is disabled for report rendering.')
+    """Fetch a report resource through the data-only WeasyPrint boundary."""
+    return _report_url_fetcher().fetch(url)
 
 
 def render_pdf(template_text, context, css_text=''):
     from weasyprint import CSS, HTML
     html=render_html(template_text,context)
+    fetcher=_report_url_fetcher()
     output=BytesIO()
-    HTML(string=html,url_fetcher=safe_report_url_fetcher).write_pdf(
+    HTML(string=html,url_fetcher=fetcher).write_pdf(
         output,
-        stylesheets=[CSS(string=DEFAULT_CSS+'\n'+(css_text or ''),url_fetcher=safe_report_url_fetcher)],
+        stylesheets=[CSS(string=DEFAULT_CSS+'\n'+(css_text or ''),url_fetcher=fetcher)],
     )
     return output.getvalue(),html
