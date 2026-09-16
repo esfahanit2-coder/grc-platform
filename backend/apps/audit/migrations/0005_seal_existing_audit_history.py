@@ -1,6 +1,7 @@
 import hashlib
 import hmac
 import json
+import os
 from datetime import timezone as dt_timezone
 
 from django.conf import settings
@@ -20,11 +21,19 @@ def _canonical_timestamp(value):
 
 
 def _key_material():
-    key_id = str(getattr(settings, "AUDIT_INTEGRITY_KEY_ID", "v1") or "").strip()
+    key_id = str(
+        getattr(settings, "AUDIT_INTEGRITY_KEY_ID", "")
+        or os.getenv("AUDIT_INTEGRITY_KEY_ID", "v1")
+        or ""
+    ).strip()
     if not key_id or len(key_id) > 64:
         raise RuntimeError("AUDIT_INTEGRITY_KEY_ID must be 1..64 characters before sealing audit history")
 
-    configured = str(getattr(settings, "AUDIT_INTEGRITY_KEY", "") or "")
+    configured = str(
+        getattr(settings, "AUDIT_INTEGRITY_KEY", "")
+        or os.getenv("AUDIT_INTEGRITY_KEY", "")
+        or ""
+    )
     app_env = str(getattr(settings, "APP_ENV", "development") or "development").strip().lower()
     if app_env == "production" and not configured:
         raise RuntimeError("AUDIT_INTEGRITY_KEY is required in production before sealing audit history")
