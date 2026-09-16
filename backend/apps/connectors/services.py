@@ -32,7 +32,6 @@ def redacted_connector_error(config, exc):
         if value:
             secret_values.append(value)
 
-    # Scrub common derived credential forms in addition to the raw values.
     derived = set(secret_values)
     for value in secret_values:
         derived.add(urllib.parse.quote(value, safe=""))
@@ -54,6 +53,14 @@ def _source_host(config):
             return urllib.parse.urlparse(host).hostname or ""
         return str(host or "")
     return urllib.parse.urlparse(config.base_url or "").hostname or ""
+
+
+def _raise_sanitized_connector_exception(exc, safe_error):
+    try:
+        sanitized = exc.__class__(safe_error)
+    except Exception:
+        raise ValidationError(safe_error) from None
+    raise sanitized from None
 
 
 def run_connector(config, *, user, request=None):
@@ -158,4 +165,4 @@ def run_connector(config, *, user, request=None):
             },
             request=request,
         )
-        raise ValidationError(safe_error) from None
+        _raise_sanitized_connector_exception(exc, safe_error)
