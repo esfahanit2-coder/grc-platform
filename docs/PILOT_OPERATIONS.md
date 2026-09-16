@@ -258,20 +258,48 @@ Do not estimate these values in advance.
 - **Observed RTO:** use `observed_rto_seconds` written by the restore script, then add any manual validation time required by the organization's definition of service recovery.
 - **Observed RPO:** compare the timestamp/state of the controlled marker immediately before the backup with the restored state. Record the real recoverable cutoff and any data intentionally created after that cutoff.
 
+## 9. Acceptance evidence bundle
+
+After the real drill, use `docs/PILOT_ACCEPTANCE_EVIDENCE.md` as the closure/evidence procedure. The collector `scripts/pilot-acceptance-evidence.py` reuses the readiness, backup/restore and AI tooling above and produces a low-risk PASS/FAIL/NOT_MEASURED/MANUAL_REQUIRED summary.
+
+The evidence collector is **not** a replacement for the tests in this runbook. It cannot prove clean-host provenance, browser-authenticated cookie/CSRF behavior, network egress isolation, destructive marker behavior or RPO/RTO acceptance without explicit operator attestations.
+
+Use the committed template only as a starting point and keep the populated copy in ignored runtime storage:
+
+```bash
+cp docs/PILOT_MANUAL_OBSERVATIONS.example.json runtime/pilot-manual-observations.json
+chmod 600 runtime/pilot-manual-observations.json
+```
+
+A representative final collection command is:
+
+```bash
+python3 scripts/pilot-acceptance-evidence.py \
+  --tls \
+  --base-url https://grc-pilot.example.internal/ \
+  --ai-provider-id <AI_PROVIDER_CONFIG_UUID> \
+  --backup-observation backups/pilot-drill-001/backup-observation.json \
+  --restore-observation backups/pilot-drill-001/restore-observation.json \
+  --manual-observations runtime/pilot-manual-observations.json \
+  --require-complete
+```
+
+Only the low-risk acceptance summary should normally be attached to Issue #7. Never attach `.env`, the backup directory, TLS private keys, raw customer Evidence, connector credentials, raw application logs or full AI adversarial responses/canaries to GitHub.
+
 ## Measured pilot observations
 
 | Item | Actual result | Evidence / notes |
 |---|---|---|
 | Clean host / OS | NOT_MEASURED | Populate during target-host drill |
-| Release commit | NOT_MEASURED | Record exact Git SHA |
-| Core services healthy | NOT_MEASURED | Attach `docker compose ps` + readiness output |
-| HTTPS / secure cookie / CSRF | NOT_MEASURED | Record browser/API checks |
-| Backup duration | NOT_MEASURED | `backup-observation.json` |
-| Restore RTO | NOT_MEASURED | `restore-observation.json` |
-| Restore RPO | NOT_MEASURED | Controlled marker evidence |
-| Object evidence restored | NOT_MEASURED | Record object/evidence id + checksum |
-| Local AI offline | NOT_MEASURED | Provider/model + no-egress test |
-| AI disable/provider switch | NOT_MEASURED | Record tested configurations |
+| Release commit | NOT_MEASURED | `acceptance-summary.json` / exact Git SHA |
+| Core services healthy | NOT_MEASURED | `pilot_readiness` + collector summary |
+| HTTPS / secure cookie / CSRF | NOT_MEASURED | TLS probe + operator attestation |
+| Backup duration | NOT_MEASURED | `backup-observation.json` / sanitized bundle summary |
+| Restore RTO | NOT_MEASURED | `restore-observation.json` + approved RTO attestation |
+| Restore RPO | NOT_MEASURED | Controlled marker evidence + approved RPO attestation |
+| Object evidence restored | NOT_MEASURED | Evidence id/checksum reference; do not attach payload |
+| Local AI offline | NOT_MEASURED | Generation/embedding readiness + no-egress evidence reference |
+| AI disable/provider switch | NOT_MEASURED | Operator attestation to tested configurations |
 | Operational gaps | NOT_MEASURED | Convert unresolved items into tracked issues |
 
-Issue #7 stays open until these real observations meet the acceptance criteria.
+Issue #7 stays open until the real observations meet the acceptance criteria and `acceptance-summary.json` reports `ready_to_close_issue_7=true` after human review of the referenced evidence.
