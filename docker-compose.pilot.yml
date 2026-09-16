@@ -93,6 +93,17 @@ services:
       start_period: 15s
     restart: unless-stopped
 
+  ops:
+    profiles: ["ops"]
+    build: ./backend
+    env_file: [.env]
+    volumes:
+      - ./backups:/backups
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      objectstore: {condition: service_started}
+
   gateway:
     image: nginx:1.28.0-alpine
     ports: ["8080:80"]
