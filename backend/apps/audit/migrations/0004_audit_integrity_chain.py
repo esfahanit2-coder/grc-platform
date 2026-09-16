@@ -1,8 +1,7 @@
+import django.utils.timezone
 from django.db import migrations, models
 from django.db.models import Q
 from django.db.models.deletion import PROTECT
-from django.conf import settings
-import django.db.models.deletion
 
 
 class Migration(migrations.Migration):
@@ -38,6 +37,30 @@ class Migration(migrations.Migration):
                 "verbose_name_plural": "Audit chain states",
             },
         ),
+        migrations.AlterModelOptions(
+            name="auditevent",
+            options={
+                "ordering": ["-created_at"],
+                "base_manager_name": "system_objects",
+                "default_manager_name": "objects",
+            },
+        ),
+        migrations.AlterModelManagers(
+            name="auditevent",
+            managers=[
+                ("objects", models.Manager()),
+                ("system_objects", models.Manager()),
+            ],
+        ),
+        migrations.AlterField(
+            model_name="auditevent",
+            name="created_at",
+            field=models.DateTimeField(
+                db_index=True,
+                default=django.utils.timezone.now,
+                editable=False,
+            ),
+        ),
         migrations.AddField(
             model_name="auditevent",
             name="chain_sequence",
@@ -60,7 +83,10 @@ class Migration(migrations.Migration):
         ),
         migrations.AddIndex(
             model_name="auditevent",
-            index=models.Index(fields=["tenant", "chain_sequence"], name="audit_tenant_chain_idx"),
+            index=models.Index(
+                fields=["tenant", "chain_sequence"],
+                name="audit_audit_tenant__9bc645_idx",
+            ),
         ),
         migrations.AddConstraint(
             model_name="auditevent",
