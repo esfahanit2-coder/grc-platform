@@ -1,6 +1,15 @@
+from django.db.models import Count
 from rest_framework import serializers
 from apps.tenancy.models import TenantMembership
 from .models import Assessment, AssessmentItem
+
+
+def _root_objects(serializer,obj):
+    instance=getattr(serializer.root,"instance",None)
+    if instance is None: return [obj]
+    if hasattr(instance,"pk"): return [instance]
+    try: return list(instance)
+    except TypeError: return [obj]
 
 
 class AssessmentSerializer(serializers.ModelSerializer):
@@ -25,11 +34,20 @@ class AssessmentSerializer(serializers.ModelSerializer):
     def get_owner_display(self, obj):
         return obj.owner.get_full_name() or obj.owner.get_username()
 
-    def get_items_count(self, obj):
-        return obj.items.filter(deleted_at__isnull=True).count()
+    def _count_cache(self,obj):
+        cache=self.context.get("_assessment_relation_count_cache")
+        if cache is not None: return cache
+        ids=[row.id for row in _root_objects(self,obj)]
+        item_counts={row["assessment_id"]:row["count"] for row in AssessmentItem.objects.filter(assessment_id__in=ids,deleted_at__isnull=True).values("assessment_id").annotate(count=Count("id"))}
+        from apps.findings.models import Finding
+        finding_counts={row["assessment_item__assessment_id"]:row["count"] for row in Finding.objects.filter(assessment_item__assessment_id__in=ids,assessment_item__deleted_at__isnull=True,deleted_at__isnull=True).values("assessment_item__assessment_id").annotate(count=Count("id"))}
+        cache={"items":item_counts,"findings":finding_counts}
+        self.context["_assessment_relation_count_cache"]=cache
+        return cache
 
-    def get_findings_count(self, obj):
-        return sum(item.findings.filter(deleted_at__isnull=True).count() for item in obj.items.all())
+    def get_items_count(self, obj): return self._count_cache(obj)["items"].get(obj.id,0)
+
+    def get_findings_count(self, obj): return self._count_cache(obj)["findings"].get(obj.id,0)
 
     def validate(self, attrs):
         tenant = self.context["tenant"]
@@ -68,16 +86,33 @@ class AssessmentItemSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ["assessment", "requirement", "reviewer_comment", "reviewed_by", "created_at", "updated_at"]
 
+    def _relation_cache(self,obj):
+        cache=self.context.get("_assessment_item_relation_cache")
+        if cache is not None: return cache
+        objects=_root_objects(self,obj);ids=[row.id for row in objects];requirement_ids={row.requirement_id for row in objects}
+        from apps.controls.models import ControlRequirement
+        mapped={requirement_id:[] for requirement_id in requirement_ids}
+        for row in ControlRequirement.objects.filter(requirement_id__in=requirement_ids,deleted_at__isnull=True).select_related("control"):
+            bucket=mapped.setdefault(row.requirement_id,[])
+            if len(bucket)<50: bucket.append(row)
+        tenant=self.context.get("tenant")
+        from apps.evidence.models import EvidenceLink
+        evidence_qs=EvidenceLink.objects.filter(object_type="assessment_item",object_id__in=ids,deleted_at__isnull=True)
+        if tenant is not None: evidence_qs=evidence_qs.filter(tenant=tenant)
+        evidence={row["object_id"]:row["count"] for row in evidence_qs.values("object_id").annotate(count=Count("id"))}
+        from apps.findings.models import Finding
+        findings={row["assessment_item_id"]:row["count"] for row in Finding.objects.filter(assessment_item_id__in=ids,deleted_at__isnull=True).values("assessment_item_id").annotate(count=Count("id"))}
+        cache={"mapped":mapped,"evidence":evidence,"findings":findings}
+        self.context["_assessment_item_relation_cache"]=cache
+        return cache
+
     def get_mapped_controls(self, obj):
-        rows = obj.requirement.control_mappings.filter(deleted_at__isnull=True).select_related("control")[:50]
+        rows=self._relation_cache(obj)["mapped"].get(obj.requirement_id,[])
         return [{"id": str(row.control_id), "code": row.control.code, "title": row.control.title, "coverage": str(row.coverage)} for row in rows]
 
-    def get_evidence_count(self, obj):
-        from apps.evidence.models import EvidenceLink
-        return EvidenceLink.objects.filter(tenant=obj.assessment.tenant, object_type="assessment_item", object_id=obj.id, deleted_at__isnull=True).count()
+    def get_evidence_count(self, obj): return self._relation_cache(obj)["evidence"].get(obj.id,0)
 
-    def get_findings_count(self, obj):
-        return obj.findings.filter(deleted_at__isnull=True).count()
+    def get_findings_count(self, obj): return self._relation_cache(obj)["findings"].get(obj.id,0)
 
     def get_assigned_to_display(self, obj):
         return (obj.assigned_to.get_full_name() or obj.assigned_to.get_username()) if obj.assigned_to else ""
