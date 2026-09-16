@@ -1,4 +1,8 @@
+"use client";
+
 import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
+import { apiFetch } from "../lib/api";
 
 const menu = [
   { label: "داشبورد", href: "/" },
@@ -14,49 +18,232 @@ const menu = [
   { label: "یافته‌ها", href: "/findings" },
   { label: "اقدامات", href: "/actions" },
   { label: "ممیزی", href: "/audits" },
+  { label: "آزمون کنترل‌ها", href: "/control-tests" },
   { label: "مستندات", href: "/documents" },
+  { label: "اتصال‌ها", href: "/connectors" },
   { label: "هوش مصنوعی", href: "/ai" },
   { label: "گردش‌کار", href: "/workflows" },
   { label: "اعلان‌ها", href: "/notifications" },
   { label: "تنظیمات امنیتی", href: "/settings/security" },
 ];
 
-const cards = [
-  { label: "درصد انطباق کل", value: "72%", tone: "good" },
-  { label: "ریسک‌های بحرانی و بالا", value: "12", tone: "bad" },
-  { label: "یافته‌های باز", value: "21", tone: "neutral" },
-  { label: "اقدامات معوق", value: "17", tone: "warn" },
-];
+type Finding = {
+  id: string;
+  title: string;
+  severity?: string;
+  due_date?: string | null;
+};
+
+type Dashboard = {
+  compliance_score: number | null;
+  high_critical_residual_risks: number;
+  open_findings: number;
+  overdue_actions: number;
+  control_effectiveness: Record<string, number>;
+  assessments_due: number;
+  top_findings: Finding[];
+};
+
+function metricTone(value: number | null) {
+  if (value === null) return "neutral";
+  if (value >= 80) return "good";
+  if (value >= 60) return "warn";
+  return "bad";
+}
+
+function formatSeverity(value?: string) {
+  const labels: Record<string, string> = {
+    critical: "بحرانی",
+    high: "بالا",
+    medium: "متوسط",
+    low: "پایین",
+  };
+  return labels[value ?? ""] ?? value ?? "—";
+}
 
 export default function Home() {
+  const [data, setData] = useState<Dashboard | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  async function load() {
+    setLoading(true);
+    setError("");
+    try {
+      const response = await apiFetch("/dashboard/management/");
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.detail || body.message || `HTTP ${response.status}`);
+      }
+      setData(await response.json());
+    } catch (exc) {
+      setError(exc instanceof Error ? exc.message : "دریافت داشبورد ناموفق بود.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  const effectiveness = useMemo(
+    () => Object.entries(data?.control_effectiveness ?? {}).sort((a, b) => b[1] - a[1]),
+    [data],
+  );
+
+  const cards = [
+    {
+      label: "امتیاز انطباق",
+      value: data?.compliance_score == null ? "—" : `${data.compliance_score}%`,
+      tone: metricTone(data?.compliance_score ?? null),
+    },
+    {
+      label: "ریسک‌های Residual بالا/بحرانی",
+      value: data ? String(data.high_critical_residual_risks) : "—",
+      tone: data && data.high_critical_residual_risks > 0 ? "bad" : "good",
+    },
+    {
+      label: "یافته‌های باز",
+      value: data ? String(data.open_findings) : "—",
+      tone: "neutral",
+    },
+    {
+      label: "اقدامات معوق",
+      value: data ? String(data.overdue_actions) : "—",
+      tone: data && data.overdue_actions > 0 ? "warn" : "good",
+    },
+  ];
+
   return (
     <main className="shell">
       <aside className="sidebar">
         <div className="brand">
           <div className="brandMark">G</div>
-          <div><strong>GRC Platform</strong><small>Governance · Risk · Compliance</small></div>
+          <div>
+            <strong>GRC Platform</strong>
+            <small>Governance · Risk · Compliance</small>
+          </div>
         </div>
-        <nav>{menu.map((item, i) => <Link key={item.label} href={item.href} className={i === 0 ? "active" : ""}>{item.label}</Link>)}</nav>
+        <nav>
+          {menu.map((item, index) => (
+            <Link key={item.href} href={item.href} className={index === 0 ? "active" : ""}>
+              {item.label}
+            </Link>
+          ))}
+        </nav>
       </aside>
 
       <section className="workspace">
         <header className="topbar">
-          <div className="profile"><span className="avatar">ع</span><div><strong>علی محمدی</strong><small>مدیر ریسک</small></div></div>
-          <div className="search">جستجو در ریسک‌ها، کنترل‌ها، مستندات ... <kbd>Ctrl K</kbd></div>
-          <Link className="ai" href="/ai">دستیار هوشمند ✦</Link>
+          <div className="liveStatus">
+            <strong>داشبورد عملیاتی</strong>
+            <small>داده‌های tenant جاری</small>
+          </div>
+          <div className="topbarLinks">
+            <Link className="secondaryLink" href="/connectors">عملیات اتصال‌ها</Link>
+            <Link className="ai" href="/ai">دستیار هوشمند ✦</Link>
+          </div>
         </header>
 
         <div className="content">
-          <div className="titleRow"><div><h1>داشبورد</h1><p>نمای کلی وضعیت حاکمیت، ریسک و انطباق سازمان</p></div><button className="primary">+ ایجاد سریع</button></div>
-          <div className="filters"><button>همه واحدها⌄</button><button>همه چارچوب‌ها⌄</button><button>۳۰ روز گذشته⌄</button></div>
-          <div className="kpis">{cards.map(c => <article key={c.label} className={`kpi ${c.tone}`}><span>{c.label}</span><strong>{c.value}</strong><small>نمونه رابط Sprint 6</small></article>)}</div>
+          <div className="titleRow">
+            <div>
+              <h1>داشبورد</h1>
+              <p>نمای واقعی وضعیت حاکمیت، ریسک و انطباق بر اساس داده‌های قابل دسترسی شما</p>
+            </div>
+            <button className="primary" onClick={load} disabled={loading}>
+              {loading ? "در حال بروزرسانی…" : "بروزرسانی"}
+            </button>
+          </div>
+
+          {error && (
+            <div className="errorBanner" role="alert">
+              <strong>دریافت داشبورد ناموفق بود.</strong>
+              <span>{error}</span>
+            </div>
+          )}
+
+          <div className="kpis">
+            {cards.map((card) => (
+              <article key={card.label} className={`kpi ${card.tone}`}>
+                <span>{card.label}</span>
+                <strong>{loading ? "…" : card.value}</strong>
+                <small>محاسبه‌شده از داده‌های جاری</small>
+              </article>
+            ))}
+          </div>
+
           <div className="grid">
-            <article className="panel"><h2>وضعیت انطباق بر اساس چارچوب</h2>{[["ISO/IEC 27001","78%",78],["افتا","64%",64],["COBIT 2019","51%",51],["ISO 9001","73%",73],["ISO 31000","68%",68]].map(([n,v,p]) => <div className="barRow" key={String(n)}><span>{n}</span><div className="bar"><i style={{width:`${p}%`}} /></div><b>{v}</b></div>)}</article>
-            <article className="panel"><h2>ریسک‌های برتر</h2><table><tbody><tr><th>شناسه</th><th>ریسک</th><th>سطح</th></tr><tr><td>R-001</td><td>دسترسی غیرمجاز مدیریتی</td><td><em className="critical">بحرانی</em></td></tr><tr><td>R-002</td><td>خرابی سامانه پشتیبان‌گیری</td><td><em className="high">بالا</em></td></tr><tr><td>R-003</td><td>نشت اطلاعات مشتریان</td><td><em className="high">بالا</em></td></tr></tbody></table></article>
-            <article className="panel wide"><h2>Foundation status</h2><p className="muted">این رابط عمداً داده نمونه نشان می‌دهد. Sprint 4 ارزیابی انطباق، Evidence قابل استفاده مجدد، Finding و CAPA را به هسته ریسک و کنترل متصل می‌کند.</p><div className="foundation"><span>✓ RTL shell</span><span>✓ API v1</span><span>✓ Scoped RBAC</span><span>✓ PostgreSQL</span><span>✓ Professional audit trail</span><span>✓ Framework Engine</span><span>✓ Version Lock</span><span>✓ Crosswalk</span><span>✓ Common Controls</span><span>✓ Asset Register</span><span>✓ Risk Engine</span><span>✓ RTP</span><span>✓ Compliance Assessment</span><span>✓ Evidence Reuse</span><span>✓ Finding & CAPA</span><span>✓ S3 abstraction</span><span>✓ AI Gateway</span><span>✓ Local AI</span><span>✓ Permission-safe RAG</span><span>✓ Workflow</span><span>✓ Notifications</span><span>✓ PDF Template Engine</span></div></article>
+            <article className="panel">
+              <div className="panelHead">
+                <h2>اثربخشی کنترل‌ها</h2>
+                <span className="pill">{effectiveness.reduce((sum, [, count]) => sum + count, 0)} کنترل</span>
+              </div>
+              {!loading && effectiveness.length === 0 ? (
+                <p className="emptyState">هنوز داده‌ای برای اثربخشی کنترل‌ها ثبت نشده است.</p>
+              ) : (
+                <div className="statusList">
+                  {effectiveness.map(([status, count]) => (
+                    <div key={status} className="statusRow">
+                      <span>{status || "نامشخص"}</span>
+                      <strong>{count}</strong>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </article>
+
+            <article className="panel">
+              <div className="panelHead">
+                <h2>ارزیابی‌های سررسیددار</h2>
+                <Link href="/assessments">مشاهده ارزیابی‌ها</Link>
+              </div>
+              <div className="bigOperationalMetric">{loading ? "…" : data?.assessments_due ?? "—"}</div>
+              <p className="muted">ارزیابی‌های تکمیل‌نشده‌ای که تاریخ سررسید برای آن‌ها ثبت شده است.</p>
+            </article>
+
+            <article className="panel wide">
+              <div className="panelHead">
+                <h2>یافته‌های باز با اولویت نمایش</h2>
+                <Link href="/findings">همه یافته‌ها</Link>
+              </div>
+              {!loading && (data?.top_findings?.length ?? 0) === 0 ? (
+                <p className="emptyState">یافته بازی در محدوده دسترسی فعلی وجود ندارد.</p>
+              ) : (
+                <table>
+                  <thead>
+                    <tr>
+                      <th>یافته</th>
+                      <th>شدت</th>
+                      <th>سررسید</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(data?.top_findings ?? []).map((finding) => (
+                      <tr key={finding.id}>
+                        <td><Link href={`/findings/${finding.id}`}>{finding.title}</Link></td>
+                        <td><span className={`riskLevel ${finding.severity ?? ""}`}>{formatSeverity(finding.severity)}</span></td>
+                        <td>{finding.due_date || "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </article>
+
+            <article className="panel wide">
+              <h2>عملیات Pilot / RC</h2>
+              <div className="operationsLinks">
+                <Link href="/connectors">Connector Health & Sync</Link>
+                <Link href="/reports">گزارش مدیریتی</Link>
+                <Link href="/control-tests">آزمون کنترل‌ها</Link>
+                <Link href="/frameworks/crosswalk">Crosswalk چارچوب‌ها</Link>
+              </div>
+            </article>
           </div>
         </div>
       </section>
-    <section className="panel"><h2>ماژول‌های Sprint 5 و 6</h2><p><Link href="/audits">ممیزی داخلی</Link> · <Link href="/control-tests">آزمون کنترل‌ها</Link> · <Link href="/documents">مستندات</Link> · <Link href="/reports">گزارش مدیریتی</Link> · <Link href="/ai">AI/RAG</Link> · <Link href="/workflows">Workflow</Link></p></section></main>
+    </main>
   );
 }

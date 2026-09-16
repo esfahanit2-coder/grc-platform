@@ -1,20 +1,30 @@
 # Release blockers
 
-The current repository is a **Pilot Candidate**, not a production release.
+The repository remains a **Pilot Candidate**. This file distinguishes checks already proven by repository CI from validation that still depends on a real deployment, licensed content, or independent review.
 
-## Blocking before a tagged release
+## Cleared by repository/runtime gates
 
-1. Generate and commit `frontend/package-lock.json` from a trusted connected environment.
-2. Pass `.github/workflows/release-gate.yml` using `npm ci`.
-3. Pass all Django migrations and tests against PostgreSQL 18 + pgvector.
-4. Pass Next.js lint and production build.
-5. Run `python manage.py check --deploy` with the actual production environment.
-6. Pin production container images to organization-approved tags or immutable digests.
-7. Configure an approved S3-compatible object store and prove backup/restore.
-8. Configure MFA encryption key and production secret management.
-9. Test connector credentials using least-privilege service accounts / API administrators.
-10. Perform a security test focused on tenant isolation, scoped RBAC, IDOR, file upload, CSRF/cookie auth and connector SSRF boundaries.
+- `frontend/package-lock.json` is committed and frontend builds use `npm ci --ignore-scripts`.
+- PostgreSQL 18 + pgvector migrations run from an empty database in CI.
+- Full Django tests, Golden E2E and connector contract tests pass in the reusable runtime gate.
+- Next.js typecheck, lint and production build pass.
+- Dependency audit, Bandit high-severity SAST, repository secret scan, backend/frontend Trivy HIGH/CRITICAL image scans and CycloneDX SBOM generation are enforced by the release gate.
+- Release composition rejects mutable `:latest` application image tags.
+- Deterministic negative-path tests cover key tenant/authorization, MFA replay, CSRF, IDOR, evidence quarantine, report-fetch and RAG boundaries.
 
-## Content/legal blocker
+## Remaining before v1.0 RC / production rollout
 
-Do not bundle proprietary ISO/COBIT/AFTA text unless the distribution/use license explicitly permits embedding that content in the product. The included pilot baseline is original content and is intended only to prove the engine and workflow.
+1. **Authorized content (#5):** complete the real ISMS source path, rights/provenance record and human-approved AFTA/ISMS/internal crosswalk without unauthorized redistribution.
+2. **Live connector proof (#6):** run health/sync against authorized AD/LDAP, FortiGate, Veeam and Tenable/Nessus systems; at least three connector types must create real reusable Evidence.
+3. **Clean-host operations proof (#7):** execute clean install, real TLS/cookie/CSRF validation, backup/restore drill, measured RPO/RTO and no-egress local-AI proof.
+4. **Security validation (#8):** complete/schedule independent penetration testing, validate a real malware-scanner workflow and document final security sign-off.
+5. **Operational UI (#19):** remove production-facing demo dashboard data and expose connector operations safely.
+6. **Performance/load readiness (#20):** establish repeatable load scenarios and pilot engineering budgets without treating CI runners as production capacity proof.
+7. **HA/DR + upgrade/rollback (#21):** document topology assumptions and rehearse release migration/rollback behavior.
+8. **Offline release/support (#22):** build deterministic offline release verification/install flow and operator support handbook.
+9. Run `python manage.py check --deploy` using the actual target production environment and approved secrets/TLS settings.
+10. Pin all production infrastructure/application images to organization-approved versions or immutable digests for the final deployment manifest.
+
+## Content/legal boundary
+
+Do not bundle proprietary ISO/COBIT/AFTA text unless the distribution/use license explicitly permits embedding that content in the product. Customer-provided restricted content remains tenant-scoped unless broader rights are documented.
