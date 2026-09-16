@@ -94,17 +94,21 @@ The repository now provides:
 
 Real replication/failover behavior and measured RPO/RTO still belong to target-environment validation under #7; they are not claimed by CI.
 
-### #22 Offline release bundle and support — PLANNED PRE-v1
+### #22 Offline release bundle and support — COMPLETE (software/tooling contract)
 
-**Purpose:** make disconnected deployment/install/update/support deterministic.
+The repository now provides:
+- deterministic release manifests with exact payload SHA-256/size verification and extra/missing-file rejection;
+- detached OpenSSL signing with the production private key explicitly outside Git/CI and an out-of-band trusted public-key boundary;
+- exact backend/frontend plus pinned infrastructure image archives and Docker image-ID verification;
+- an exact Git source bundle, CycloneDX SBOMs, migration inventory and public configuration schema;
+- digest references to retained security reports without embedding raw secret-scan output into distribution media;
+- air-gapped install/update tooling that verifies before mutation and uses preloaded images with `--no-build`;
+- offline-aware fail-closed upgrade and release-version-aware backup rollback integration;
+- reference-only local-AI model metadata so third-party model weights are not redistributed by this release process;
+- a consolidated offline release/operator support handbook and a secret-minimized support-evidence collector;
+- CI/Release Gate self-tests for deterministic manifest output, ephemeral signing, verification and tamper rejection.
 
-Required output:
-- version-pinned images/packages/manifests;
-- checksums and verification instructions;
-- SBOM/security artifacts carried with release;
-- offline installation/update procedure;
-- operator/support handbook;
-- troubleshooting and escalation boundaries.
+Actual production signing-key custody/HSM operations and real disconnected-host installation observations remain organization/environment evidence; the repository does not claim those from CI.
 
 ### #8 Independent security validation — AUTOMATED HARDENING COMPLETE, EXTERNAL PROOF PENDING
 
