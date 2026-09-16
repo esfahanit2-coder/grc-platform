@@ -1,6 +1,8 @@
 import json
+from pathlib import Path
 
 from django.contrib.auth import get_user_model
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.utils import timezone
 from rest_framework.test import APITestCase
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -82,7 +84,6 @@ class FrameworkEngineTests(APITestCase):
                 {"code": "1.1", "parent_code": "1", "title": "Define responsibilities", "title_fa": "تعریف مسئولیت‌ها"},
             ],
         }
-        from django.core.files.uploadedfile import SimpleUploadedFile
         upload = SimpleUploadedFile("pack.json", json.dumps(payload, ensure_ascii=False).encode("utf-8"), content_type="application/json")
         preview = self.client.post("/api/v1/frameworks/import/?dry_run=true", {"file": upload}, format="multipart", **self.headers)
         self.assertEqual(preview.status_code, 200)
@@ -98,6 +99,34 @@ class FrameworkEngineTests(APITestCase):
         child = version.requirements.get(code="1.1")
         self.assertEqual(child.parent.code, "1")
         self.assertEqual(child.translations.get(language="fa").title, "تعریف مسئولیت‌ها")
+
+    def test_repository_pilot_pack_imports_with_provenance_and_locks(self):
+        pack_path = Path(__file__).resolve().parents[3] / "content-packs" / "examples" / "pilot-isms-security-baseline.json"
+        raw = pack_path.read_bytes()
+        payload = json.loads(raw.decode("utf-8"))
+        self.assertEqual(payload["framework"]["license_type"], "internal")
+        self.assertEqual(payload["framework"]["license_metadata"]["rights_basis"], "Original project-authored content")
+        self.assertFalse(payload["framework"]["license_metadata"]["restricted_sources_reproduced"])
+        self.assertIn("soa", payload["version"]["metadata"]["report_hooks"])
+        self.assertIn("rtp", payload["version"]["metadata"]["report_hooks"])
+
+        upload = SimpleUploadedFile("pilot-isms-security-baseline.json", raw, content_type="application/json")
+        committed = self.client.post("/api/v1/frameworks/import/?dry_run=false", {"file": upload}, format="multipart", **self.headers)
+        self.assertEqual(committed.status_code, 201)
+        framework = Framework.objects.get(tenant=self.tenant, code="pilot-isms-security-baseline")
+        version = framework.versions.get(version_code="2026.1")
+        self.assertEqual(framework.license_metadata["rights_basis"], "Original project-authored content")
+        self.assertEqual(version.requirements.filter(assessable=True).count(), 8)
+        self.assertEqual(version.metadata["scoring_model"]["type"], "weighted_assessment")
+
+        locked = self.client.post(f"/api/v1/framework-versions/{version.id}/lock/", {}, format="json", **self.headers)
+        self.assertEqual(locked.status_code, 200)
+        version.refresh_from_db()
+        self.assertTrue(version.is_locked)
+        self.assertEqual(len(version.checksum), 64)
+        req = version.requirements.get(code="IAM.1")
+        blocked = self.client.patch(f"/api/v1/requirements/{req.id}/", {"title": "Changed"}, format="json", **self.headers)
+        self.assertEqual(blocked.status_code, 400)
 
     def test_mapping_can_be_approved_and_is_tenant_owned(self):
         response = self.client.post(
