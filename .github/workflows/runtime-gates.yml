@@ -52,6 +52,8 @@ jobs:
       - run: cd .. && python scripts/static-check.py --skip-typescript
       - name: Validate pilot compose, TLS gateway and ops scripts
         working-directory: .
+        env:
+          PILOT_ENV_FILE: .env.pilot.example
         run: |
           docker compose --env-file .env.pilot.example -f docker-compose.pilot.yml --profile local-ai --profile ops config >/dev/null
           docker compose --env-file .env.pilot.example -f docker-compose.pilot.yml -f docker-compose.pilot.tls.yml --profile local-ai --profile ops config >/dev/null
