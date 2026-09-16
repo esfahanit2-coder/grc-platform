@@ -34,7 +34,8 @@ services:
 
   backend:
     build: ./backend
-    env_file: [${PILOT_ENV_FILE:-.env}]
+    env_file:
+      - "${PILOT_ENV_FILE:-.env}"
     command: sh -c "python manage.py migrate && python manage.py check --deploy && gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 3 --threads 4 --timeout 90"
     depends_on:
       postgres: {condition: service_healthy}
@@ -49,7 +50,8 @@ services:
 
   worker:
     build: ./backend
-    env_file: [${PILOT_ENV_FILE:-.env}]
+    env_file:
+      - "${PILOT_ENV_FILE:-.env}"
     command: celery -A config worker -l INFO
     depends_on:
       backend: {condition: service_healthy}
@@ -58,7 +60,8 @@ services:
 
   beat:
     build: ./backend
-    env_file: [${PILOT_ENV_FILE:-.env}]
+    env_file:
+      - "${PILOT_ENV_FILE:-.env}"
     command: celery -A config beat -l INFO
     depends_on:
       backend: {condition: service_healthy}
@@ -96,7 +99,8 @@ services:
   ops:
     profiles: ["ops"]
     build: ./backend
-    env_file: [${PILOT_ENV_FILE:-.env}]
+    env_file:
+      - "${PILOT_ENV_FILE:-.env}"
     volumes:
       - ./backups:/backups
     depends_on:
