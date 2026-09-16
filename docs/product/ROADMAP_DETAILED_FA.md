@@ -75,28 +75,24 @@ Boundaryهای پیاده‌سازی‌شده شامل Read-only Collection، Se
 
 داده Demo تولیدی از Dashboard حذف شده، Management Metricها Tenant-scoped و واقعی هستند و Connector Operations UI با Loading/Empty/Error State مناسب وجود دارد.
 
-### #20 Performance/Load Readiness — در حال انجام
+### #20 Performance/Load Readiness — کامل از نظر Software Validation
 
-**هدف:** قبل از Scale واقعی Pilot، Budget مهندسی قابل تکرار داشته باشیم و N+1/Query Amplificationهای قابل پیشگیری حذف شوند.
+اعتبارسنجی تکرارپذیر Pre-RC اکنون شامل Regression Test برای N+1/Query Amplification، HTTP Load Harness بدون وابستگی اضافه، خروجی Machine-readable برای Latency/Error/Throughput، Self-test در CI و Engineering Budgetهای موقت و مستند است. این Budgetها SLO قراردادی یا ادعای Production Capacity نیستند و اندازه‌گیری Representative Host همچنان Evidence عملیاتی است.
 
-کارها:
-- حذف N+1های شناخته‌شده در List Serializerها؛
-- Regression Test برای اینکه Query Count با تعداد Row به‌صورت خطی رشد نکند؛
-- HTTP Load Harness سبک برای p50/p95/max/error-rate/status distribution؛
-- Runbook اجرای امن Read-only Load روی Pilot Tenant؛
-- اندازه‌گیری روی Host واقعی در آینده بدون اینکه GitHub Runner به‌عنوان Production Capacity معرفی شود.
+### #21 HA/DR و Upgrade/Rollback — کامل از نظر Reference و Software Tooling
 
-### #21 HA/DR و Upgrade/Rollback — برنامه‌ریزی‌شده قبل از v1
+Repo اکنون شامل موارد زیر است:
+- Reference Topology مستند HA/DR و Failure Domainهای صریح؛
+- Recovery Ordering برای DB/Object Store/Redis/Application و Decision Pointهای Operator؛
+- تحلیل Machine-readable برای ایمنی Django Migration Plan؛
+- Migration Rehearsal روی PostgreSQL 18 یک‌بارمصرف از Release مبنا تا Target؛
+- Pre-upgrade Backup نسخه‌دار و Quiesced با Source Commit و PostgreSQL Compatibility Check؛
+- Upgrade Sequence به‌صورت Fail-closed؛
+- Rollback مبتنی بر Backup و Exact Source Commit؛
+- Disaster-recovery Restore از Ancestor به نسخه جدید فقط با Approval صریح و Gateهای سازگاری؛
+- تفکیک شفاف بین رفتار اثبات‌شده در Repo/CI و Evidence واقعی زیرساختی برای Failover/RPO/RTO.
 
-**هدف:** مشخص‌کردن رفتار Enterprise Deployment هنگام Failure و Software Upgrade.
-
-خروجی لازم:
-- Reference Topology و Failure Domainها؛
-- Recovery Expectation برای DB/Object Store/Redis/Application؛
-- Upgrade Sequence؛
-- Migration Safety Rules؛
-- Backup/Rollback Prerequisite؛
-- Rehearsal Checklist و Evidence Template.
+Replication/Failover واقعی و RPO/RTO اندازه‌گیری‌شده همچنان باید در محیط واقعی و تحت #7 اثبات شوند و CI هیچ ادعایی درباره آن‌ها ندارد.
 
 ### #22 Offline Release Bundle و Support — برنامه‌ریزی‌شده قبل از v1
 

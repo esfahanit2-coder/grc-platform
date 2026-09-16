@@ -75,28 +75,24 @@ Remaining:
 
 Production-facing fabricated dashboard values were removed. Management metrics are live tenant-scoped data. Connector Operations UI exists with explicit loading/empty/error states and safe operational metadata.
 
-### #20 Performance/load readiness — IN PROGRESS
+### #20 Performance/load readiness — COMPLETE (software validation)
 
-**Purpose:** establish repeatable engineering budgets before real pilot scale exposes avoidable query and latency problems.
+Repeatable pre-RC performance validation now includes N+1/query-amplification regression coverage, a dependency-light HTTP load harness, machine-readable latency/error/throughput output, CI self-test and documented provisional engineering budgets. Those budgets are not contractual SLOs or production-capacity claims; representative-host measurement remains operational evidence.
 
-Work includes:
-- remove known N+1/query amplification in list serializers;
-- regression tests that query counts do not grow linearly with row count;
-- dependency-light HTTP load harness reporting p50/p95/max/error rate/status distribution;
-- document how to run read-only load safely against a pilot tenant;
-- measure real-host budgets later without claiming GitHub runner latency as production capacity.
+### #21 HA/DR and upgrade/rollback — COMPLETE (reference + software tooling)
 
-### #21 HA/DR and upgrade/rollback — PLANNED PRE-v1
+The repository now provides:
+- a documented HA/DR reference topology and explicit failure domains;
+- DB/object-store/Redis/application recovery ordering and operator decision points;
+- machine-readable Django migration-plan safety analysis;
+- disposable PostgreSQL 18 migration rehearsal from release baseline to target;
+- versioned/quiesced pre-upgrade backup manifests with source-commit and PostgreSQL compatibility checks;
+- fail-closed upgrade sequencing;
+- exact-source-commit backup-based rollback;
+- explicitly gated ancestor-to-current disaster-recovery restore;
+- clear separation between repository-tested behavior and real infrastructure failover/RPO/RTO evidence.
 
-**Purpose:** define how an enterprise deployment survives failures and software upgrades.
-
-Required output:
-- reference topology and failure domains;
-- DB/object-store/Redis/application recovery expectations;
-- upgrade sequence;
-- migration safety rules;
-- rollback and backup prerequisites;
-- rehearsal checklist and evidence template.
+Real replication/failover behavior and measured RPO/RTO still belong to target-environment validation under #7; they are not claimed by CI.
 
 ### #22 Offline release bundle and support — PLANNED PRE-v1
 

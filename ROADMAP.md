@@ -45,9 +45,9 @@ For the rationale, Definition of Done and Persian/English explanations behind th
 ## Gate 4 — v1.0 Release Candidate
 
 - [x] Remove production-facing demo dashboard values and complete the first critical operational UI batch. (#19)
-- [ ] Establish repeatable performance/load validation and pilot engineering budgets. (#20)
+- [x] Establish repeatable performance/load validation and pilot engineering budgets. (#20)
 - [ ] Complete/schedule independent penetration testing and final security sign-off. (#8)
-- [ ] Publish HA/DR reference topology and rehearse upgrade/rollback behavior. (#21)
+- [x] Publish HA/DR reference topology and rehearse upgrade/rollback behavior. (#21)
 - [ ] Build deterministic signed/verifiable offline release bundle process and support handbook. (#22)
 - [ ] Finish actual clean-host operational proof. (#7)
 - [ ] Finish authorized content/crosswalk proof. (#5)

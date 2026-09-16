@@ -36,6 +36,8 @@ jobs:
       POSTGRES_PORT: 5432
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v7
         with:
           python-version: "3.13"
@@ -44,6 +46,8 @@ jobs:
       - run: pip install -r requirements.txt
       - run: pip install pip-audit
       - run: pip-audit -r requirements.txt
+      - name: Audit migration rollback safety before applying schema
+        run: python manage.py release_migration_plan --require-reversible
       - run: python manage.py makemigrations --check --dry-run
       - run: python manage.py migrate
       - run: python manage.py test
@@ -59,6 +63,9 @@ jobs:
           docker compose --env-file .env.pilot.example -f docker-compose.pilot.yml -f docker-compose.pilot.tls.yml --profile local-ai --profile ops config >/dev/null
           bash -n scripts/pilot-backup.sh
           bash -n scripts/pilot-restore.sh
+          bash -n scripts/pilot-upgrade.sh
+          bash -n scripts/pilot-rollback.sh
+          bash -n scripts/migration-rehearsal.sh
           mkdir -p /tmp/grc-tls
           openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj '/CN=grc-ci.local' \
             -keyout /tmp/grc-tls/server.key -out /tmp/grc-tls/server.crt >/dev/null 2>&1
@@ -68,6 +75,20 @@ jobs:
             -v "/tmp/grc-tls/server.crt:/etc/nginx/tls/server.crt:ro" \
             -v "/tmp/grc-tls/server.key:/etc/nginx/tls/server.key:ro" \
             nginx:1.28.0-alpine nginx -t
+      - name: Rehearse migration from pull-request base on disposable PostgreSQL
+        if: github.event_name == 'pull_request'
+        working-directory: .
+        env:
+          MIGRATION_REHEARSAL_REPORT_DIR: ${{ runner.temp }}/grc-migration-rehearsal
+        run: bash scripts/migration-rehearsal.sh "${{ github.event.pull_request.base.sha }}"
+      - name: Upload migration rehearsal report
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v7
+        with:
+          name: migration-rehearsal-${{ github.sha }}
+          path: ${{ runner.temp }}/grc-migration-rehearsal
+          if-no-files-found: warn
+          retention-days: 30
 
   frontend:
     runs-on: ubuntu-latest
