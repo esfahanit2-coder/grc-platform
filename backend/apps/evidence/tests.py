@@ -46,7 +46,41 @@ class EvidenceTests(APITestCase):
         self.evidence.refresh_from_db()
         self.assertEqual(self.evidence.metadata['malware_scan_status'],'pending')
         self.assertTrue(self.evidence.metadata['malware_scan_required'])
+        self.assertEqual(self.evidence.metadata['malware_scan_attempts'],0)
         put.assert_called_once()
+
+    def test_api_client_cannot_forge_clean_malware_scan_status(self):
+        self.evidence.metadata={'malware_scan_status':'pending','malware_scan_required':True}
+        self.evidence.save(update_fields=['metadata','updated_at'])
+        response=self.client.patch(
+            f'/api/v1/evidence/{self.evidence.id}/',
+            {'metadata':{'malware_scan_status':'clean'}},
+            format='json',
+            **self.headers,
+        )
+        self.assertEqual(response.status_code,400)
+        self.evidence.refresh_from_db()
+        self.assertEqual(self.evidence.metadata['malware_scan_status'],'pending')
+
+    def test_normal_metadata_edit_preserves_server_owned_scan_state(self):
+        self.evidence.metadata={
+            'business_tag':'old',
+            'malware_scan_status':'infected',
+            'malware_scan_required':True,
+            'malware_scan_signature':'Eicar-Signature',
+        }
+        self.evidence.save(update_fields=['metadata','updated_at'])
+        response=self.client.patch(
+            f'/api/v1/evidence/{self.evidence.id}/',
+            {'metadata':{'business_tag':'new'}},
+            format='json',
+            **self.headers,
+        )
+        self.assertEqual(response.status_code,200)
+        self.evidence.refresh_from_db()
+        self.assertEqual(self.evidence.metadata['business_tag'],'new')
+        self.assertEqual(self.evidence.metadata['malware_scan_status'],'infected')
+        self.assertEqual(self.evidence.metadata['malware_scan_signature'],'Eicar-Signature')
 
     @patch('apps.evidence.services.S3ObjectStorage.put')
     def test_active_html_upload_is_rejected_before_storage(self, put):

@@ -11,6 +11,7 @@ from apps.audit.services import record_audit_event
 from apps.common.storage import S3ObjectStorage
 from apps.identity.services import accessible_organization_unit_ids, has_whole_tenant_permission, require_tenant_permission, require_whole_tenant_permission
 from apps.tenancy.services import resolve_tenant_for_request
+from .malware_service import enqueue_evidence_scan
 from .models import Evidence, EvidenceLink
 from .serializers import EvidenceLinkSerializer, EvidenceSerializer
 from .services import link_scope, store_uploaded_evidence
@@ -41,6 +42,8 @@ class EvidenceViewSet(viewsets.ModelViewSet):
                 obj.delete()
                 raise
         record_audit_event(self.request.user,tenant,"evidence.create","evidence",obj.id,new_data={"title":obj.title,"sha256":obj.sha256},request=self.request)
+        if uploaded:
+            enqueue_evidence_scan(obj.id)
     def perform_update(self,serializer):
         tenant=self._tenant();instance=serializer.instance;require_tenant_permission(self.request.user,tenant,"evidence.manage",instance.organization_unit) if instance.organization_unit else require_whole_tenant_permission(self.request.user,tenant,"evidence.manage")
         new_unit=serializer.validated_data.get("organization_unit",instance.organization_unit);require_tenant_permission(self.request.user,tenant,"evidence.manage",new_unit) if new_unit else require_whole_tenant_permission(self.request.user,tenant,"evidence.manage")

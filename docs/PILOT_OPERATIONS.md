@@ -116,6 +116,50 @@ docker compose --env-file .env -f docker-compose.pilot.yml ps
 docker compose --env-file .env -f docker-compose.pilot.yml logs --tail=200 backend worker beat frontend gateway objectstore
 ```
 
+## 4A. Evidence malware scanner boundary
+
+Production Evidence downloads are fail-closed when `EVIDENCE_REQUIRE_CLEAN_DOWNLOAD=1`. File uploads enter a server-owned `pending` quarantine state; API clients cannot set or erase malware scan state. The built-in integration can stream the exact S3 object to an approved `clamd` endpoint using ClamAV's `INSTREAM` protocol without writing the Evidence payload to application-host disk.
+
+The GRC application intentionally does **not** deploy or update antivirus signatures. Scanner infrastructure, signature/database updates, licensing, network placement and offline update media remain an operational/security responsibility. ClamAV documents that its TCP `clamd` socket is not authenticated or encrypted, so do not expose it to an untrusted network. Use an approved private/protected path.
+
+Keep the scanner disabled until that path exists:
+
+```dotenv
+EVIDENCE_MALWARE_SCANNER=disabled
+EVIDENCE_REQUIRE_CLEAN_DOWNLOAD=1
+```
+
+When an authorized internal `clamd` service is available, configure:
+
+```dotenv
+EVIDENCE_MALWARE_SCANNER=clamd
+EVIDENCE_MALWARE_SCAN_AUTOSUBMIT=1
+CLAMD_HOST=<approved-private-clamd-host>
+CLAMD_PORT=3310
+CLAMD_TIMEOUT_SECONDS=15
+CLAMD_CHUNK_SIZE=1048576
+```
+
+The Celery worker automatically submits new uploaded Evidence files. Scanner timeout/unavailability/object-read failures are retried within the configured bound; exhausted retries, malformed scanner replies, integrity mismatch, scanner-reported errors and infected results remain non-downloadable. A `clean` result is accepted only when the bytes scanned by the application match the Evidence record's stored size and SHA-256.
+
+For a controlled manual retry after restoring the scanner path:
+
+```bash
+docker compose --env-file .env -f docker-compose.pilot.yml \
+  exec -T backend python manage.py scan_evidence_malware <EVIDENCE_UUID>
+```
+
+Validate the real environment before security sign-off:
+
+- upload a harmless approved test file and verify `pending/scanning -> clean`;
+- confirm the exact Evidence SHA-256 remains unchanged and the download becomes available only after `clean`;
+- use the organization's approved malware-test procedure to prove an infected result remains quarantined; do not use uncontrolled malicious samples;
+- disconnect or stop the scanner and verify uploaded files remain non-downloadable through retry exhaustion;
+- review `evidence.malware_scan` audit events for clean/infected/error outcomes;
+- verify the scanner/signature update process works under the target network and offline-update policy.
+
+These repository controls improve the software boundary but do not complete Issue #8 by themselves. Real scanner deployment/validation, audit-storage integrity validation, independent penetration testing and final security sign-off remain external acceptance evidence.
+
 ## 5. Local AI / air-gapped inference
 
 AI is globally switchable with `AI_ENABLED` and provider selection remains tenant configuration.

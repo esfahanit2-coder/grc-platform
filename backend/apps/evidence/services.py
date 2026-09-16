@@ -2,6 +2,7 @@ import hashlib
 import io
 import mimetypes
 import uuid
+
 from django.conf import settings
 from rest_framework.exceptions import ValidationError
 
@@ -11,6 +12,8 @@ from apps.common.storage import S3ObjectStorage
 from apps.controls.models import ControlImplementation
 from apps.frameworks.models import Requirement
 from apps.risks.models import Risk
+
+from .malware import SERVER_MANAGED_MALWARE_METADATA_KEYS, scanner_backend
 
 SUPPORTED_LINK_TYPES = {"assessment", "assessment_item", "control_implementation", "risk", "finding", "action", "requirement", "audit_workpaper", "control_test_run", "document"}
 
@@ -106,9 +109,15 @@ def store_uploaded_evidence(evidence, uploaded):
     evidence.size = len(raw)
     evidence.sha256 = digest
     metadata = dict(evidence.metadata or {})
-    # Never trust a client-supplied scan claim on a newly uploaded blob.
+    # A new blob invalidates every previous scanner claim. Server-managed scan
+    # keys are cleared even for internal callers before the new pending state is
+    # established.
+    for key_name in SERVER_MANAGED_MALWARE_METADATA_KEYS:
+        metadata.pop(key_name, None)
     metadata["malware_scan_status"] = "pending"
     metadata["malware_scan_required"] = True
+    metadata["malware_scan_scanner"] = scanner_backend()
+    metadata["malware_scan_attempts"] = 0
     evidence.metadata = metadata
     evidence.save(update_fields=["storage_key", "original_filename", "mime_type", "size", "sha256", "metadata", "updated_at"])
     return evidence
