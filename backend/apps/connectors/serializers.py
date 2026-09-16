@@ -3,7 +3,7 @@ import urllib.parse
 from django.conf import settings
 from rest_framework import serializers
 
-from .clients import validate_secret_env_name
+from .clients import FORTIGATE_COLLECTION_PROFILES, validate_secret_env_name
 from .models import ConnectorConfig, ConnectorRun
 
 
@@ -58,6 +58,11 @@ class ConnectorConfigSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError({"base_url": "base_url must not contain a query string or fragment."})
 
         if connector_type == ConnectorConfig.ConnectorType.FORTIGATE:
+            profile = configuration.get("collection_profile") or "baseline"
+            if profile not in FORTIGATE_COLLECTION_PROFILES:
+                raise serializers.ValidationError(
+                    {"configuration": f"FortiGate collection_profile must be one of {sorted(FORTIGATE_COLLECTION_PROFILES)}."}
+                )
             paths = configuration.get("read_paths") or []
             if len(paths) > 10:
                 raise serializers.ValidationError({"configuration": "At most 10 FortiGate read paths are allowed."})
@@ -69,6 +74,14 @@ class ConnectorConfigSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError({"configuration": "AD connector requires configuration.host or base_url."})
             if not configuration.get("base_dn"):
                 raise serializers.ValidationError({"configuration": "AD connector requires configuration.base_dn."})
+            size_limit = int(configuration.get("size_limit", 5000))
+            if size_limit < 1 or size_limit > 10000:
+                raise serializers.ValidationError({"configuration": "AD size_limit must be between 1 and 10000."})
+            privileged_groups = configuration.get("privileged_groups") or []
+            if not isinstance(privileged_groups, list) or len(privileged_groups) > 50:
+                raise serializers.ValidationError({"configuration": "AD privileged_groups must be a list of at most 50 group names or DNs."})
+            if "include_sample" in configuration and not isinstance(configuration.get("include_sample"), bool):
+                raise serializers.ValidationError({"configuration": "AD include_sample must be boolean."})
 
         if not verify_tls and getattr(settings, "APP_ENV", "development") == "production":
             raise serializers.ValidationError({"verify_tls": "TLS verification cannot be disabled in production."})
