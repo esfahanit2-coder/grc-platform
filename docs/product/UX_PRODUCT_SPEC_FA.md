@@ -42,6 +42,7 @@
 Navigation اصلی باید بتواند این حوزه‌ها را بدون شلوغی غیرضروری پوشش دهد:
 
 - Dashboard / نمای مدیریتی
+- Work Center / کارهای من
 - Organization / ساختار سازمان
 - Frameworks / الزامات
 - Controls / پیاده‌سازی کنترل
@@ -58,6 +59,19 @@ Navigation اصلی باید بتواند این حوزه‌ها را بدون �
 
 ماژول‌های Post-v1 مثل TPRM، BCM/BIA، Incidents و CCM بعداً می‌توانند به همین Information Architecture اضافه شوند.
 
+## Work Center / Task Inbox
+
+جهت اصلی UX این است که کاربر برای پیدا کردن مسئولیت‌هایش مجبور نباشد تک‌تک ماژول‌ها را باز کند. Work Center باید در بلوغ محصول مواردی مثل این‌ها را یکجا جمع کند:
+- Assessment Itemهای Assign‌شده؛
+- Review و Approvalهای در انتظار؛
+- Risk Treatment Actionها؛
+- Finding/CAPA Actionها؛
+- Document Review/Approval؛
+- Audit Task/Workpaperهای مسئولیت‌دار؛
+- موارد Overdue و Due Soon.
+
+هر آیتم باید Source Module، Scope، Priority/Severity، Due Date، Status و لینک مستقیم به رکورد اصلی داشته باشد. Work Center نباید Business State جدید و مستقل بسازد؛ نمای عملیاتی روی Task/Workflowهای مرجع است.
+
 ## الگوی صفحه‌های لیست
 
 List Page سازمانی باید تا حد ممکن شامل این موارد باشد:
@@ -68,6 +82,7 @@ List Page سازمانی باید تا حد ممکن شامل این موارد 
 - Empty/Error/Loading State؛
 - Actionهای مجاز بر اساس Permission؛
 - لینک به Detail/Traceability؛
+- Export در صورت نیاز و مجاز بودن؛
 - عدم نمایش Secret یا Sensitive Data غیرضروری.
 
 ## الگوی صفحه Detail
@@ -100,6 +115,7 @@ Dashboard مدیریتی باید:
 - تعداد Finding/Action، Residual Risk، Assessment و Control Effectiveness را از منبع واقعی بگیرد؛
 - امکان Drill-down به رکورد منبع داشته باشد؛
 - محدودیت داده یا Empty State را شفاف نشان دهد؛
+- Indicator/KPI فقط از داده Authoritative و قابل Trace مشتق شود؛
 - در آینده Viewهای Role-specific برای Executive، GRC Admin، Risk Owner و Auditor قابل توسعه باشد.
 
 ## Assessment UX
@@ -154,7 +170,7 @@ Evidence باید نشان دهد:
 - Dataset/Schema؛
 - Evidence IDs.
 
-هیچ «Green Compliance» صرفاً از موفق بودن Connector تولید نمی‌شود.
+هیچ «Green Compliance» صرفاً از موفق بودن Connector تولید نمی‌شود. در مورد Vulnerability نیز GRC نتیجه Scanner خارجی مثل Tenable/Nessus یا معادل را مصرف می‌کند و خودش Scanner Engine نیست.
 
 ## AI UX
 
@@ -163,16 +179,28 @@ AI در UI باید همیشه Context و Authority خودش را روشن کن�
 - روی چه Scope/Data مجازی کار می‌کند؛
 - خروجی Draft/Suggestion است؛
 - دکمه Accept/Apply باید Permission و Workflow عادی را رعایت کند؛
+- Tool/Agent Action باید قبل از اجرا Permission و Scope واقعی Backend را طی کند؛
 - Reject/Supersede قابل ثبت باشد؛
 - در صورت Provider unavailable، Workflow اصلی GRC نباید از کار بیفتد.
 
 ## Document/Report UX
 
-برای SoA، RTP، Audit Report و Policy/Procedure:
+برای SoA، RTP، Audit Report، NCR/CAPA، Policy/Procedure و گزارش‌های مدیریتی:
 - داده ساختاریافته منبع باید مشخص باشد؛
 - Generation باید به‌عنوان Export/Generate ثبت شود؛
+- جهت محصول باید DOCX/PDF/XLSX/CSV/JSON را بر اساس نوع خروجی پوشش دهد؛
+- Template Designer در بلوغ بعدی باید Layout و Template قابل تنظیم ارائه دهد بدون اینکه Business Logic داخل Template منتقل شود؛
 - اگر AI Narrative اضافه می‌کند باید قابل Review باشد؛
 - Version/Approval History سند حفظ شود.
+
+## API / Integration UX
+
+Integration Configuration در صورت اضافه‌شدن باید:
+- Scope و Identity سرویس را واضح نشان دهد؛
+- Permissionهای آن قابل مشاهده و حداقلی باشند؛
+- Secret Value را نمایش ندهد؛
+- REST/MCP/Tool Adapter را به‌عنوان مسیر جایگزین RBAC معرفی نکند؛
+- Event/Audit مرتبط با عملیات حساس قابل پیگیری باشد.
 
 ## Accessibility و Enterprise Quality
 
