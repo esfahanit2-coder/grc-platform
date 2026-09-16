@@ -1,0 +1,99 @@
+name: upgrade-rehearsal
+
+on:
+  pull_request:
+    paths:
+      - "backend/**/migrations/**"
+      - "backend/apps/common/management/commands/pilot_upgrade_guard.py"
+      - "backend/apps/common/test_upgrade_guard.py"
+      - "scripts/pilot-upgrade-rehearsal.sh"
+      - "scripts/pilot-backup.sh"
+      - "scripts/pilot-restore.sh"
+      - ".github/workflows/upgrade-rehearsal.yml"
+  workflow_dispatch:
+    inputs:
+      previous_ref:
+        description: "Previous known release/commit/tag to rehearse from"
+        required: true
+        type: string
+      rollback_strategy:
+        description: "Rollback strategy to exercise"
+        required: true
+        default: reversible
+        type: choice
+        options:
+          - reversible
+          - restore
+
+permissions:
+  contents: read
+
+concurrency:
+  group: upgrade-rehearsal-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  previous-to-candidate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out candidate
+        uses: actions/checkout@v7
+        with:
+          path: candidate
+          fetch-depth: 1
+
+      - name: Resolve previous ref and rollback strategy
+        id: plan
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          MANUAL_PREVIOUS_REF: ${{ inputs.previous_ref }}
+          MANUAL_ROLLBACK_STRATEGY: ${{ inputs.rollback_strategy }}
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            previous_ref="$PR_BASE_SHA"
+            rollback_strategy="reversible"
+          else
+            previous_ref="$MANUAL_PREVIOUS_REF"
+            rollback_strategy="$MANUAL_ROLLBACK_STRATEGY"
+          fi
+          test -n "$previous_ref"
+          test "$rollback_strategy" = "reversible" -o "$rollback_strategy" = "restore"
+          echo "previous_ref=$previous_ref" >> "$GITHUB_OUTPUT"
+          echo "rollback_strategy=$rollback_strategy" >> "$GITHUB_OUTPUT"
+
+      - name: Check out previous known state
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ steps.plan.outputs.previous_ref }}
+          path: previous
+          fetch-depth: 1
+
+      - name: Build previous and candidate backend images
+        run: |
+          docker build -t grc-backend:upgrade-previous previous/backend
+          docker build -t grc-backend:upgrade-candidate candidate/backend
+
+      - name: Rehearse migration and rollback/restore path
+        working-directory: candidate
+        env:
+          PREVIOUS_BACKEND_IMAGE: grc-backend:upgrade-previous
+          CANDIDATE_BACKEND_IMAGE: grc-backend:upgrade-candidate
+          PREVIOUS_RELEASE_ID: ${{ steps.plan.outputs.previous_ref }}
+          CANDIDATE_RELEASE_ID: ${{ github.sha }}
+          PREVIOUS_SOURCE_COMMIT: ${{ steps.plan.outputs.previous_ref }}
+          CANDIDATE_SOURCE_COMMIT: ${{ github.sha }}
+          ROLLBACK_STRATEGY: ${{ steps.plan.outputs.rollback_strategy }}
+          UPGRADE_REHEARSAL_REPORT: runtime/upgrade-rehearsal.json
+        run: bash scripts/pilot-upgrade-rehearsal.sh
+
+      - name: Upload rehearsal evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: upgrade-rehearsal-${{ github.sha }}
+          path: candidate/runtime/upgrade-rehearsal.json
+          if-no-files-found: warn
+          retention-days: 30
