@@ -10,7 +10,7 @@ class AuditEventSerializer(serializers.ModelSerializer):
         fields = [
             "id", "created_at", "request_id", "actor", "action", "category", "outcome",
             "object_type", "object_id", "object_repr", "old_data", "new_data", "metadata",
-            "ip_address", "http_method", "path",
+            "ip_address", "http_method", "path", "previous_hash", "event_hash",
         ]
 
     def get_actor(self, event):
