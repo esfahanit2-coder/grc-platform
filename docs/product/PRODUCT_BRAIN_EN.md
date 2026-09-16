@@ -32,7 +32,7 @@ Evidence has source, scope, timestamps, provenance, integrity metadata and links
 AI output is advisory. Consequential suggestions become reviewable `AISuggestion` records or equivalent reviewed workflows. AI must not directly mark a control effective, a requirement compliant, a risk accepted or an audit finding closed.
 
 ### Sovereign/on-prem/air-gapped is a first-class deployment mode
-Local operation is not an afterthought. The platform supports Docker-based on-premise deployment, local S3-compatible storage, PostgreSQL/pgvector, Redis/Celery and local/private AI providers such as Ollama/vLLM-compatible endpoints.
+Local operation is not an afterthought. The platform supports Docker-based on-premise deployment, local S3-compatible storage, PostgreSQL/pgvector, Redis/Celery and local/private AI providers such as Ollama/vLLM-compatible endpoints. External data egress must be controlled by deployment/customer policy rather than assumed.
 
 ## 3. Core architecture
 
@@ -43,6 +43,7 @@ Local operation is not an afterthought. The platform supports Docker-based on-pr
 - Queue/cache: Redis + Celery.
 - Object storage: S3-compatible abstraction.
 - AI gateway: provider-independent OpenAI-compatible/Ollama/vLLM/private endpoint model.
+- Integration surface: REST APIs are first-class; MCP/integration adapters are a retained direction where they can safely expose approved GRC capabilities.
 - Architecture style: modular monolith with explicit application/domain modules.
 
 ## 4. Domain chains
@@ -89,19 +90,24 @@ Supports findings/non-conformities, severity/status, owners, root cause, due dat
 Supports audit engagements, audit scope, workpapers, findings, actions and audit report generation. Audit evidence and findings should integrate with the same shared assurance objects where practical.
 
 ### Documents, policies and report factory
-Supports document versioning/approval and generated outputs. Named outputs include Statement of Applicability (SoA), Risk Treatment Plan (RTP), audit reports and management/compliance/risk reports. Policy/procedure generation is an AI-assisted target but human approval remains mandatory.
+Supports document versioning/approval and generated outputs. Named outputs include Statement of Applicability (SoA), Risk Treatment Plan (RTP), audit plans/reports, NCR/CAPA outputs, policies/procedures and management/compliance/risk reports. Earlier product planning explicitly retained DOCX/PDF/XLSX/CSV/JSON export direction and a future Template Designer for configurable report/document layouts. Current implementation is a foundation, not yet the full template-designer target. Policy/procedure generation is an AI-assisted target but human approval remains mandatory.
 
 ### Workflow, tasks and notifications
-Provides generic assignment, due-date, approval and notification mechanics used by assessments, risks, findings, audits, documents and future modules.
+Provides generic assignment, due-date, approval and notification mechanics used by assessments, risks, findings, audits, documents and future modules. A consolidated Task Inbox / Work Center is a retained UX direction so users can see assigned reviews, actions, assessments and approvals across modules rather than hunting through each module separately.
 
 ### AI and RAG
-AI should help with drafting, summarization, mapping suggestions, remediation suggestions, document/report assistance and retrieval over authorized data. Permission filtering happens before retrieval. Retrieved evidence/context is treated as untrusted input, not executable instruction.
+AI should help with drafting, summarization, mapping suggestions, evidence analysis, risk/CAPA assistance, remediation suggestions, document/report assistance and retrieval over authorized data. Limited-purpose copilots/agents may orchestrate approved tasks, but they remain constrained by permissions and human review. Permission filtering happens before retrieval. Retrieved evidence/context is treated as untrusted input, not executable instruction.
+
+### API, integrations and MCP direction
+The product exposes REST APIs as a primary integration surface. Integration adapters/MCP-style access may be added for approved tools and AI orchestration, but they must reuse the same tenant, organization-scope, audit and permission boundaries as the UI/API. No integration path may become a backdoor around RBAC or human-review rules.
 
 ### Connectors
 Current pilot connectors are read-oriented AD/LDAP, FortiGate, Veeam and Tenable/Nessus adapters. They collect normalized facts/evidence with auditable scope/source/time and must not autonomously declare compliance or effectiveness.
 
-### Dashboards and reporting
-Management dashboards must show live tenant-scoped data, not fabricated production-facing demo values. Operational surfaces include connector health/sync history and should expand to assurance/risk/compliance/audit operational views.
+The GRC platform is not intended to become its own vulnerability scanner. Tenable/Nessus acts as a benchmark/integration target for vulnerability evidence (discovery, credentialed/uncredentialed scan results, CVE/CVSS, configuration/compliance findings, remediation context and historical scan information). Equivalent or stronger scanners should integrate through the same connector abstraction.
+
+### Dashboards, indicators and reporting
+Management dashboards must show live tenant-scoped data, not fabricated production-facing demo values. Operational surfaces include connector health/sync history and should expand to assurance/risk/compliance/audit operational views. Configurable indicators/KPIs and management models are a retained product direction, but indicators must be derived from traceable authoritative data.
 
 ## 6. User experience requirements
 
@@ -111,6 +117,7 @@ Management dashboards must show live tenant-scoped data, not fabricated producti
 - Clear distinction between authoritative data, AI suggestions, automated evidence and human approval.
 - Strong empty/loading/error states instead of fake sample metrics in production paths.
 - Enterprise-oriented UX: traceability, auditability and explainability take priority over decorative complexity.
+- A cross-module work/task view should eventually surface reviews, approvals, findings actions and due work in one place.
 
 ## 7. Legal/content rules
 
@@ -127,6 +134,7 @@ The product direction was influenced by both Iranian and global GRC products. Th
 - Support Persian/English/RTL as a product requirement, not a late translation project.
 - Keep connectors read-oriented and evidence-focused.
 - Use AI for acceleration, not autonomous compliance decisions.
+- Treat document/report generation, configurable workflows and operational task management as first-class product outcomes.
 
 ## 9. Current product status
 
@@ -138,4 +146,4 @@ Pre-RC engineering work continues with repeatable performance/load validation, H
 
 ## 10. Explicit post-v1 direction
 
-Post-v1 priorities discussed include TPRM/vendor portal, BCM/BIA, incident management, continuous control monitoring, additional connector packs, quantitative risk/FAIR/Monte Carlo, advanced regulated document generation, AI governance/ISO 42001 content, digital-transformation maturity content and mobile/PWA approval experiences.
+Post-v1 priorities discussed include TPRM/vendor portal, BCM/BIA, incident management, continuous control monitoring, additional connector packs, quantitative risk/FAIR/Monte Carlo, advanced regulated document generation and Template Designer maturity, AI governance/ISO 42001 content, digital-transformation maturity content and mobile/PWA approval experiences.
