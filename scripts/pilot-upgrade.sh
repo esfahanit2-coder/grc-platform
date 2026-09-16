@@ -87,7 +87,8 @@ on_exit() {
     else
       echo "Upgrade failed after schema migration began. Application writers are being stopped; use the backup-based rollback path." >&2
       "${COMPOSE[@]}" stop gateway frontend worker beat backend >/dev/null 2>&1 || true
-      echo "Rollback: check out $FROM_SHA, then run CONFIRM_ROLLBACK=YES bash scripts/pilot-rollback.sh $BACKUP_NAME" >&2
+      echo "Rollback: CONFIRM_ROLLBACK=YES bash scripts/pilot-rollback.sh $BACKUP_NAME" >&2
+      echo "The rollback helper validates the backup, switches to $FROM_SHA, and invokes that release's restore implementation." >&2
     fi
   fi
   exit "$status"
