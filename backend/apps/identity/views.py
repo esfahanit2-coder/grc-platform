@@ -2,6 +2,7 @@ from django.contrib.auth import get_user_model
 from django.db import transaction
 from rest_framework import generics, status, viewsets
 from rest_framework.decorators import action
+from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.response import Response
 
 from apps.audit.services import record_audit_event
@@ -66,7 +67,6 @@ class RoleViewSet(viewsets.ModelViewSet):
         tenant = self._tenant()
         require_whole_tenant_permission(self.request.user, tenant, "role.manage")
         if instance.is_system:
-            from rest_framework.exceptions import ValidationError
             raise ValidationError("System roles cannot be deleted.")
         from django.utils import timezone
         instance.deleted_at = timezone.now()
@@ -83,7 +83,17 @@ class TenantUserViewSet(viewsets.ViewSet):
 
     def list(self, request):
         tenant = self._tenant("membership.view")
-        ids = TenantMembership.objects.filter(tenant=tenant, is_active=True).values_list("user_id", flat=True)
+        include_inactive = str(request.query_params.get("include_inactive", "")).strip().lower() in {"1", "true", "yes"}
+        memberships = TenantMembership.objects.filter(tenant=tenant)
+        if include_inactive:
+            # Inactive memberships are an administrative lifecycle concern, not
+            # an assignable-user source. Keep the default endpoint active-only
+            # for Risk/Assessment/Evidence owner selectors and require explicit
+            # membership administration authority to inspect inactive accounts.
+            require_whole_tenant_permission(request.user, tenant, "membership.manage")
+        else:
+            memberships = memberships.filter(is_active=True)
+        ids = memberships.values_list("user_id", flat=True)
         users = User.objects.filter(id__in=ids).order_by("username")
         return Response(TenantUserSerializer(users, many=True, context={"tenant": tenant}).data)
 
@@ -91,7 +101,6 @@ class TenantUserViewSet(viewsets.ViewSet):
         tenant = self._tenant("membership.view")
         membership = TenantMembership.objects.filter(tenant=tenant, user_id=pk, is_active=True).first()
         if not membership:
-            from rest_framework.exceptions import NotFound
             raise NotFound()
         return Response(TenantUserSerializer(membership.user, context={"tenant": tenant}).data)
 
@@ -104,11 +113,14 @@ class TenantUserViewSet(viewsets.ViewSet):
         record_audit_event(request.user, tenant, "membership.user_create", "user", None, new_data={"username": user.username, "user_id": user.pk}, request=request)
         return Response(TenantUserSerializer(user, context={"tenant": tenant}).data, status=status.HTTP_201_CREATED)
 
+    @transaction.atomic
     def partial_update(self, request, pk=None):
         tenant = self._tenant("membership.manage")
-        membership = TenantMembership.objects.select_related("user").filter(tenant=tenant, user_id=pk, is_active=True).first()
+        # Administrators must be able to reactivate an existing membership. We
+        # intentionally do not reactivate prior UserRoleScope rows: privilege
+        # must be assigned explicitly again after an account is restored.
+        membership = TenantMembership.objects.select_related("user").filter(tenant=tenant, user_id=pk).first()
         if not membership:
-            from rest_framework.exceptions import NotFound
             raise NotFound()
         user = membership.user
         old = {"first_name": user.first_name, "last_name": user.last_name, "email": user.email, "membership_active": membership.is_active}
@@ -120,7 +132,10 @@ class TenantUserViewSet(viewsets.ViewSet):
         if changed_user_fields:
             user.save(update_fields=changed_user_fields)
         if "membership_active" in request.data:
-            membership.is_active = bool(request.data["membership_active"])
+            active = request.data["membership_active"]
+            if not isinstance(active, bool):
+                raise ValidationError({"membership_active": "Expected a boolean value."})
+            membership.is_active = active
             membership.save(update_fields=["is_active", "updated_at"])
             if not membership.is_active:
                 UserRoleScope.objects.filter(tenant=tenant, user=user, is_active=True).update(is_active=False)
