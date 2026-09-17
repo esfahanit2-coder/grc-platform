@@ -23,6 +23,7 @@ No chat transcript is considered canonical after the decision has been consolida
 | `FEATURE_MAP_FA.md` | Persian capability map with status and implementation intent |
 | `ROADMAP_DETAILED_EN.md` | Detailed English roadmap from pilot through RC and post-v1 |
 | `ROADMAP_DETAILED_FA.md` | Detailed Persian roadmap |
+| `CUSTOMER_READY_V1_AUDIT.md` | Current gap analysis and P0 program from Pilot Candidate to independently deployable customer-ready v1 |
 | `USER_JOURNEYS_EN.md` | English primary user journeys and acceptance intent |
 | `USER_JOURNEYS_FA.md` | Persian primary user journeys and acceptance intent |
 | `COMPETITIVE_LANDSCAPE.md` | Competitor references and the product lessons retained from earlier research |
