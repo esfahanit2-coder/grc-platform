@@ -153,7 +153,21 @@ class RoleAssignmentSerializer(serializers.ModelSerializer):
         return attrs
 
     def create(self, validated_data):
-        return UserRoleScope.objects.create(tenant=self.context["tenant"], **validated_data)
+        tenant = self.context["tenant"]
+        lookup = {
+            "tenant": tenant,
+            "user": validated_data["user"],
+            "role": validated_data["role"],
+            "organization_unit": validated_data.get("organization_unit"),
+        }
+        existing = UserRoleScope.objects.filter(**lookup).first()
+        if existing:
+            existing.is_active = True
+            existing.valid_from = validated_data.get("valid_from")
+            existing.valid_until = validated_data.get("valid_until")
+            existing.save(update_fields=["is_active", "valid_from", "valid_until", "updated_at"])
+            return existing
+        return UserRoleScope.objects.create(tenant=tenant, **validated_data)
 
 
 class MFADeviceSerializer(serializers.ModelSerializer):
