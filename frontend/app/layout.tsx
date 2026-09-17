@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import "./operations.css";
 import "./dashboard.css";
+import WorkQuickNav from "./work-quick-nav";
 
 export const metadata: Metadata = {
   title: "GRC Platform",
@@ -11,7 +12,10 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="fa" dir="rtl">
-      <body>{children}</body>
+      <body>
+        {children}
+        <WorkQuickNav />
+      </body>
     </html>
   );
 }
