@@ -36,6 +36,20 @@ def _permission_scope(user, tenant, permission_code):
     return whole, allowed
 
 
+def _intersect_scopes(*scopes):
+    """Intersect permission scopes without broadening whole-tenant semantics."""
+
+    if not scopes or any(scope is None for scope in scopes):
+        return None
+    if all(scope[0] for scope in scopes):
+        return True, frozenset()
+    restricted = [set(scope[1]) for scope in scopes if not scope[0]]
+    allowed = restricted[0]
+    for values in restricted[1:]:
+        allowed.intersection_update(values)
+    return False, frozenset(allowed)
+
+
 def _apply_scope(queryset, scope, field="organization_unit_id"):
     if scope is None:
         return queryset.none()
@@ -210,7 +224,8 @@ class WorkCenterView(APIView):
                 )
 
         assessment_review = _permission_scope(user, tenant, "assessment.review")
-        if assessment_review is not None:
+        assessment_review_visibility = _intersect_scopes(assessment_view, assessment_review)
+        if assessment_review_visibility is not None:
             review_assessments = Assessment.objects.filter(
                 tenant=tenant,
                 status=Assessment.Status.IN_REVIEW,
@@ -218,7 +233,7 @@ class WorkCenterView(APIView):
             )
             review_assessments = _apply_scope(
                 review_assessments.select_related("organization_unit", "framework_version__framework"),
-                assessment_review,
+                assessment_review_visibility,
             )
             for assessment in review_assessments:
                 add_item(
@@ -233,7 +248,7 @@ class WorkCenterView(APIView):
                     href=f"/assessments/{assessment.id}",
                     organization_unit=_unit_name(assessment),
                     is_review=True,
-                    can_act=True,
+                    can_act=_scope_allows(assessment_review, assessment.organization_unit_id),
                 )
 
         document_view = _permission_scope(user, tenant, "document.view")
@@ -322,7 +337,8 @@ class WorkCenterView(APIView):
                     can_act=_scope_allows(audit_perform, engagement.organization_unit_id),
                 )
 
-        if audit_review is not None:
+        audit_review_visibility = _intersect_scopes(audit_view, audit_review)
+        if audit_review_visibility is not None:
             review_workpapers = Workpaper.objects.filter(
                 engagement__tenant=tenant,
                 engagement__deleted_at__isnull=True,
@@ -331,7 +347,7 @@ class WorkCenterView(APIView):
             )
             review_workpapers = _apply_scope(
                 review_workpapers.select_related("engagement__organization_unit", "engagement"),
-                audit_review,
+                audit_review_visibility,
                 "engagement__organization_unit_id",
             )
             for workpaper in review_workpapers:
@@ -348,7 +364,7 @@ class WorkCenterView(APIView):
                     href=f"/audits/{engagement.id}",
                     organization_unit=_unit_name(engagement),
                     is_review=True,
-                    can_act=True,
+                    can_act=_scope_allows(audit_review, engagement.organization_unit_id),
                 )
 
         attention_order = {"overdue": 0, "review": 1, "due_soon": 2, "normal": 3}
