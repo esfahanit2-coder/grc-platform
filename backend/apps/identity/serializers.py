@@ -73,6 +73,8 @@ class TenantUserSerializer(serializers.ModelSerializer):
                 "organization_unit": None if not item.organization_unit_id else {
                     "id": str(item.organization_unit_id), "code": item.organization_unit.code, "name": item.organization_unit.name
                 },
+                "valid_from": item.valid_from,
+                "valid_until": item.valid_until,
             }
             for item in qs
         ]
@@ -137,6 +139,10 @@ class RoleAssignmentSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({"role_code": "Role must belong to the selected tenant."})
         if unit and unit.tenant_id != tenant.id:
             raise serializers.ValidationError({"organization_unit": "Scope must belong to the selected tenant."})
+        valid_from = attrs.get("valid_from", getattr(self.instance, "valid_from", None))
+        valid_until = attrs.get("valid_until", getattr(self.instance, "valid_until", None))
+        if valid_from and valid_until and valid_until < valid_from:
+            raise serializers.ValidationError({"valid_until": "Role assignment end time must not be before its start time."})
         user = attrs.get("user", getattr(self.instance, "user", None))
         if user and role:
             duplicate = UserRoleScope.objects.filter(tenant=tenant, user=user, role=role, organization_unit=unit, is_active=True)
@@ -147,7 +153,21 @@ class RoleAssignmentSerializer(serializers.ModelSerializer):
         return attrs
 
     def create(self, validated_data):
-        return UserRoleScope.objects.create(tenant=self.context["tenant"], **validated_data)
+        tenant = self.context["tenant"]
+        lookup = {
+            "tenant": tenant,
+            "user": validated_data["user"],
+            "role": validated_data["role"],
+            "organization_unit": validated_data.get("organization_unit"),
+        }
+        existing = UserRoleScope.objects.filter(**lookup).first()
+        if existing:
+            existing.is_active = True
+            existing.valid_from = validated_data.get("valid_from")
+            existing.valid_until = validated_data.get("valid_until")
+            existing.save(update_fields=["is_active", "valid_from", "valid_until", "updated_at"])
+            return existing
+        return UserRoleScope.objects.create(tenant=tenant, **validated_data)
 
 
 class MFADeviceSerializer(serializers.ModelSerializer):
