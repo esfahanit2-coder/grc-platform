@@ -532,7 +532,7 @@ export default function Home() {
                       {attentionActions.map((action) => (
                         <tr key={action.id}>
                           <td>{action.title}</td>
-                          <td>{sourceLabels[action.source_type] ?? action.source_type || "—"}</td>
+                          <td>{sourceLabels[action.source_type] ?? (action.source_type || "—")}</td>
                           <td className={action.is_overdue ? "overdueText" : ""}>{formatDate(action.due_date)}</td>
                           <td><span className={`actionStatus ${action.is_overdue ? "overdue" : action.status}`}>{action.is_overdue ? "معوق" : actionStatusLabels[action.status] ?? action.status}</span></td>
                         </tr>
