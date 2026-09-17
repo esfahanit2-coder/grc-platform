@@ -16,10 +16,11 @@ class TenantMembershipAdministrationTests(APITestCase):
         TenantMembership.objects.create(tenant=self.tenant, user=self.admin, role_code="admin")
         self.membership = TenantMembership.objects.create(tenant=self.tenant, user=self.member, role_code="member")
         roles = bootstrap_tenant_rbac(self.tenant, admin_user=self.admin)
+        self.viewer_role = roles["viewer"]
         self.assignment = UserRoleScope.objects.create(
             tenant=self.tenant,
             user=self.member,
-            role=roles["viewer"],
+            role=self.viewer_role,
             organization_unit=None,
         )
         token = str(RefreshToken.for_user(self.admin).access_token)
@@ -71,6 +72,31 @@ class TenantMembershipAdministrationTests(APITestCase):
         self.assignment.refresh_from_db()
         self.assertTrue(self.membership.is_active)
         self.assertFalse(self.assignment.is_active)
+
+    def test_revoked_role_scope_can_be_explicitly_reassigned_without_duplicate_row(self):
+        revoke = self.client.delete(f"/api/v1/role-assignments/{self.assignment.id}/")
+        self.assertEqual(revoke.status_code, 204)
+        self.assignment.refresh_from_db()
+        self.assertFalse(self.assignment.is_active)
+
+        reassign = self.client.post(
+            f"/api/v1/tenant-users/{self.member.id}/role-assignments/",
+            {"role_code": self.viewer_role.code, "organization_unit": None},
+            format="json",
+        )
+        self.assertEqual(reassign.status_code, 201)
+        self.assignment.refresh_from_db()
+        self.assertTrue(self.assignment.is_active)
+        self.assertEqual(str(self.assignment.id), reassign.data["id"])
+        self.assertEqual(
+            UserRoleScope.objects.filter(
+                tenant=self.tenant,
+                user=self.member,
+                role=self.viewer_role,
+                organization_unit__isnull=True,
+            ).count(),
+            1,
+        )
 
     def test_membership_active_requires_boolean_json_value(self):
         response = self.client.patch(
