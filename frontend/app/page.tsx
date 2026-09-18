@@ -43,6 +43,7 @@ const menuSections = [
       { label: "کاربران", href: "/admin/users", glyph: "♙" },
       { label: "نقش‌ها و مجوزها", href: "/admin/roles", glyph: "⌘" },
       { label: "تنظیمات امنیتی", href: "/settings/security", glyph: "⚙" },
+      { label: "عملیات سامانه", href: "/admin/operations", glyph: "◷" },
     ],
   },
 ];

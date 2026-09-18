@@ -38,9 +38,18 @@ START_ISO="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 QUIESCED_NOW=0
 BACKUP_SUCCEEDED=0
 
+record_backup_signal() {
+  local level="$1"
+  shift
+  "${COMPOSE[@]}" --profile ops run --rm ops python manage.py record_operational_signal backup "$level" --source pilot-backup "$@" >/dev/null 2>&1 || true
+}
+
 on_exit() {
   status=$?
   trap - EXIT
+  if [[ "$status" -ne 0 && "$BACKUP_SUCCEEDED" != "1" ]]; then
+    record_backup_signal critical --metadata "backup_name=$NAME" --metadata "outcome=failed"
+  fi
   if [[ "$QUIESCED_NOW" == "1" && ( "$LEAVE_QUIESCED" != "YES" || "$BACKUP_SUCCEEDED" != "1" ) ]]; then
     echo "Restarting application services after backup..."
     if [[ "$REQUIRE_RUNNING" == "YES" ]]; then
@@ -190,6 +199,7 @@ cat > "$DEST/backup-observation.json" <<EOF
 EOF
 chmod 600 "$DEST"/*
 BACKUP_SUCCEEDED=1
+record_backup_signal ok --metadata "backup_name=$NAME" --metadata "duration_seconds=$DURATION" --metadata "release_consistent_quiesce=$QUIESCE" --metadata "outcome=success"
 
 echo "[6/6] Backup complete: $DEST"
 if [[ "$QUIESCED_NOW" == "1" && "$LEAVE_QUIESCED" == "YES" ]]; then

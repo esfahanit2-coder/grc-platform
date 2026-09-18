@@ -109,6 +109,25 @@ A final pilot acceptance run must show:
 - configured S3 bucket reachable;
 - production secure-cookie checks passing.
 
+The authenticated product UI exposes the same operational baseline at
+`/admin/operations` for users with whole-tenant `security.view`. The endpoint
+`/api/v1/operations/status/` is intentionally not public and does not return
+credentials, raw dependency URLs or exception messages.
+
+For shell/support workflows, collect the same secret-safe JSON without a user
+session:
+
+```bash
+docker compose --env-file .env -f docker-compose.pilot.yml \
+  exec -T backend python manage.py operational_status --json
+```
+
+The async heartbeat is dispatched by Celery beat every minute and must be
+executed by a worker, so staleness detects a break in the beat → broker → worker
+round trip. Configure thresholds in `.env` with
+`OPS_ASYNC_HEARTBEAT_MAX_AGE_SECONDS`, `OPS_BACKUP_MAX_AGE_HOURS` and
+`OPS_CELERY_QUEUE_WARN_DEPTH`.
+
 Review service state and recent logs:
 
 ```bash
@@ -212,7 +231,7 @@ The backup directory contains:
 
 `backups/` is Git-ignored. Copy the completed directory to approved encrypted backup media separated from the application volumes. TLS private keys are intentionally not copied by the script; recover them through the approved PKI/key-recovery process.
 
-After backup completion, create a second clearly named marker. This marker is expected **not** to exist after restoring the earlier recovery point.
+After a successful or failed backup attempt, `pilot-backup.sh` also records a secret-safe operational signal in the application database. The admin operations page uses this signal to show backup outcome and freshness; it does **not** replace restore testing or measured RPO/RTO.\n\nAfter backup completion, create a second clearly named marker. This marker is expected **not** to exist after restoring the earlier recovery point.
 
 ## 7. Destructive restore drill
 
@@ -258,7 +277,19 @@ Do not estimate these values in advance.
 - **Observed RTO:** use `observed_rto_seconds` written by the restore script, then add any manual validation time required by the organization's definition of service recovery.
 - **Observed RPO:** compare the timestamp/state of the controlled marker immediately before the backup with the restored state. Record the real recoverable cutoff and any data intentionally created after that cutoff.
 
-## 9. Acceptance evidence bundle
+## 9. Support evidence
+
+For a low-risk support snapshot, run:
+
+```bash
+bash scripts/support-evidence.sh
+```
+
+The bundle includes service state, tool versions, pilot readiness status and
+`operational-status.json`. It excludes application logs, customer records,
+database/object-store payloads and secret-bearing environment values by design.
+
+## 10. Acceptance evidence bundle
 
 After the real drill, use `docs/PILOT_ACCEPTANCE_EVIDENCE.md` as the closure/evidence procedure. The collector `scripts/pilot-acceptance-evidence.py` reuses the readiness, backup/restore and AI tooling above and produces a low-risk PASS/FAIL/NOT_MEASURED/MANUAL_REQUIRED summary.
 

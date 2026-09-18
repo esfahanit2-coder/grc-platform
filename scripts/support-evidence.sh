@@ -36,8 +36,10 @@ if BACKEND_ID="$("${COMPOSE[@]}" ps -q backend 2>/dev/null)" && [[ -n "$BACKEND_
   else
     printf 'fail\n' > "$OUT/pilot-readiness.status"
   fi
+  safe_run operational-status.json "${COMPOSE[@]}" exec -T backend python manage.py operational_status --json
 else
   printf 'not-running\n' > "$OUT/pilot-readiness.status"
+  printf 'not-running\n' > "$OUT/operational-status.json.status"
 fi
 
 python - "$OUT" <<'PY'

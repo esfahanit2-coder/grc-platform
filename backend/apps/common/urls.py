@@ -1,5 +1,6 @@
 from django.urls import path
 from .views import live, ready
+from .operations_views import OperationsStatusView
 from .data_exchange_views import (
     DataExchangeCatalogView,
     DataExchangeCommitView,
@@ -11,6 +12,7 @@ from .data_exchange_views import (
 urlpatterns = [
     path("health/live", live, name="health-live"),
     path("health/ready", ready, name="health-ready"),
+    path("operations/status/", OperationsStatusView.as_view(), name="operations-status"),
     path("data-exchange/catalog/", DataExchangeCatalogView.as_view(), name="data-exchange-catalog"),
     path("data-exchange/template/", DataExchangeTemplateView.as_view(), name="data-exchange-template"),
     path("data-exchange/export/", DataExchangeExportView.as_view(), name="data-exchange-export"),
