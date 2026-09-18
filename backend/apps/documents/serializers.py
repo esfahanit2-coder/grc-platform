@@ -82,6 +82,7 @@ class DocumentVersionSerializer(serializers.ModelSerializer):
 
 class DocumentApprovalSerializer(serializers.ModelSerializer):
     approver_display = serializers.SerializerMethodField()
+    can_decide = serializers.SerializerMethodField()
 
     class Meta:
         model = DocumentApproval
@@ -95,35 +96,77 @@ class DocumentApprovalSerializer(serializers.ModelSerializer):
             "comment",
             "decided_at",
             "created_at",
+            "can_decide",
         ]
-        read_only_fields = ["decision", "comment", "decided_at", "created_at"]
+        read_only_fields = ["decision", "comment", "decided_at", "created_at", "can_decide"]
+        # Reactivation of a previously removed pending assignment is handled
+        # explicitly in create(); the database constraint remains authoritative.
+        validators = []
 
     def get_approver_display(self, approval):
         return approval.approver.get_full_name() or approval.approver.get_username()
+
+    def get_can_decide(self, approval):
+        request = self.context.get("request")
+        tenant = self.context.get("tenant")
+        if not request or not tenant or not getattr(request.user, "is_authenticated", False):
+            return False
+        if approval.deleted_at is not None:
+            return False
+        if approval.decision != DocumentApproval.Decision.PENDING:
+            return False
+        if approval.version.status != DocumentVersion.Status.REVIEW:
+            return False
+        if approval.approver_id != request.user.id:
+            return False
+        return _has_scoped_permission(
+            request.user,
+            tenant,
+            "document.approve",
+            approval.version.document.organization_unit,
+        )
 
     def validate_version(self, version):
         tenant = self.context["tenant"]
         if version.document.tenant_id != tenant.id or version.document.deleted_at is not None:
             raise serializers.ValidationError("Document version must belong to the selected tenant.")
+        if self.instance is not None and version.id != self.instance.version_id:
+            raise serializers.ValidationError("Approval cannot be moved to another version.")
         return version
 
     def validate(self, attrs):
         tenant = self.context["tenant"]
         version = attrs.get("version", getattr(self.instance, "version", None))
         approver = attrs.get("approver", getattr(self.instance, "approver", None))
+        if self.instance is not None and approver and approver.id != self.instance.approver_id:
+            raise serializers.ValidationError({"approver": "Approver cannot be changed; remove the pending assignment instead."})
         if version and approver:
             if not TenantMembership.objects.filter(tenant=tenant, user=approver, is_active=True).exists():
                 raise serializers.ValidationError({"approver": "Approver must be an active tenant member."})
-            if not _has_scoped_permission(
-                approver,
-                tenant,
-                "document.approve",
-                version.document.organization_unit,
-            ):
+            if not _has_scoped_permission(approver, tenant, "document.view", version.document.organization_unit):
+                raise serializers.ValidationError(
+                    {"approver": "Approver must have document.view permission in this document scope."}
+                )
+            if not _has_scoped_permission(approver, tenant, "document.approve", version.document.organization_unit):
                 raise serializers.ValidationError(
                     {"approver": "Approver must have document.approve permission in this document scope."}
                 )
         return attrs
+
+    def create(self, validated_data):
+        version = validated_data["version"]
+        approver = validated_data["approver"]
+        existing = DocumentApproval.objects.filter(version=version, approver=approver).first()
+        if existing:
+            if existing.deleted_at is None:
+                raise serializers.ValidationError("This approver is already assigned to the version.")
+            if existing.decision != DocumentApproval.Decision.PENDING:
+                raise serializers.ValidationError("A decided approval assignment cannot be reactivated.")
+            existing.deleted_at = None
+            existing.approval_order = validated_data.get("approval_order", existing.approval_order)
+            existing.save(update_fields=["deleted_at", "approval_order", "updated_at"])
+            return existing
+        return super().create(validated_data)
 
 
 class DocumentLinkSerializer(serializers.ModelSerializer):
