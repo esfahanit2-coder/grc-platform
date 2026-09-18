@@ -10,6 +10,7 @@ const menuSections = [
     items: [
       { label: "داشبورد", href: "/", glyph: "⌂" },
       { label: "سازمان", href: "/organization", glyph: "◎" },
+      { label: "دارایی‌ها", href: "/assets", glyph: "▦" },
       { label: "چارچوب‌ها", href: "/frameworks", glyph: "▤" },
       { label: "کنترل‌ها", href: "/controls", glyph: "◇" },
       { label: "ریسک", href: "/risks", glyph: "△" },

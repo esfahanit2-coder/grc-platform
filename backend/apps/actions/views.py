@@ -1,7 +1,12 @@
+from datetime import timedelta
+from django.db.models import Q
 from django.utils import timezone
 from rest_framework import viewsets
+from rest_framework.decorators import action
+from rest_framework.response import Response
 from apps.audit.services import record_audit_event
 from apps.identity.services import accessible_organization_unit_ids,has_whole_tenant_permission,require_tenant_permission,require_whole_tenant_permission
+from apps.tenancy.models import TenantMembership
 from apps.tenancy.services import resolve_tenant_for_request
 from .models import Action
 from .serializers import ActionSerializer
@@ -15,8 +20,31 @@ class ActionViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         tenant=self._tenant();code=self._perm();require_tenant_permission(self.request.user,tenant,code);allowed=accessible_organization_unit_ids(self.request.user,tenant,code);whole=has_whole_tenant_permission(self.request.user,tenant,code)
         qs=Action.objects.filter(tenant=tenant,deleted_at__isnull=True)
-        if whole: return qs.select_related("organization_unit","owner","reviewer").order_by("due_date","created_at")
-        return qs.filter(organization_unit_id__in=allowed).select_related("organization_unit","owner","reviewer").order_by("due_date","created_at")
+        if not whole: qs=qs.filter(organization_unit_id__in=allowed)
+        search=self.request.query_params.get("search")
+        if search: qs=qs.filter(Q(title__icontains=search)|Q(description__icontains=search))
+        if self.request.query_params.get("status"): qs=qs.filter(status=self.request.query_params["status"])
+        if self.request.query_params.get("priority"): qs=qs.filter(priority=self.request.query_params["priority"])
+        if self.request.query_params.get("owner"): qs=qs.filter(owner_id=self.request.query_params["owner"])
+        if self.request.query_params.get("organization_unit"): qs=qs.filter(organization_unit_id=self.request.query_params["organization_unit"])
+        due=self.request.query_params.get("due")
+        today=timezone.localdate()
+        if due=="overdue": qs=qs.exclude(status__in=[Action.Status.DONE,Action.Status.CANCELLED]).filter(due_date__lt=today)
+        elif due=="due_soon": qs=qs.exclude(status__in=[Action.Status.DONE,Action.Status.CANCELLED]).filter(due_date__gte=today,due_date__lte=today+timedelta(days=7))
+        elif due=="undated": qs=qs.filter(due_date__isnull=True)
+        return qs.select_related("organization_unit","owner","reviewer").order_by("due_date","created_at")
+    @action(detail=False,methods=["get"],url_path="selector-options")
+    def selector_options(self,request):
+        tenant=self._tenant()
+        require_tenant_permission(request.user,tenant,"action.manage")
+        allowed=accessible_organization_unit_ids(request.user,tenant,"action.manage")
+        from apps.organizations.models import OrganizationUnit
+        units=OrganizationUnit.objects.for_tenant(tenant).filter(id__in=allowed,deleted_at__isnull=True).order_by("code")
+        memberships=TenantMembership.objects.filter(tenant=tenant,is_active=True).select_related("user").order_by("user__username")
+        return Response({
+            "organization_units":[{"id":str(u.id),"code":u.code,"name":u.name} for u in units],
+            "users":[{"id":m.user_id,"username":m.user.username,"display":m.user.get_full_name() or m.user.get_username()} for m in memberships],
+        })
     def perform_create(self,serializer):
         tenant=self._tenant();unit=serializer.validated_data.get("organization_unit");require_tenant_permission(self.request.user,tenant,"action.manage",unit) if unit else require_whole_tenant_permission(self.request.user,tenant,"action.manage");obj=serializer.save(tenant=tenant);record_audit_event(self.request.user,tenant,"action.create","action",obj.id,request=self.request)
     def perform_update(self, serializer):
