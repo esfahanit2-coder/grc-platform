@@ -3,11 +3,14 @@ from apps.tenancy.models import TenantMembership
 from .models import Action
 class ActionSerializer(serializers.ModelSerializer):
     owner_display=serializers.SerializerMethodField()
+    reviewer_display=serializers.SerializerMethodField()
+    organization_name=serializers.CharField(source="organization_unit.name",read_only=True)
     class Meta:
         model=Action
-        fields=["id","organization_unit","title","description","owner","owner_display","reviewer","priority","start_date","due_date","progress","status","completed_at","source_type","source_id","metadata","created_at","updated_at"]
-        read_only_fields=["created_at","updated_at","owner_display","completed_at"]
+        fields=["id","organization_unit","organization_name","title","description","owner","owner_display","reviewer","reviewer_display","priority","start_date","due_date","progress","status","completed_at","source_type","source_id","metadata","created_at","updated_at"]
+        read_only_fields=["created_at","updated_at","owner_display","reviewer_display","organization_name","completed_at"]
     def get_owner_display(self,obj): return obj.owner.get_full_name() or obj.owner.get_username()
+    def get_reviewer_display(self,obj): return (obj.reviewer.get_full_name() or obj.reviewer.get_username()) if obj.reviewer_id else None
     def validate_progress(self,value):
         if value>100: raise serializers.ValidationError("Progress must be between 0 and 100.")
         return value

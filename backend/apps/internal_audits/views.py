@@ -1,3 +1,4 @@
+from django.db.models import Q
 from django.utils import timezone
 from rest_framework import viewsets,status
 from rest_framework.decorators import action
@@ -36,7 +37,14 @@ class AuditPlanViewSet(TM,viewsets.ModelViewSet):
 
 class AuditEngagementViewSet(TM,viewsets.ModelViewSet):
     serializer_class=AuditEngagementSerializer
-    def get_queryset(self): return self.scoped(AuditEngagement.objects.filter(tenant=self._tenant(),deleted_at__isnull=True).select_related('organization_unit','lead_auditor','framework_version'),'internal_audit.view').order_by('-created_at')
+    def get_queryset(self):
+        qs=self.scoped(AuditEngagement.objects.filter(tenant=self._tenant(),deleted_at__isnull=True).select_related('organization_unit','lead_auditor','framework_version'),'internal_audit.view')
+        search=self.request.query_params.get("search")
+        if search: qs=qs.filter(Q(title__icontains=search)|Q(objective__icontains=search)|Q(scope__icontains=search))
+        if self.request.query_params.get("status"): qs=qs.filter(status=self.request.query_params["status"])
+        if self.request.query_params.get("audit_type"): qs=qs.filter(audit_type=self.request.query_params["audit_type"])
+        if self.request.query_params.get("lead_auditor"): qs=qs.filter(lead_auditor_id=self.request.query_params["lead_auditor"])
+        return qs.order_by('-created_at')
     def perform_create(self,s):
         t=self._tenant();u=s.validated_data.get('organization_unit');require_tenant_permission(self.request.user,t,'internal_audit.manage',u) if u else require_whole_tenant_permission(self.request.user,t,'internal_audit.manage');o=s.save(tenant=t);record_audit_event(self.request.user,t,'audit.create','audit_engagement',o.id,request=self.request)
     def perform_update(self,s):

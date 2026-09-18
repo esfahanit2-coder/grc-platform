@@ -17,9 +17,9 @@ class AuditPlanSerializer(serializers.ModelSerializer):
         return a
 
 class AuditEngagementSerializer(serializers.ModelSerializer):
-    lead_display=serializers.SerializerMethodField(); workpapers_count=serializers.SerializerMethodField(); findings_count=serializers.SerializerMethodField()
+    lead_display=serializers.SerializerMethodField(); organization_name=serializers.CharField(source="organization_unit.name",read_only=True); workpapers_count=serializers.SerializerMethodField(); findings_count=serializers.SerializerMethodField()
     class Meta:
-        model=AuditEngagement; fields=["id","plan","organization_unit","framework_version","title","audit_type","objective","scope","lead_auditor","lead_display","start_date","end_date","status","conclusion","metadata","requirements","controls","workpapers_count","findings_count","created_at","updated_at"]
+        model=AuditEngagement; fields=["id","plan","organization_unit","organization_name","framework_version","title","audit_type","objective","scope","lead_auditor","lead_display","start_date","end_date","status","conclusion","metadata","requirements","controls","workpapers_count","findings_count","created_at","updated_at"]
     def get_lead_display(self,o): return o.lead_auditor.get_full_name() or o.lead_auditor.get_username()
     def get_workpapers_count(self,o): return o.workpapers.filter(deleted_at__isnull=True).count()
     def get_findings_count(self,o): return o.workpapers.filter(findings__deleted_at__isnull=True).values('findings').distinct().count()
