@@ -22,6 +22,16 @@ from apps.risks.models import Risk, RiskEvaluation
 from apps.tenancy.services import resolve_tenant_for_request
 
 from .template_engine import render_html, render_pdf
+from .formal_reports import (
+    BUILDERS,
+    REPORT_CATALOG,
+    export_csv,
+    export_docx,
+    export_xlsx,
+    normalized_filters,
+    public_filters,
+    table_html,
+)
 
 
 def _owner_display(user):
@@ -362,3 +372,101 @@ class TemplateRenderView(APIView):
                 request=request,
             )
             raise ValidationError({"template": f"Render failed: {exc}"}) from exc
+
+
+
+class ReportCatalogView(APIView):
+    def get(self, request):
+        tenant = resolve_tenant_for_request(request)
+        require_tenant_permission(request.user, tenant, "report.view")
+        return Response({"reports": REPORT_CATALOG})
+
+
+class FormalReportPreviewView(APIView):
+    def get(self, request):
+        tenant = resolve_tenant_for_request(request)
+        require_tenant_permission(request.user, tenant, "report.view")
+        report_type = str(request.query_params.get("type") or "").lower()
+        if report_type not in REPORT_CATALOG:
+            raise ValidationError({"type": "Unsupported report type."})
+        filters = normalized_filters(request, tenant, "report.view")
+        if report_type == "executive":
+            dashboard = ManagementDashboardView().get(request).data
+            report = {
+                "title": "Executive Summary",
+                "columns": ["Metric", "Value"],
+                "rows": [
+                    ["Compliance score", dashboard.get("compliance_score")],
+                    ["High/Critical residual risks", dashboard.get("high_critical_residual_risks")],
+                    ["Open findings", dashboard.get("open_findings")],
+                    ["Overdue actions", dashboard.get("overdue_actions")],
+                    ["Effective controls %", dashboard.get("effective_controls_percent")],
+                    ["Assessments due", dashboard.get("assessments_due")],
+                ],
+                "summary": {"dashboard_schema_version": dashboard.get("dashboard_schema_version")},
+            }
+        else:
+            report = BUILDERS[report_type](tenant, filters)
+        return Response({
+            "type": report_type,
+            "filters": public_filters(filters),
+            **report,
+        })
+
+
+class FormalReportExportView(APIView):
+    def get(self, request):
+        tenant = resolve_tenant_for_request(request)
+        require_tenant_permission(request.user, tenant, "report.generate")
+        report_type = str(request.query_params.get("type") or "").lower()
+        fmt = str(request.query_params.get("format") or "pdf").lower()
+        if report_type not in REPORT_CATALOG:
+            raise ValidationError({"type": "Unsupported report type."})
+        if fmt not in REPORT_CATALOG[report_type]["formats"]:
+            raise ValidationError({"format": "Unsupported format for this report type."})
+        filters = normalized_filters(request, tenant, "report.generate")
+        if report_type == "executive":
+            dashboard = ManagementDashboardView().get(request).data
+            report = {
+                "title": "Executive Summary",
+                "columns": ["Metric", "Value"],
+                "rows": [
+                    ["Compliance score", dashboard.get("compliance_score")],
+                    ["High/Critical residual risks", dashboard.get("high_critical_residual_risks")],
+                    ["Open findings", dashboard.get("open_findings")],
+                    ["Overdue actions", dashboard.get("overdue_actions")],
+                    ["Effective controls %", dashboard.get("effective_controls_percent")],
+                    ["Assessments due", dashboard.get("assessments_due")],
+                ],
+                "summary": {},
+            }
+        else:
+            report = BUILDERS[report_type](tenant, filters)
+
+        if fmt == "csv":
+            payload, content_type = export_csv(report), "text/csv; charset=utf-8"
+        elif fmt == "xlsx":
+            payload, content_type = export_xlsx(report), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        elif fmt == "docx":
+            payload, content_type = export_docx(report), "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        else:
+            payload, _ = render_pdf(table_html(report), {})
+            content_type = "application/pdf"
+
+        record_audit_event(
+            request.user,
+            tenant,
+            "report.export",
+            "formal_report",
+            tenant.id,
+            metadata={
+                "report_type": report_type,
+                "format": fmt,
+                "filters": public_filters(filters),
+                "row_count": len(report["rows"]),
+            },
+            request=request,
+        )
+        response = HttpResponse(payload, content_type=content_type)
+        response["Content-Disposition"] = f'attachment; filename="{report_type}-report.{fmt}"'
+        return response
