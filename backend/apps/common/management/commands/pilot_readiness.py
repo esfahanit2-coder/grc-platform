@@ -1,13 +1,9 @@
-import os
-
-import boto3
-import redis
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
-from django.db import connection
 
 from apps.ai_gateway.models import AIProviderConfig
 from apps.ai_gateway.providers import provider_for
+from apps.common.operations import probe_database, probe_objectstore, probe_redis
 
 
 class Command(BaseCommand):
@@ -29,37 +25,21 @@ class Command(BaseCommand):
         warnings = []
 
         try:
-            with connection.cursor() as cursor:
-                cursor.execute("SELECT version()")
-                db_version = cursor.fetchone()[0]
-                cursor.execute("SELECT extversion FROM pg_extension WHERE extname='vector'")
-                row = cursor.fetchone()
-            self.stdout.write(f"Database: {db_version}")
-            if row:
-                self.stdout.write(self.style.SUCCESS(f"pgvector: {row[0]}"))
-            else:
-                failures.append("pgvector extension is not enabled")
+            database = probe_database(require_pgvector=True)
+            self.stdout.write(f"Database: {database['database_version']}")
+            self.stdout.write(self.style.SUCCESS(f"pgvector: {database['pgvector_version']}"))
         except Exception as exc:
             failures.append(f"database readiness failed: {exc}")
 
         try:
-            redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-            redis.Redis.from_url(redis_url, socket_timeout=3, socket_connect_timeout=3).ping()
+            probe_redis()
             self.stdout.write(self.style.SUCCESS("Redis: reachable"))
         except Exception as exc:
             failures.append(f"Redis readiness failed: {exc}")
 
         if not options["skip_objectstore"]:
             try:
-                client = boto3.client(
-                    "s3",
-                    endpoint_url=settings.S3_ENDPOINT_URL or None,
-                    aws_access_key_id=settings.S3_ACCESS_KEY or None,
-                    aws_secret_access_key=settings.S3_SECRET_KEY or None,
-                    region_name=settings.S3_REGION,
-                    use_ssl=settings.S3_USE_SSL,
-                )
-                client.head_bucket(Bucket=settings.S3_BUCKET)
+                probe_objectstore()
                 self.stdout.write(self.style.SUCCESS(f"Object storage: bucket {settings.S3_BUCKET!r} reachable"))
             except Exception as exc:
                 failures.append(f"object-storage readiness failed: {exc}")

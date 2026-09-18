@@ -146,6 +146,9 @@ EVIDENCE_MAX_FILE_SIZE = int(os.getenv("EVIDENCE_MAX_FILE_SIZE", str(25 * 1024 *
 
 # Sprint 6 — production/security defaults
 APP_ENV = os.getenv("APP_ENV", "development")
+OPS_ASYNC_HEARTBEAT_MAX_AGE_SECONDS = int(os.getenv("OPS_ASYNC_HEARTBEAT_MAX_AGE_SECONDS", "180"))
+OPS_BACKUP_MAX_AGE_HOURS = int(os.getenv("OPS_BACKUP_MAX_AGE_HOURS", "26"))
+OPS_CELERY_QUEUE_WARN_DEPTH = int(os.getenv("OPS_CELERY_QUEUE_WARN_DEPTH", "1000"))
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 SESSION_COOKIE_SECURE = os.getenv("SESSION_COOKIE_SECURE", "1" if APP_ENV == "production" else "0") == "1"
 CSRF_COOKIE_SECURE = os.getenv("CSRF_COOKIE_SECURE", "1" if APP_ENV == "production" else "0") == "1"
@@ -201,6 +204,10 @@ CELERY_BEAT_SCHEDULE = {
     "overdue-action-notifications-hourly": {
         "task": "apps.notifications.tasks.create_overdue_action_notifications",
         "schedule": 3600.0,
+    },
+    "operational-heartbeat-every-minute": {
+        "task": "apps.common.tasks.record_async_heartbeat",
+        "schedule": 60.0,
     },
 }
 
