@@ -43,7 +43,7 @@ class OperationalStatusTests(APITestCase):
         UserRoleScope.objects.create(
             user=self.scoped,
             tenant=self.tenant,
-            role=roles["admin"],
+            role=roles["tenant_admin"],
             organization_unit=self.unit,
         )
 
