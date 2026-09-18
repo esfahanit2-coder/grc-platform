@@ -123,7 +123,7 @@ export default function OnboardingPage() {
         </div>
         <div className="headActions">
           <button type="button" onClick={() => void load()} disabled={loading}>به‌روزرسانی وضعیت</button>
-          <Link href="/work" className="secondaryLink">کارهای من</Link>
+          <Link href="/work" className="secondaryLink">کارهای من</Link>\n          <Link href="/admin/data-exchange" className="secondaryLink">ورود/خروج داده</Link>
         </div>
       </div>
 
