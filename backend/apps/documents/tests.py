@@ -364,6 +364,7 @@ class ControlledDocumentLifecycleTests(APITestCase):
         self.assertIsNotNone(second.deleted_at)
         self.assertEqual(self.version.status, DocumentVersion.Status.SUPERSEDED)
         self.assertEqual(self.document.status, Document.Status.DRAFT)
+        self.assertIsNone(self.document.current_version_id)
 
     def test_removed_pending_approver_can_be_reassigned_without_duplicate(self):
         approval = self.assign()
