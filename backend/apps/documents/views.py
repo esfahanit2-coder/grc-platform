@@ -209,6 +209,9 @@ class DocumentVersionViewSet(TM, viewsets.ModelViewSet):
                     self.request.user, tenant, "document.view"
                 )
             )
+        document_id = self.request.query_params.get("document")
+        if document_id:
+            queryset = queryset.filter(document_id=document_id)
         return queryset.order_by("-created_at")
 
     def _require_manage(self, version):
@@ -362,13 +365,16 @@ class DocumentApprovalViewSet(TM, viewsets.ModelViewSet):
             version__document__tenant=tenant,
             deleted_at__isnull=True,
         ).select_related("version__document__organization_unit", "approver")
-        if has_whole_tenant_permission(self.request.user, tenant, "document.view"):
-            return queryset.order_by("approval_order", "created_at")
-        return queryset.filter(
-            version__document__organization_unit_id__in=accessible_organization_unit_ids(
-                self.request.user, tenant, "document.view"
+        if not has_whole_tenant_permission(self.request.user, tenant, "document.view"):
+            queryset = queryset.filter(
+                version__document__organization_unit_id__in=accessible_organization_unit_ids(
+                    self.request.user, tenant, "document.view"
+                )
             )
-        ).order_by("approval_order", "created_at")
+        version_id = self.request.query_params.get("version")
+        if version_id:
+            queryset = queryset.filter(version_id=version_id)
+        return queryset.order_by("approval_order", "created_at")
 
     def _require_manage(self, approval):
         _require_scoped_permission(
@@ -483,6 +489,18 @@ class DocumentApprovalViewSet(TM, viewsets.ModelViewSet):
                 deleted_at__isnull=True
             ).exclude(decision=DocumentApproval.Decision.APPROVED)
             if not remaining.exists():
+                now = timezone.now()
+                DocumentVersion.objects.filter(
+                    document=document,
+                    deleted_at__isnull=True,
+                    status__in=[
+                        DocumentVersion.Status.APPROVED,
+                        DocumentVersion.Status.PUBLISHED,
+                    ],
+                ).exclude(pk=version.pk).update(
+                    status=DocumentVersion.Status.SUPERSEDED,
+                    updated_at=now,
+                )
                 version.status = DocumentVersion.Status.APPROVED
                 version.save(update_fields=["status", "updated_at"])
                 document.status = Document.Status.APPROVED
@@ -496,7 +514,8 @@ class DocumentApprovalViewSet(TM, viewsets.ModelViewSet):
             version.status = DocumentVersion.Status.SUPERSEDED
             version.save(update_fields=["status", "updated_at"])
             document.status = Document.Status.DRAFT
-            document.save(update_fields=["status", "updated_at"])
+            document.current_version = None
+            document.save(update_fields=["status", "current_version", "updated_at"])
 
         record_audit_event(
             request.user,
