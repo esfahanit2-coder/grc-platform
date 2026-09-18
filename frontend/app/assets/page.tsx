@@ -40,17 +40,19 @@ export default function AssetsPage(){
   const[showCreate,setShowCreate]=useState(false);
   const[form,setForm]=useState(emptyForm);
   const[saving,setSaving]=useState(false);
+  const[page,setPage]=useState(1);
+  const[count,setCount]=useState(0);
 
   const load=useCallback(async()=>{
     setLoading(true);setError("");
-    const q=new URLSearchParams({page_size:"200"});
+    const q=new URLSearchParams({page:String(page)});
     if(search.trim()) q.set("search",search.trim());
     if(typeFilter) q.set("asset_type",typeFilter);
     if(statusFilter) q.set("status",statusFilter);
     const response=await apiFetch("/assets/?"+q.toString());
     if(!response.ok){setRows([]);setError(await responseError(response));setLoading(false);return;}
-    const body=await response.json();setRows(body.results??body);setLoading(false);
-  },[search,typeFilter,statusFilter]);
+    const body=await response.json();if(Array.isArray(body)){setRows(body);setCount(body.length)}else{setRows(body.results??[]);setCount(body.count??(body.results?.length??0))}setLoading(false);
+  },[search,typeFilter,statusFilter,page]);
 
   useEffect(()=>{void load()},[load]);
 
@@ -80,10 +82,11 @@ export default function AssetsPage(){
     };
     const response=await apiFetch("/assets/",{method:"POST",body:JSON.stringify(payload)});
     if(!response.ok){setError(await responseError(response));setSaving(false);return;}
-    setMessage("دارایی با موفقیت ثبت شد.");setShowCreate(false);setForm(emptyForm);setSaving(false);await load();
+    setMessage("دارایی با موفقیت ثبت شد.");setShowCreate(false);setForm(emptyForm);setSaving(false);if(page===1)await load();else setPage(1);
   }
 
   const field=(key:keyof typeof emptyForm,value:string)=>setForm(current=>({...current,[key]:value}));
+  const pageCount=Math.max(1,Math.ceil(count/50));
 
   return <main className="adminPage" dir="rtl">
     <div className="pageHead">
@@ -116,14 +119,15 @@ export default function AssetsPage(){
     </section>}
 
     <div className="toolbar">
-      <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="جستجو در کد، عنوان یا توضیحات"/>
-      <select value={typeFilter} onChange={e=>setTypeFilter(e.target.value)}><option value="">همه انواع</option>{Object.entries(typeLabels).map(([v,l])=><option key={v} value={v}>{l}</option>)}</select>
-      <select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}><option value="">همه وضعیت‌ها</option>{Object.entries(statusLabels).map(([v,l])=><option key={v} value={v}>{l}</option>)}</select>
+      <input value={search} onChange={e=>{setSearch(e.target.value);setPage(1)}} placeholder="جستجو در کد، عنوان یا توضیحات"/>
+      <select value={typeFilter} onChange={e=>{setTypeFilter(e.target.value);setPage(1)}}><option value="">همه انواع</option>{Object.entries(typeLabels).map(([v,l])=><option key={v} value={v}>{l}</option>)}</select>
+      <select value={statusFilter} onChange={e=>{setStatusFilter(e.target.value);setPage(1)}}><option value="">همه وضعیت‌ها</option>{Object.entries(statusLabels).map(([v,l])=><option key={v} value={v}>{l}</option>)}</select>
     </div>
 
     <section className="panel">
       {loading?<p className="muted">در حال دریافت دارایی‌ها…</p>:rows.length===0?<div className="emptyState">دارایی‌ای مطابق فیلترها یافت نشد.</div>:
-      <div className="tableWrap"><table className="dataTable"><thead><tr><th>کد</th><th>دارایی</th><th>نوع</th><th>واحد</th><th>مالک</th><th>C/I/A</th><th>Criticality</th><th>وضعیت</th></tr></thead><tbody>{rows.map(a=><tr key={a.id}><td dir="ltr">{a.code}</td><td><Link href={"/assets/"+a.id}>{a.title}</Link></td><td>{typeLabels[a.asset_type]??a.asset_type}</td><td>{a.organization_name}</td><td>{a.owner_display}</td><td dir="ltr">{a.confidentiality}/{a.integrity}/{a.availability}</td><td dir="ltr">{a.criticality}</td><td>{statusLabels[a.status]??a.status}</td></tr>)}</tbody></table></div>}
+      <div className="tableWrap"><table className="dataTable"><thead><tr><th>کد</th><th>دارایی</th><th>نوع</th><th>واحد</th><th>مالک</th><th>C/I/A</th><th>بحرانی‌بودن</th><th>وضعیت</th></tr></thead><tbody>{rows.map(a=><tr key={a.id}><td dir="ltr">{a.code}</td><td><Link href={"/assets/"+a.id}>{a.title}</Link></td><td>{typeLabels[a.asset_type]??a.asset_type}</td><td>{a.organization_name}</td><td>{a.owner_display}</td><td dir="ltr">{a.confidentiality}/{a.integrity}/{a.availability}</td><td dir="ltr">{a.criticality}</td><td>{statusLabels[a.status]??a.status}</td></tr>)}</tbody></table></div>}
+      {count>50&&<div className="headActions"><button type="button" className="secondaryButton" disabled={page<=1||loading} onClick={()=>setPage(p=>Math.max(1,p-1))}>صفحه قبل</button><span>صفحه {page} از {pageCount} · {count} رکورد</span><button type="button" className="secondaryButton" disabled={page>=pageCount||loading} onClick={()=>setPage(p=>Math.min(pageCount,p+1))}>صفحه بعد</button></div>}
     </section>
   </main>;
 }
