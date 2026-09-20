@@ -192,20 +192,28 @@ class DataExchangeTests(APITestCase):
             "availability", "criticality", "status",
         ]
         row = ["A-XLSX", "XLSX Asset", "hardware", "HQ", "asset-owner", "", "", 3, 3, 3, 3, "active"]
+        source = self.xlsx_file("assets.xlsx", headers, row)
+        raw = source.getvalue()
+
+        validated_file = BytesIO(raw)
+        validated_file.name = "assets.xlsx"
         validated = self.client.post(
             "/api/v1/data-exchange/validate/",
-            {"dataset": "assets", "file": self.xlsx_file("assets.xlsx", headers, row)},
+            {"dataset": "assets", "file": validated_file},
             format="multipart",
         )
         self.assertEqual(validated.status_code, 200)
         self.assertEqual(validated.json()["error_count"], 0)
         self.assertFalse(Asset.objects.filter(tenant=self.tenant, code="A-XLSX").exists())
+
+        committed_file = BytesIO(raw)
+        committed_file.name = "assets.xlsx"
         committed = self.client.post(
             "/api/v1/data-exchange/commit/",
             {
                 "dataset": "assets",
                 "validation_token": validated.json()["validation_token"],
-                "file": self.xlsx_file("assets.xlsx", headers, row),
+                "file": committed_file,
             },
             format="multipart",
         )

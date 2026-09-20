@@ -3,6 +3,7 @@ from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.response import Response
 
+from apps.audit.services import record_audit_event
 from apps.identity.services import (
     accessible_organization_unit_ids,
     has_whole_tenant_permission,
@@ -62,7 +63,28 @@ class WorkflowDefinitionViewSet(TenantMixin, viewsets.ModelViewSet):
         )
 
     def perform_create(self, serializer):
-        serializer.save(tenant=self._tenant())
+        instance = serializer.save(tenant=self._tenant())
+        record_audit_event(
+            self.request.user,
+            self._tenant(),
+            "workflow.definition.create",
+            "workflow_definition",
+            instance.id,
+            metadata={"name": instance.name, "object_type": instance.object_type},
+            request=self.request,
+        )
+
+    def perform_update(self, serializer):
+        instance = serializer.save()
+        record_audit_event(
+            self.request.user,
+            self._tenant(),
+            "workflow.definition.update",
+            "workflow_definition",
+            instance.id,
+            metadata={"name": instance.name, "object_type": instance.object_type},
+            request=self.request,
+        )
 
     def perform_destroy(self, instance):
         from django.utils import timezone
@@ -70,6 +92,15 @@ class WorkflowDefinitionViewSet(TenantMixin, viewsets.ModelViewSet):
         instance.deleted_at = timezone.now()
         instance.is_active = False
         instance.save(update_fields=["deleted_at", "is_active", "updated_at"])
+        record_audit_event(
+            self.request.user,
+            self._tenant(),
+            "workflow.definition.delete",
+            "workflow_definition",
+            instance.id,
+            metadata={"name": instance.name, "object_type": instance.object_type},
+            request=self.request,
+        )
 
     @action(detail=True, methods=["post"], url_path="states")
     def add_state(self, request, pk=None):
@@ -88,6 +119,20 @@ class WorkflowDefinitionViewSet(TenantMixin, viewsets.ModelViewSet):
         )
         if state.is_initial:
             definition.states.exclude(id=state.id).update(is_initial=False)
+        record_audit_event(
+            request.user,
+            self._tenant(),
+            "workflow.state.create",
+            "workflow_state",
+            state.id,
+            metadata={
+                "definition_id": str(definition.id),
+                "code": state.code,
+                "is_initial": state.is_initial,
+                "is_terminal": state.is_terminal,
+            },
+            request=request,
+        )
         return Response({"id": str(state.id), "code": state.code}, status=201)
 
     @action(detail=True, methods=["post"], url_path="transitions")
@@ -113,6 +158,21 @@ class WorkflowDefinitionViewSet(TenantMixin, viewsets.ModelViewSet):
             ),
             condition=request.data.get("condition") or {},
             actions=request.data.get("actions") or [],
+        )
+        record_audit_event(
+            request.user,
+            self._tenant(),
+            "workflow.transition.create",
+            "workflow_transition",
+            row.id,
+            metadata={
+                "definition_id": str(definition.id),
+                "code": row.code,
+                "from_state": from_state.code,
+                "to_state": to_state.code,
+                "required_permission_code": row.required_permission_code,
+            },
+            request=request,
         )
         return Response({"id": str(row.id), "code": row.code}, status=201)
 

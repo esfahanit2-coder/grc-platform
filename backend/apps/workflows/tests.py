@@ -1,6 +1,6 @@
 from django.contrib.auth import get_user_model
 from django.test import TestCase
-from rest_framework.exceptions import PermissionDenied
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.test import APITestCase
 from rest_framework_simplejwt.tokens import RefreshToken
 
@@ -119,6 +119,40 @@ class WorkflowScopeTests(TestCase):
                 definition=self.definition,
                 object_type="risk",
                 object_id=self.rb.id,
+            )
+
+    def test_foreign_tenant_target_is_cloaked_as_not_found(self):
+        other_tenant = Tenant.objects.create(name="WF Other", code="wf-other")
+        other_user = User.objects.create_user(
+            username="wf-other-user", password="StrongPassword123!"
+        )
+        TenantMembership.objects.create(
+            tenant=other_tenant, user=other_user, role_code="admin"
+        )
+        other_category = RiskCategory.objects.create(
+            tenant=other_tenant, code="other", name="Other"
+        )
+        other_unit = OrganizationUnit.objects.create(
+            tenant=other_tenant, unit_type="company", code="O", name="Other"
+        )
+        foreign_risk = Risk.objects.create(
+            tenant=other_tenant,
+            organization_unit=other_unit,
+            category=other_category,
+            code="FOREIGN",
+            title="Foreign risk",
+            owner=other_user,
+        )
+
+        with self.assertRaisesMessage(
+            ValidationError, "Workflow target object was not found."
+        ):
+            start_workflow(
+                tenant=self.tenant,
+                user=self.admin,
+                definition=self.definition,
+                object_type="risk",
+                object_id=foreign_risk.id,
             )
 
 
@@ -434,6 +468,75 @@ class WorkflowExecutionApiTests(APITestCase):
         self.assertEqual(
             [str(row["id"]) for row in rows],
             [str(self.instance.id)],
+        )
+
+    def test_workflow_configuration_mutations_are_audited(self):
+        self.auth(self.admin)
+        created = self.client.post(
+            "/api/v1/workflows/definitions/",
+            {"name": "Audited definition", "object_type": "risk", "version": 1},
+            format="json",
+        )
+        self.assertEqual(created.status_code, 201)
+        definition_id = created.data["id"]
+
+        updated = self.client.patch(
+            f"/api/v1/workflows/definitions/{definition_id}/",
+            {"name": "Audited definition v2"},
+            format="json",
+        )
+        self.assertEqual(updated.status_code, 200)
+
+        state = self.client.post(
+            f"/api/v1/workflows/definitions/{definition_id}/states/",
+            {"code": "draft", "name": "Draft", "is_initial": True},
+            format="json",
+        )
+        self.assertEqual(state.status_code, 201)
+
+        state2 = self.client.post(
+            f"/api/v1/workflows/definitions/{definition_id}/states/",
+            {"code": "done", "name": "Done", "is_terminal": True},
+            format="json",
+        )
+        self.assertEqual(state2.status_code, 201)
+
+        transition = self.client.post(
+            f"/api/v1/workflows/definitions/{definition_id}/transitions/",
+            {
+                "code": "finish",
+                "name": "Finish",
+                "from_state": state.data["id"],
+                "to_state": state2.data["id"],
+                "required_permission_code": "workflow.transition",
+            },
+            format="json",
+        )
+        self.assertEqual(transition.status_code, 201)
+
+        deleted = self.client.delete(
+            f"/api/v1/workflows/definitions/{definition_id}/"
+        )
+        self.assertEqual(deleted.status_code, 204)
+
+        actions = set(
+            AuditEvent.objects.filter(
+                tenant=self.tenant,
+                object_type__in=[
+                    "workflow_definition",
+                    "workflow_state",
+                    "workflow_transition",
+                ],
+            ).values_list("action", flat=True)
+        )
+        self.assertTrue(
+            {
+                "workflow.definition.create",
+                "workflow.definition.update",
+                "workflow.state.create",
+                "workflow.transition.create",
+                "workflow.definition.delete",
+            }.issubset(actions)
         )
 
     def test_foreign_tenant_instance_is_hidden(self):

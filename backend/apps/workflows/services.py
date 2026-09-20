@@ -42,13 +42,15 @@ def resolve_workflow_object(tenant, object_type, object_id):
         raise ValidationError("Unsupported workflow object type.")
     model = apps.get_model(*spec)
     queryset = model.objects.filter(id=object_id)
+    # Tenant-aware objects are cloaked at the query boundary so callers cannot
+    # distinguish a foreign UUID from a missing UUID.
+    if any(field.name == "tenant" for field in model._meta.fields):
+        queryset = queryset.filter(tenant=tenant)
     if hasattr(model, "deleted_at"):
         queryset = queryset.filter(deleted_at__isnull=True)
     obj = queryset.first()
     if not obj:
         raise ValidationError("Workflow target object was not found.")
-    if hasattr(obj, "tenant_id") and obj.tenant_id != tenant.id:
-        raise ValidationError("Workflow target belongs to another tenant.")
     return obj
 
 
