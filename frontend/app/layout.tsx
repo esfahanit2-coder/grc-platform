@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import "./design-system.css";
 import "./operations.css";
 import "./dashboard.css";
 import WorkQuickNav from "./work-quick-nav";
