@@ -1,6 +1,6 @@
 from django.contrib.auth import get_user_model
 from django.test import TestCase
-from rest_framework.exceptions import PermissionDenied
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.test import APITestCase
 from rest_framework_simplejwt.tokens import RefreshToken
 
@@ -145,7 +145,7 @@ class WorkflowScopeTests(TestCase):
         )
 
         with self.assertRaisesMessage(
-            Exception, "Workflow target object was not found."
+            ValidationError, "Workflow target object was not found."
         ):
             start_workflow(
                 tenant=self.tenant,
