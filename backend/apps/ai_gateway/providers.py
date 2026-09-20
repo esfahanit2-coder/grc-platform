@@ -64,7 +64,7 @@ class OpenAICompatibleProvider(BaseProvider):
             ordered = sorted(data.get("data") or [], key=lambda row: row.get("index", 0))
             return [row["embedding"] for row in ordered]
         except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, json.JSONDecodeError, KeyError) as exc:
-            raise ValidationError(f"Embedding provider request failed: {exc}") from exc
+            raise ValidationError("Embedding provider request failed.") from exc
 
     def generate(self, messages, *, temperature=0.2, response_format=None):
         base = self.config.base_url.rstrip("/")
@@ -83,7 +83,7 @@ class OpenAICompatibleProvider(BaseProvider):
             with urllib.request.urlopen(request, timeout=int(self.config.configuration.get("timeout", 60))) as response:
                 data = json.loads(response.read().decode("utf-8"))
         except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, json.JSONDecodeError) as exc:
-            raise ValidationError(f"AI provider request failed: {exc}") from exc
+            raise ValidationError("AI provider request failed.") from exc
         try:
             text = data["choices"][0]["message"]["content"]
         except (KeyError, IndexError, TypeError) as exc:
@@ -105,7 +105,7 @@ class OllamaProvider(BaseProvider):
                 data = json.loads(response.read().decode("utf-8"))
             return data.get("embeddings") or []
         except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, json.JSONDecodeError) as exc:
-            raise ValidationError(f"Ollama embedding request failed: {exc}") from exc
+            raise ValidationError("Ollama embedding request failed.") from exc
 
     def generate(self, messages, *, temperature=0.2, response_format=None):
         base = self.config.base_url.rstrip("/") or "http://ollama:11434"
@@ -116,7 +116,7 @@ class OllamaProvider(BaseProvider):
             with urllib.request.urlopen(request, timeout=int(self.config.configuration.get("timeout", 120))) as response:
                 data = json.loads(response.read().decode("utf-8"))
         except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, json.JSONDecodeError) as exc:
-            raise ValidationError(f"Ollama request failed: {exc}") from exc
+            raise ValidationError("Ollama request failed.") from exc
         text = ((data.get("message") or {}).get("content") or "").strip()
         return AIResponse(text=text, raw=data)
 
