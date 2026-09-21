@@ -1,6 +1,6 @@
 # Customer-Ready v1 Product Audit
 
-Status baseline: `main@dd45c951bc2572a39f33af8784fc890c6bd766d7`
+Status baseline: `main@cf835537e3662bc320b4b20bc44b1b089831d864`
 
 Related umbrella: #44
 
@@ -75,7 +75,7 @@ Every productization merge remains subject to exact-head CI + Release Gate and o
 
 The Pilot composition supports PostgreSQL + pgvector, Redis, S3-compatible object storage, Django, Celery worker/beat, Next.js, TLS gateway and optional local AI.
 
-Backup/restore, operational status, support evidence, upgrade/rollback and acceptance-evidence tooling exist. Real target-host observations remain deliberately unmeasured until the authorized drill.
+Backup/restore, operational status, support evidence, signed offline install/update, operator-safe bootstrap, upgrade/rollback and machine-readable datacenter verification are now packaged through #73. Post-merge CI is green on `main@cf835537e3662bc320b4b20bc44b1b089831d864`. Real target-host observations remain deliberately unmeasured until the authorized drill.
 
 ## Remaining internal product decision
 
@@ -164,6 +164,10 @@ Still required:
 - genuine screenshot from a running Pilot deployment;
 - comparison against the approved Persian dashboard mockup direction;
 - no mock/generated screenshot as acceptance evidence.
+
+## Final acceptance control
+
+Issue #74 is the final release/UAT orchestration layer. It must aggregate—not replace—the real evidence from #5, #6, #7, #8 and #42 plus customer/operator UAT. `docs/FINAL_RELEASE_ACCEPTANCE.md` defines the fail-closed promotion process; missing external evidence remains BLOCKED and no RC tag is promoted from repository CI alone.
 
 ## Recommended next execution sequence
 
