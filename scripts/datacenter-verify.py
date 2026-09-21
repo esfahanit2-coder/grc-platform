@@ -46,9 +46,12 @@ def docker_version_ok(value: str) -> bool:
     return bool(re.fullmatch(r"\d+(?:\.\d+){1,3}(?:[-+._A-Za-z0-9]*)?", value.strip()))
 
 
-def compose_v2(value: str) -> bool:
-    match = re.search(r"(\d+)(?:\.\d+)+", value)
-    return bool(match and int(match.group(1)) >= 2)
+def compose_supported(value: str) -> bool:
+    match = re.search(r"(\d+)\.(\d+)\.(\d+)", value)
+    if not match:
+        return False
+    version = tuple(int(part) for part in match.groups())
+    return version >= (2, 24, 4)
 
 
 def inspect_service(compose: list[str], service: str) -> dict:
@@ -109,11 +112,11 @@ def verify(env_file: Path, release_version: str, include_operational: bool = Tru
 
     compose_version = run(["docker", "compose", "version", "--short"])
     compose_value = compose_version.stdout.strip()
-    if compose_version.returncode == 0 and compose_v2(compose_value):
+    if compose_version.returncode == 0 and compose_supported(compose_value):
         report["versions"]["docker_compose"] = compose_value
-        add_check(report, "compose-v2", True)
+        add_check(report, "compose-version", True)
     else:
-        add_check(report, "compose-v2", False, "Docker Compose v2 is required")
+        add_check(report, "compose-version", False, "Docker Compose 2.24.4 or later is required")
         return report
 
     help_result = run(["docker", "compose", "up", "--help"])
@@ -171,8 +174,12 @@ def verify(env_file: Path, release_version: str, include_operational: bool = Tru
 def self_test() -> None:
     if not docker_version_ok("28.0.1") or docker_version_ok("not-a-version"):
         raise SystemExit("docker version parser self-test failed")
-    if not compose_v2("Docker Compose version v2.35.0") or compose_v2("1.29.2"):
+    if not compose_supported("Docker Compose version v2.35.0"):
         raise SystemExit("compose version parser self-test failed")
+    if not compose_supported("Docker Compose version v5.0.0"):
+        raise SystemExit("compose v5 compatibility self-test failed")
+    if compose_supported("Docker Compose version v2.24.3") or compose_supported("1.29.2"):
+        raise SystemExit("compose minimum-version self-test failed")
     report = {"ok": True, "checks": []}
     add_check(report, "pass", True)
     add_check(report, "fail", False, "bounded detail")
