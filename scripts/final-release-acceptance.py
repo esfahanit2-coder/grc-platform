@@ -53,7 +53,7 @@ SECRETISH = re.compile(
     r"-----BEGIN [^-]*PRIVATE KEY-----)"
 )
 SHA40 = re.compile(r"^[0-9a-f]{40}$")
-URI_USERINFO = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*://[^/@\\s]+@")
+URI_USERINFO = re.compile(r"[A-Za-z][A-Za-z0-9+.-]*://[^/@\\s]+@")
 PLACEHOLDER_MARKERS = ("REPLACE_WITH_", "PLACEHOLDER", "TBD")
 
 
@@ -175,11 +175,27 @@ def evaluate(pilot: dict[str, Any], attestations: dict[str, Any], expected_sha: 
         pilot_sha = pilot_release_commit(pilot)
         pilot_ready = pilot.get("ready_to_close_issue_7") is True
         pilot_match = pilot_sha == expected_sha
-        status = PASS if pilot_ready and pilot_match else FAIL
+        pilot_checks = pilot.get("checks") if isinstance(pilot.get("checks"), dict) else {}
+        required = pilot.get("issue7_required_checks")
+        missing = pilot.get("issue7_missing_or_failed")
+        required_complete = (
+            isinstance(required, list)
+            and bool(required)
+            and all(
+                isinstance(name, str)
+                and isinstance(pilot_checks.get(name), dict)
+                and pilot_checks[name].get("status") == PASS
+                for name in required
+            )
+        )
+        missing_empty = isinstance(missing, list) and not missing
+        status = PASS if pilot_ready and pilot_match and required_complete and missing_empty else FAIL
         checks["clean_host_issue_7"] = {
             "status": status,
             "pilot_ready_to_close_issue_7": pilot_ready,
             "pilot_release_sha_matches_candidate": pilot_match,
+            "pilot_required_checks_complete": required_complete,
+            "pilot_missing_or_failed_empty": missing_empty,
             "pilot_release_sha": pilot_sha,
         }
         if status != PASS:
@@ -263,10 +279,16 @@ def self_test() -> None:
         "note": "Reviewed against retained acceptance evidence.",
         "evidence_refs": ["ticket:123"],
     }
+    pilot_required = ["release_commit", "core_services_healthy"]
     pilot = {
         "schema": PILOT_SCHEMA,
         "ready_to_close_issue_7": True,
-        "checks": {"release_commit": {"status": PASS, "details": {"commit": sha}}},
+        "issue7_required_checks": pilot_required,
+        "issue7_missing_or_failed": [],
+        "checks": {
+            "release_commit": {"status": PASS, "details": {"commit": sha}},
+            "core_services_healthy": {"status": PASS},
+        },
     }
     attestations = {
         "schema": ATTESTATION_SCHEMA,
@@ -308,9 +330,15 @@ def self_test() -> None:
     assert bad_time_result["promotion_ready"] is False
 
     userinfo = json.loads(json.dumps(attestations))
-    userinfo["gates"]["operator_runbook"]["evidence_refs"] = ["https://user:pass@example.invalid/ticket/1"]
+    userinfo["gates"]["operator_runbook"]["evidence_refs"] = ["ticket mirrors https://user:pass@example.invalid/ticket/1"]
     userinfo_result = evaluate(pilot, userinfo, sha)
     assert userinfo_result["promotion_ready"] is False
+
+    inconsistent_pilot = json.loads(json.dumps(pilot))
+    inconsistent_pilot["checks"]["core_services_healthy"]["status"] = FAIL
+    inconsistent_pilot_result = evaluate(inconsistent_pilot, attestations, sha)
+    assert inconsistent_pilot_result["promotion_ready"] is False
+    assert "clean_host_issue_7" in inconsistent_pilot_result["blockers"]
 
     print("final release acceptance self-test: PASS")
 
