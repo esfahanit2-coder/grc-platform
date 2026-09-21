@@ -110,10 +110,9 @@ if [[ "$MODE" == "install" ]]; then
 
   if [[ -n "$EXTRA" ]]; then
     ENV_FILE="$(realpath "$EXTRA")"
-    if grep -q 'replace-with-' "$ENV_FILE"; then
-      echo "ERROR: production environment file still contains placeholder values." >&2
-      exit 4
-    fi
+    python "$REPOSITORY/scripts/datacenter-env-validate.py" \
+      --env "$ENV_FILE" \
+      --release-version "$VERSION" >/dev/null
     install -m 600 "$ENV_FILE" "$REPOSITORY/.env"
   fi
 
@@ -124,14 +123,9 @@ if [[ "$MODE" == "install" ]]; then
       exit 4
     fi
     cd "$REPOSITORY"
-    export GRC_RELEASE_VERSION="$VERSION"
-    COMPOSE=(docker compose --env-file .env -f docker-compose.pilot.yml)
-    [[ "${PILOT_TLS:-NO}" == "YES" ]] && COMPOSE+=(-f docker-compose.pilot.tls.yml)
-    [[ "${PILOT_LOCAL_AI:-NO}" == "YES" ]] && COMPOSE+=(--profile local-ai)
-    "${COMPOSE[@]}" config >/dev/null
-    "${COMPOSE[@]}" up -d --no-build --wait
-    "${COMPOSE[@]}" exec -T backend python manage.py pilot_readiness
-    echo "Offline release $VERSION started without build or package/model download."
+    export DATACENTER_LOCAL_AI="${PILOT_LOCAL_AI:-NO}"
+    CONFIRM_INSTALL=YES bash scripts/datacenterctl install
+    echo "Offline release $VERSION started and verified without build or package/model download."
   else
     echo "No services were started. Review .env/TLS/model prerequisites, then follow docs/OFFLINE_RELEASE_AND_SUPPORT.md."
   fi
@@ -160,6 +154,9 @@ if ! git -C "$REPOSITORY" diff --quiet || ! git -C "$REPOSITORY" diff --cached -
   echo "ERROR: tracked local changes block an offline update." >&2
   exit 4
 fi
+python "$REPOSITORY/scripts/datacenter-env-validate.py" \
+  --env "$REPOSITORY/.env" \
+  --release-version "$OLD_VERSION" >/dev/null
 
 load_images
 git -C "$REPOSITORY" fetch -q "$STAGE/source/grc-platform.bundle" \
@@ -175,14 +172,47 @@ cd "$REPOSITORY"
 export GRC_RELEASE_VERSION="$VERSION"
 export FROM_RELEASE_VERSION="$OLD_VERSION"
 export PILOT_OFFLINE=YES
+export PILOT_TLS=YES
+export PILOT_LOCAL_AI="${PILOT_LOCAL_AI:-NO}"
 export CONFIRM_UPGRADE=YES
 if ! bash scripts/pilot-upgrade.sh "$OLD_SHA" "$BACKUP_NAME"; then
   echo "ERROR: offline update failed. Writers remain protected according to the upgrade phase." >&2
   echo "After approval, rollback with: CONFIRM_ROLLBACK=YES bash scripts/pilot-rollback.sh $BACKUP_NAME" >&2
   exit 5
 fi
+python - "$REPOSITORY/.env" "$VERSION" <<'PY'
+import os
+import sys
+import tempfile
+from pathlib import Path
+
+path = Path(sys.argv[1])
+version = sys.argv[2]
+lines = path.read_text(encoding="utf-8").splitlines()
+seen = False
+updated = []
+for raw in lines:
+    if raw.strip().startswith("GRC_RELEASE_VERSION="):
+        updated.append(f"GRC_RELEASE_VERSION={version}")
+        seen = True
+    else:
+        updated.append(raw)
+if not seen:
+    raise SystemExit("ERROR: GRC_RELEASE_VERSION is missing from the production environment file")
+fd, tmp = tempfile.mkstemp(prefix=".env.release-", dir=path.parent)
+try:
+    with os.fdopen(fd, "w", encoding="utf-8") as handle:
+        handle.write("\n".join(updated) + "\n")
+    os.chmod(tmp, 0o600)
+    os.replace(tmp, path)
+finally:
+    if os.path.exists(tmp):
+        os.unlink(tmp)
+PY
 install -m 600 "$STAGE/release-manifest.json" "$RELEASE_DIR/release-manifest.json"
 install -m 600 "$STAGE/release-manifest.sig" "$RELEASE_DIR/release-manifest.sig"
+export DATACENTER_LOCAL_AI="${PILOT_LOCAL_AI:-NO}"
+bash scripts/datacenterctl verify >/dev/null
 
-echo "Offline update completed: $OLD_VERSION -> $VERSION"
+echo "Offline update completed and verified: $OLD_VERSION -> $VERSION"
 echo "Retain the previous signed bundle and backups until the release observation window is closed."
