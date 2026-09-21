@@ -12,7 +12,6 @@ SAFE_FIELDS = (
     "logger",
     "request_id",
     "method",
-    "path",
     "status_code",
     "duration_ms",
     "error_type",
@@ -58,7 +57,6 @@ def self_test() -> None:
         "timestamp":"2026-01-01T00:00:00Z",
         "level":"ERROR",
         "logger":"grc",
-        "path":"/api/v1/x",
         "error_type":"RuntimeError",
     }]:
         raise RuntimeError(f"unexpected filter result: {rows}")
