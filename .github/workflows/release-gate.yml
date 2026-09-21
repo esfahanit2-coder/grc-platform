@@ -41,6 +41,13 @@ jobs:
           python scripts/offline-release-manifest.py self-test
           bash scripts/offline-release-ci-test.sh
 
+      - name: Validate datacenter operator tooling
+        run: |
+          python scripts/datacenter-preflight.py --self-test
+          python scripts/datacenter-verify.py --self-test
+          python scripts/support-log-filter.py --self-test
+          bash -n scripts/support-evidence.sh
+
       - name: Install Bandit SAST
         run: python -m pip install bandit==1.9.4
 
