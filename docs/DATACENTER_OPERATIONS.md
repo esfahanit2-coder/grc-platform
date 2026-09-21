@@ -205,7 +205,7 @@ It checks and reports:
 - immutable/preloaded image references;
 - PostgreSQL, Redis, object store, backend, worker, beat, frontend and gateway service state;
 - pending migration state;
-- Django `check --deploy --fail-level WARNING` against the actual runtime settings;
+- Django `check --deploy` against the actual runtime settings, with any deployment warnings retained as a review count while hard errors fail verification;
 - application readiness including DB/pgvector, Redis and S3;
 - external HTTPS live/ready probes with hostname and CA validation;
 - operational health JSON.
