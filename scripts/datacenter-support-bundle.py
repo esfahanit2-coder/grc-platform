@@ -21,6 +21,7 @@ ALLOWED_LOG_FIELDS = {
     "method",
     "path",
     "status",
+    "duration",
     "duration_ms",
     "error_type",
 }
