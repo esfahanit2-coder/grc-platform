@@ -158,6 +158,7 @@ git bundle verify "$STAGE/source/grc-platform.bundle" >/dev/null
 echo "[5/8] Copying SBOMs and public runtime templates..."
 install -m 600 "$SBOM_DIR/sbom-backend.cdx.json" "$STAGE/sbom/sbom-backend.cdx.json"
 install -m 600 "$SBOM_DIR/sbom-frontend.cdx.json" "$STAGE/sbom/sbom-frontend.cdx.json"
+install -m 600 "$SBOM_DIR/release-evidence-provenance.json" "$STAGE/metadata/release-evidence-provenance.json"
 install -m 600 .env.pilot.example "$STAGE/config/.env.pilot.example"
 install -m 600 docker-compose.pilot.yml "$STAGE/config/docker-compose.pilot.yml"
 install -m 600 docker-compose.pilot.tls.yml "$STAGE/config/docker-compose.pilot.tls.yml"
