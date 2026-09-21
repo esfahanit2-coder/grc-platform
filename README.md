@@ -117,7 +117,7 @@ scripts/             Validation/bootstrap utilities
 9. Validate backup/restore, RPO/RTO and TLS/cookie hardening.
 10. Complete the remaining pre-RC performance, HA/DR, offline-release and independent security validation gates.
 
-Datacenter operators should use [docs/DATACENTER_OPERATIONS.md](docs/DATACENTER_OPERATIONS.md) and the signed offline release path rather than development quick-start commands.
+Datacenter operators should use [docs/SERVER_PILOT_CANDIDATE.md](docs/SERVER_PILOT_CANDIDATE.md), [docs/DATACENTER_OPERATIONS.md](docs/DATACENTER_OPERATIONS.md) and the signed offline release path rather than development quick-start commands.
 
 See [ROADMAP.md](ROADMAP.md), [docs/product/ROADMAP_DETAILED_EN.md](docs/product/ROADMAP_DETAILED_EN.md), [docs/product/ROADMAP_DETAILED_FA.md](docs/product/ROADMAP_DETAILED_FA.md), [docs/PILOT_PLAN.md](docs/PILOT_PLAN.md), and [RELEASE_BLOCKERS.md](RELEASE_BLOCKERS.md).
 
