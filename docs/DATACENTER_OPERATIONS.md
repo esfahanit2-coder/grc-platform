@@ -288,7 +288,7 @@ Use:
 CONFIRM_ROLLBACK=YES bash scripts/datacenterctl rollback <pre-upgrade-backup-name>
 ~~~
 
-The underlying rollback verifies the backup manifest/checksums, switches to the exact recorded source commit and invokes that release's restore implementation.
+The underlying rollback verifies the backup manifest/checksums, switches to the exact recorded source commit and invokes that release's restore implementation. Before each signed update the operator package also snapshots the active signed release metadata under the previous source SHA; after rollback it restores that manifest/signature/trusted key (and signed image metadata when available) as the active release record.
 
 ### Object-storage consistency
 
