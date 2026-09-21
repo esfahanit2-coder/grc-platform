@@ -6,11 +6,15 @@ import hashlib
 import json
 import os
 import re
+import ssl
 import subprocess
 import sys
 import tempfile
+import urllib.error
+import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import urlparse
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -80,6 +84,79 @@ def sha256_file(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def env_values(path: Path) -> dict[str, str]:
+    values: dict[str, str] = {}
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("export "):
+            line = line[7:].lstrip()
+        if "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        value = value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
+            value = value[1:-1]
+        values[key.strip()] = value
+    return values
+
+
+def valid_https_base_url(value: str) -> bool:
+    try:
+        parsed = urlparse(value.strip())
+    except ValueError:
+        return False
+    return (
+        parsed.scheme == "https"
+        and bool(parsed.hostname)
+        and not parsed.username
+        and not parsed.password
+        and parsed.path in {"", "/"}
+        and not parsed.query
+        and not parsed.fragment
+    )
+
+
+def derive_base_url(env_file: Path, explicit: str | None = None) -> str | None:
+    if explicit:
+        candidate = explicit.strip().rstrip("/")
+        return candidate if valid_https_base_url(candidate) else None
+    env = env_values(env_file)
+    app_base = env.get("APP_BASE_URL", "").strip().rstrip("/")
+    if app_base and valid_https_base_url(app_base):
+        return app_base
+    for origin in env.get("CSRF_TRUSTED_ORIGINS", "").split(","):
+        candidate = origin.strip().rstrip("/")
+        if candidate and valid_https_base_url(candidate):
+            return candidate
+    return None
+
+
+def probe_https(
+    url: str,
+    expected_status: str,
+    ca_cert: str | None = None,
+    timeout: int = 10,
+) -> tuple[bool, int | None, str | None]:
+    try:
+        context = ssl.create_default_context(cafile=ca_cert) if ca_cert else ssl.create_default_context()
+        request = urllib.request.Request(url, headers={"User-Agent": "grc-datacenter-verify/1"})
+        with urllib.request.urlopen(request, timeout=timeout, context=context) as response:
+            body = response.read(65536)
+            status = int(response.status)
+            try:
+                payload = json.loads(body.decode("utf-8"))
+            except (UnicodeDecodeError, json.JSONDecodeError):
+                return False, status, "InvalidJSON"
+            payload_ok = isinstance(payload, dict) and payload.get("status") == expected_status
+            return 200 <= status < 300 and payload_ok, status, None if payload_ok else "UnexpectedHealthPayload"
+    except urllib.error.HTTPError as exc:
+        return False, int(exc.code), "HTTPError"
+    except (urllib.error.URLError, ssl.SSLError, TimeoutError, OSError, ValueError) as exc:
+        return False, None, type(exc).__name__
 
 
 def verify_signed_release(report: dict, release_version: str) -> None:
@@ -187,7 +264,14 @@ def inspect_service(compose: list[str], service: str) -> dict:
     }
 
 
-def verify(env_file: Path, release_version: str, include_operational: bool = True, preflight: bool = False) -> dict:
+def verify(
+    env_file: Path,
+    release_version: str,
+    include_operational: bool = True,
+    preflight: bool = False,
+    base_url: str | None = None,
+    ca_cert: str | None = None,
+) -> dict:
     report = {
         "schema": "grc-datacenter-verification-v1",
         "generated_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
@@ -282,8 +366,74 @@ def verify(env_file: Path, release_version: str, include_operational: bool = Tru
     migrations = run(compose + ["exec", "-T", "backend", "python", "manage.py", "migrate", "--check"])
     add_check(report, "migration-state", migrations.returncode == 0)
 
+    deploy_check = run(
+        compose
+        + [
+            "exec",
+            "-T",
+            "backend",
+            "python",
+            "manage.py",
+            "check",
+            "--deploy",
+        ]
+    )
+    deploy_output = "\n".join(
+        part for part in (deploy_check.stdout, deploy_check.stderr) if part
+    )
+    deploy_warning_count = len(
+        [line for line in deploy_output.splitlines() if "WARNING" in line or "security.W" in line]
+    )
+    report["django_deploy_check"] = {"warning_count": deploy_warning_count}
+    add_check(
+        report,
+        "django-deploy-check",
+        deploy_check.returncode == 0,
+        (
+            f"completed with {deploy_warning_count} deployment warning(s)"
+            if deploy_check.returncode == 0 and deploy_warning_count
+            else (
+                None
+                if deploy_check.returncode == 0
+                else "Django deployment checks reported an error"
+            )
+        ),
+    )
+
     readiness = run(compose + ["exec", "-T", "backend", "python", "manage.py", "pilot_readiness"])
     add_check(report, "application-readiness", readiness.returncode == 0)
+
+    resolved_base_url = derive_base_url(env_file, base_url)
+    if not resolved_base_url:
+        add_check(report, "https-base-url", False, "No valid explicit HTTPS base URL could be derived")
+    else:
+        add_check(report, "https-base-url", True)
+        live_ok, live_status, live_error = probe_https(
+            resolved_base_url + "/api/v1/health/live",
+            "ok",
+            ca_cert=ca_cert,
+        )
+        ready_ok, ready_status, ready_error = probe_https(
+            resolved_base_url + "/api/v1/health/ready",
+            "ready",
+            ca_cert=ca_cert,
+        )
+        report["https_probes"] = {
+            "live": {"status": live_status, "error_type": live_error},
+            "ready": {"status": ready_status, "error_type": ready_error},
+        }
+        add_check(
+            report,
+            "https-live",
+            live_ok,
+            None if live_ok else f"HTTPS live probe failed ({live_error or live_status or 'unknown'})",
+        )
+        add_check(
+            report,
+            "https-ready",
+            ready_ok,
+            None if ready_ok else f"HTTPS ready probe failed ({ready_error or ready_status or 'unknown'})",
+        )
 
     if include_operational:
         operational = run(compose + ["exec", "-T", "backend", "python", "manage.py", "operational_status", "--json"])
@@ -312,6 +462,16 @@ def self_test() -> None:
         raise SystemExit("published port parser self-test failed")
     if published_ports("0.0.0.0:8080") != {"8080"}:
         raise SystemExit("published port parser negative self-test failed")
+    if not valid_https_base_url("https://grc.customer.internal"):
+        raise SystemExit("https base URL positive self-test failed")
+    for unsafe in (
+        "http://grc.customer.internal",
+        "https://user:pass@grc.customer.internal",
+        "https://grc.customer.internal/#fragment",
+        "https://grc.customer.internal/nested/path",
+    ):
+        if valid_https_base_url(unsafe):
+            raise SystemExit("https base URL negative self-test failed")
     with tempfile.TemporaryDirectory() as tmp:
         sample = Path(tmp) / "sample"
         sample.write_bytes(b"grc")
@@ -331,6 +491,8 @@ def main() -> int:
     parser.add_argument("--release-version", required=False)
     parser.add_argument("--json-out")
     parser.add_argument("--skip-operational", action="store_true")
+    parser.add_argument("--base-url", help="Explicit HTTPS application origin. Defaults to APP_BASE_URL or the first CSRF_TRUSTED_ORIGINS entry.")
+    parser.add_argument("--ca-cert", default=os.environ.get("GRC_VERIFY_CA_CERT") or None, help="Optional CA bundle for the external HTTPS health probe; otherwise use the host trust store.")
     parser.add_argument("--preflight", action="store_true", help="Validate config, host, signed release and images without requiring running services.")
     parser.add_argument("--self-test", action="store_true")
     args = parser.parse_args()
@@ -354,7 +516,26 @@ def main() -> int:
         print("ERROR: release version could not be determined", file=sys.stderr)
         return 2
 
-    report = verify(env_file, release_version, include_operational=not args.skip_operational, preflight=args.preflight)
+    if args.base_url and not valid_https_base_url(args.base_url):
+        print("ERROR: --base-url must be an explicit HTTPS origin without credentials/query/fragment", file=sys.stderr)
+        return 2
+    if args.ca_cert:
+        ca_path = Path(args.ca_cert).expanduser().resolve()
+        if not ca_path.is_file():
+            print("ERROR: --ca-cert does not point to a readable file", file=sys.stderr)
+            return 2
+        ca_cert = str(ca_path)
+    else:
+        ca_cert = None
+
+    report = verify(
+        env_file,
+        release_version,
+        include_operational=not args.skip_operational,
+        preflight=args.preflight,
+        base_url=args.base_url,
+        ca_cert=ca_cert,
+    )
     payload = json.dumps(report, indent=2, sort_keys=True)
     if args.json_out:
         target = Path(args.json_out)

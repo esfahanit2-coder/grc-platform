@@ -1,3 +1,4 @@
+from django.db import transaction
 from django.utils import timezone
 from rest_framework import viewsets
 from rest_framework.decorators import action
@@ -84,6 +85,49 @@ def _document_status_for_version(version):
         DocumentVersion.Status.APPROVED: Document.Status.APPROVED,
         DocumentVersion.Status.PUBLISHED: Document.Status.PUBLISHED,
     }.get(version.status, Document.Status.DRAFT)
+
+
+def _lock_document(tenant, document_id):
+    document = (
+        Document.objects.select_for_update(of=("self",))
+        .select_related("organization_unit", "current_version")
+        .filter(id=document_id, tenant=tenant, deleted_at__isnull=True)
+        .first()
+    )
+    if not document:
+        raise ValidationError("Document not found.")
+    return document
+
+
+def _lock_document_version(tenant, version_id):
+    candidate = (
+        DocumentVersion.objects.filter(
+            id=version_id,
+            document__tenant=tenant,
+            deleted_at__isnull=True,
+        )
+        .values("document_id")
+        .first()
+    )
+    if not candidate:
+        raise ValidationError("Document version not found.")
+
+    document = _lock_document(tenant, candidate["document_id"])
+    version = (
+        DocumentVersion.objects.select_for_update(of=("self",))
+        .select_related("created_by")
+        .filter(
+            id=version_id,
+            document=document,
+            deleted_at__isnull=True,
+        )
+        .first()
+    )
+    if not version:
+        raise ValidationError("Document version not found.")
+    # Reuse the locked aggregate root for downstream scope/status checks.
+    version.document = document
+    return document, version
 
 
 class TM:
@@ -267,114 +311,124 @@ class DocumentVersionViewSet(TM, viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         tenant = self._tenant()
-        document = serializer.validated_data["document"]
-        _require_scoped_permission(
-            self.request.user, tenant, "document.manage", document.organization_unit
-        )
-        if (
-            document.current_version_id
-            and document.current_version.status == DocumentVersion.Status.REVIEW
-        ):
-            raise ValidationError("The current document version is still in review.")
-        version = serializer.save(created_by=self.request.user)
-        document.current_version = version
-        document.status = Document.Status.DRAFT
-        document.save(update_fields=["current_version", "status", "updated_at"])
-        record_audit_event(
-            self.request.user,
-            tenant,
-            "document.version_create",
-            "document_version",
-            version.id,
-            metadata={"document_id": str(document.id), "version": version.version},
-            request=self.request,
-        )
+        candidate = serializer.validated_data["document"]
+        with transaction.atomic():
+            document = _lock_document(tenant, candidate.id)
+            _require_scoped_permission(
+                self.request.user, tenant, "document.manage", document.organization_unit
+            )
+            if (
+                document.current_version_id
+                and document.current_version.status == DocumentVersion.Status.REVIEW
+            ):
+                raise ValidationError("The current document version is still in review.")
+            version = serializer.save(document=document, created_by=self.request.user)
+            document.current_version = version
+            document.status = Document.Status.DRAFT
+            document.save(update_fields=["current_version", "status", "updated_at"])
+            record_audit_event(
+                self.request.user,
+                tenant,
+                "document.version_create",
+                "document_version",
+                version.id,
+                metadata={"document_id": str(document.id), "version": version.version},
+                request=self.request,
+            )
 
     def perform_update(self, serializer):
-        version = serializer.instance
-        self._require_mutable_current_draft(version)
-        serializer.save()
-        record_audit_event(
-            self.request.user,
-            self._tenant(),
-            "document.version_update",
-            "document_version",
-            version.id,
-            request=self.request,
-        )
+        tenant = self._tenant()
+        candidate = serializer.instance
+        with transaction.atomic():
+            _document, version = _lock_document_version(tenant, candidate.id)
+            serializer.instance = version
+            self._require_mutable_current_draft(version)
+            serializer.save()
+            record_audit_event(
+                self.request.user,
+                tenant,
+                "document.version_update",
+                "document_version",
+                version.id,
+                request=self.request,
+            )
 
-    def perform_destroy(self, version):
-        self._require_mutable_current_draft(version)
-        document = version.document
-        version.deleted_at = timezone.now()
-        version.save(update_fields=["deleted_at", "updated_at"])
-        previous = (
-            DocumentVersion.objects.filter(document=document, deleted_at__isnull=True)
-            .exclude(pk=version.pk)
-            .order_by("-created_at")
-            .first()
-        )
-        document.current_version = previous
-        document.status = _document_status_for_version(previous)
-        document.save(update_fields=["current_version", "status", "updated_at"])
-        record_audit_event(
-            self.request.user,
-            self._tenant(),
-            "document.version_remove",
-            "document_version",
-            version.id,
-            request=self.request,
-        )
+    def perform_destroy(self, candidate):
+        tenant = self._tenant()
+        with transaction.atomic():
+            document, version = _lock_document_version(tenant, candidate.id)
+            self._require_mutable_current_draft(version)
+            version.deleted_at = timezone.now()
+            version.save(update_fields=["deleted_at", "updated_at"])
+            previous = (
+                DocumentVersion.objects.filter(document=document, deleted_at__isnull=True)
+                .exclude(pk=version.pk)
+                .order_by("-created_at")
+                .first()
+            )
+            document.current_version = previous
+            document.status = _document_status_for_version(previous)
+            document.save(update_fields=["current_version", "status", "updated_at"])
+            record_audit_event(
+                self.request.user,
+                tenant,
+                "document.version_remove",
+                "document_version",
+                version.id,
+                request=self.request,
+            )
 
     @action(detail=True, methods=["post"])
     def submit(self, request, pk=None):
-        version = self.get_object()
+        candidate = self.get_object()
         tenant = self._tenant()
-        self._require_mutable_current_draft(version)
-        approvals = list(
-            version.approvals.filter(deleted_at__isnull=True)
-            .select_related("approver")
-            .order_by("approval_order", "created_at")
-        )
-        if not approvals:
-            raise ValidationError("At least one approver must be assigned before review.")
-        if any(item.decision != DocumentApproval.Decision.PENDING for item in approvals):
-            raise ValidationError("Review can start only with pending approval assignments.")
-        for approval in approvals:
-            active_member = TenantMembership.objects.filter(
-                tenant=tenant, user=approval.approver, is_active=True
-            ).exists()
-            if not active_member or not _has_scoped_permission(
-                approval.approver,
-                tenant,
-                "document.view",
-                version.document.organization_unit,
-            ) or not _has_scoped_permission(
-                approval.approver,
-                tenant,
-                "document.approve",
-                version.document.organization_unit,
-            ):
-                raise ValidationError(
-                    "Every approver must still be an active member with document.view and document.approve in this scope."
-                )
+        with transaction.atomic():
+            document, version = _lock_document_version(tenant, candidate.id)
+            self._require_mutable_current_draft(version)
+            approvals = list(
+                version.approvals.filter(deleted_at__isnull=True)
+                .select_related("approver")
+                .order_by("approval_order", "created_at")
+            )
+            if not approvals:
+                raise ValidationError("At least one approver must be assigned before review.")
+            if any(item.decision != DocumentApproval.Decision.PENDING for item in approvals):
+                raise ValidationError("Review can start only with pending approval assignments.")
+            for approval in approvals:
+                active_member = TenantMembership.objects.filter(
+                    tenant=tenant, user=approval.approver, is_active=True
+                ).exists()
+                if not active_member or not _has_scoped_permission(
+                    approval.approver,
+                    tenant,
+                    "document.view",
+                    document.organization_unit,
+                ) or not _has_scoped_permission(
+                    approval.approver,
+                    tenant,
+                    "document.approve",
+                    document.organization_unit,
+                ):
+                    raise ValidationError(
+                        "Every approver must still be an active member with document.view and document.approve in this scope."
+                    )
 
-        version.status = DocumentVersion.Status.REVIEW
-        version.save(update_fields=["status", "updated_at"])
-        document = version.document
-        document.status = Document.Status.REVIEW
-        document.save(update_fields=["status", "updated_at"])
-        record_audit_event(
-            request.user,
-            tenant,
-            "document.submit_review",
-            "document_version",
-            version.id,
-            metadata={"document_id": str(document.id)},
-            request=request,
-        )
-        _notify_next_document_approvers(version)
-        return Response(self.get_serializer(version).data)
+            version.status = DocumentVersion.Status.REVIEW
+            version.save(update_fields=["status", "updated_at"])
+            document.status = Document.Status.REVIEW
+            document.save(update_fields=["status", "updated_at"])
+            record_audit_event(
+                request.user,
+                tenant,
+                "document.submit_review",
+                "document_version",
+                version.id,
+                metadata={"document_id": str(document.id)},
+                request=request,
+            )
+            _notify_next_document_approvers(version)
+            response_data = self.get_serializer(version).data
+        return Response(response_data)
 
     @action(detail=True, methods=["get"])
     def export(self, request, pk=None):
@@ -432,141 +486,187 @@ class DocumentApprovalViewSet(TM, viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         tenant = self._tenant()
-        version = serializer.validated_data["version"]
-        document = version.document
-        _require_scoped_permission(
-            self.request.user, tenant, "document.manage", document.organization_unit
-        )
-        if version.status != DocumentVersion.Status.DRAFT or document.current_version_id != version.id:
-            raise ValidationError("Approvers can be assigned only to the current draft version.")
-        approval = serializer.save()
-        record_audit_event(
-            self.request.user,
-            tenant,
-            "document.approval_assign",
-            "document_approval",
-            approval.id,
-            metadata={
-                "document_id": str(document.id),
-                "version_id": str(version.id),
-                "approver_id": approval.approver_id,
-                "approval_order": approval.approval_order,
-            },
-            request=self.request,
-        )
+        candidate = serializer.validated_data["version"]
+        with transaction.atomic():
+            document, version = _lock_document_version(tenant, candidate.id)
+            _require_scoped_permission(
+                self.request.user, tenant, "document.manage", document.organization_unit
+            )
+            if (
+                version.status != DocumentVersion.Status.DRAFT
+                or document.current_version_id != version.id
+            ):
+                raise ValidationError("Approvers can be assigned only to the current draft version.")
+            approval = serializer.save(version=version)
+            record_audit_event(
+                self.request.user,
+                tenant,
+                "document.approval_assign",
+                "document_approval",
+                approval.id,
+                metadata={
+                    "document_id": str(document.id),
+                    "version_id": str(version.id),
+                    "approver_id": approval.approver_id,
+                    "approval_order": approval.approval_order,
+                },
+                request=self.request,
+            )
 
     def perform_update(self, serializer):
-        approval = serializer.instance
-        self._require_pending_draft(approval)
-        serializer.save()
-        record_audit_event(
-            self.request.user,
-            self._tenant(),
-            "document.approval_update",
-            "document_approval",
-            approval.id,
-            request=self.request,
-        )
+        tenant = self._tenant()
+        candidate = serializer.instance
+        with transaction.atomic():
+            _document, version = _lock_document_version(tenant, candidate.version_id)
+            approval = (
+                DocumentApproval.objects.select_for_update(of=("self",))
+                .select_related("version__document__organization_unit", "approver")
+                .filter(id=candidate.id, version=version, deleted_at__isnull=True)
+                .first()
+            )
+            if not approval:
+                raise ValidationError("Approval assignment not found.")
+            serializer.instance = approval
+            self._require_pending_draft(approval)
+            serializer.save()
+            record_audit_event(
+                self.request.user,
+                tenant,
+                "document.approval_update",
+                "document_approval",
+                approval.id,
+                request=self.request,
+            )
 
-    def perform_destroy(self, approval):
-        self._require_pending_draft(approval)
-        approval.deleted_at = timezone.now()
-        approval.save(update_fields=["deleted_at", "updated_at"])
-        record_audit_event(
-            self.request.user,
-            self._tenant(),
-            "document.approval_remove",
-            "document_approval",
-            approval.id,
-            request=self.request,
-        )
+    def perform_destroy(self, candidate):
+        tenant = self._tenant()
+        with transaction.atomic():
+            _document, version = _lock_document_version(tenant, candidate.version_id)
+            approval = (
+                DocumentApproval.objects.select_for_update(of=("self",))
+                .select_related("version__document__organization_unit", "approver")
+                .filter(id=candidate.id, version=version, deleted_at__isnull=True)
+                .first()
+            )
+            if not approval:
+                raise ValidationError("Approval assignment not found.")
+            self._require_pending_draft(approval)
+            approval.deleted_at = timezone.now()
+            approval.save(update_fields=["deleted_at", "updated_at"])
+            record_audit_event(
+                self.request.user,
+                tenant,
+                "document.approval_remove",
+                "document_approval",
+                approval.id,
+                request=self.request,
+            )
 
     @action(detail=True, methods=["post"])
     def decide(self, request, pk=None):
-        approval = self.get_object()
+        candidate = self.get_object()
         tenant = self._tenant()
-        document = approval.version.document
-        _require_scoped_permission(
-            request.user, tenant, "document.approve", document.organization_unit
-        )
-        if approval.approver_id != request.user.id:
-            raise ValidationError("Only the assigned approver may decide this approval.")
-        if approval.decision != DocumentApproval.Decision.PENDING:
-            raise ValidationError("This approval has already been decided.")
-        if (
-            approval.version.status != DocumentVersion.Status.REVIEW
-            or document.current_version_id != approval.version_id
-        ):
-            raise ValidationError("Approval decisions are accepted only for the current version in review.")
+        with transaction.atomic():
+            document, version = _lock_document_version(tenant, candidate.version_id)
+            approval = (
+                DocumentApproval.objects.select_for_update(of=("self",))
+                .select_related("approver")
+                .filter(id=candidate.id, version=version, deleted_at__isnull=True)
+                .first()
+            )
+            if not approval:
+                raise ValidationError("Approval assignment not found.")
 
-        earlier_blockers = approval.version.approvals.filter(
-            deleted_at__isnull=True,
-            approval_order__lt=approval.approval_order,
-        ).exclude(decision=DocumentApproval.Decision.APPROVED)
-        if earlier_blockers.exists():
-            raise ValidationError("Earlier approval stages must be approved first.")
-
-        decision = request.data.get("decision")
-        allowed = {
-            DocumentApproval.Decision.APPROVED,
-            DocumentApproval.Decision.REJECTED,
-            DocumentApproval.Decision.CHANGES,
-        }
-        if decision not in allowed:
-            raise ValidationError({"decision": "Invalid decision."})
-
-        approval.decision = decision
-        approval.comment = request.data.get("comment", "")
-        approval.decided_at = timezone.now()
-        approval.save(update_fields=["decision", "comment", "decided_at", "updated_at"])
-
-        version = approval.version
-        if decision == DocumentApproval.Decision.APPROVED:
-            remaining = version.approvals.filter(
-                deleted_at__isnull=True
-            ).exclude(decision=DocumentApproval.Decision.APPROVED)
-            if not remaining.exists():
-                now = timezone.now()
-                DocumentVersion.objects.filter(
-                    document=document,
-                    deleted_at__isnull=True,
-                    status__in=[
-                        DocumentVersion.Status.APPROVED,
-                        DocumentVersion.Status.PUBLISHED,
-                    ],
-                ).exclude(pk=version.pk).update(
-                    status=DocumentVersion.Status.SUPERSEDED,
-                    updated_at=now,
+            _require_scoped_permission(
+                request.user, tenant, "document.approve", document.organization_unit
+            )
+            if approval.approver_id != request.user.id:
+                raise ValidationError("Only the assigned approver may decide this approval.")
+            if approval.decision != DocumentApproval.Decision.PENDING:
+                raise ValidationError("This approval has already been decided.")
+            if (
+                version.status != DocumentVersion.Status.REVIEW
+                or document.current_version_id != version.id
+            ):
+                raise ValidationError(
+                    "Approval decisions are accepted only for the current version in review."
                 )
-                version.status = DocumentVersion.Status.APPROVED
-                version.save(update_fields=["status", "updated_at"])
-                document.status = Document.Status.APPROVED
-                document.save(update_fields=["status", "updated_at"])
-        else:
-            now = timezone.now()
-            version.approvals.filter(
-                deleted_at__isnull=True,
-                decision=DocumentApproval.Decision.PENDING,
-            ).exclude(pk=approval.pk).update(deleted_at=now, updated_at=now)
-            version.status = DocumentVersion.Status.SUPERSEDED
-            version.save(update_fields=["status", "updated_at"])
-            document.status = Document.Status.DRAFT
-            document.current_version = None
-            document.save(update_fields=["status", "current_version", "updated_at"])
 
-        record_audit_event(
-            request.user,
-            tenant,
-            "document.approval_decide",
-            "document_approval",
-            approval.id,
-            new_data={"decision": decision, "comment": approval.comment},
-            metadata={"document_id": str(document.id), "version_id": str(version.id)},
-            request=request,
-        )
-        if decision == DocumentApproval.Decision.APPROVED and version.status == DocumentVersion.Status.REVIEW:
-            _notify_next_document_approvers(version)
-        return Response(self.get_serializer(approval).data)
+            earlier_blockers = version.approvals.filter(
+                deleted_at__isnull=True,
+                approval_order__lt=approval.approval_order,
+            ).exclude(decision=DocumentApproval.Decision.APPROVED)
+            if earlier_blockers.exists():
+                raise ValidationError("Earlier approval stages must be approved first.")
+
+            decision = request.data.get("decision")
+            allowed = {
+                DocumentApproval.Decision.APPROVED,
+                DocumentApproval.Decision.REJECTED,
+                DocumentApproval.Decision.CHANGES,
+            }
+            if decision not in allowed:
+                raise ValidationError({"decision": "Invalid decision."})
+
+            approval.decision = decision
+            approval.comment = request.data.get("comment", "")
+            approval.decided_at = timezone.now()
+            approval.save(
+                update_fields=["decision", "comment", "decided_at", "updated_at"]
+            )
+
+            if decision == DocumentApproval.Decision.APPROVED:
+                remaining = version.approvals.filter(
+                    deleted_at__isnull=True
+                ).exclude(decision=DocumentApproval.Decision.APPROVED)
+                if not remaining.exists():
+                    now = timezone.now()
+                    DocumentVersion.objects.filter(
+                        document=document,
+                        deleted_at__isnull=True,
+                        status__in=[
+                            DocumentVersion.Status.APPROVED,
+                            DocumentVersion.Status.PUBLISHED,
+                        ],
+                    ).exclude(pk=version.pk).update(
+                        status=DocumentVersion.Status.SUPERSEDED,
+                        updated_at=now,
+                    )
+                    version.status = DocumentVersion.Status.APPROVED
+                    version.save(update_fields=["status", "updated_at"])
+                    document.status = Document.Status.APPROVED
+                    document.save(update_fields=["status", "updated_at"])
+            else:
+                now = timezone.now()
+                version.approvals.filter(
+                    deleted_at__isnull=True,
+                    decision=DocumentApproval.Decision.PENDING,
+                ).exclude(pk=approval.pk).update(deleted_at=now, updated_at=now)
+                version.status = DocumentVersion.Status.SUPERSEDED
+                version.save(update_fields=["status", "updated_at"])
+                document.status = Document.Status.DRAFT
+                document.current_version = None
+                document.save(
+                    update_fields=["status", "current_version", "updated_at"]
+                )
+
+            record_audit_event(
+                request.user,
+                tenant,
+                "document.approval_decide",
+                "document_approval",
+                approval.id,
+                new_data={"decision": decision, "comment": approval.comment},
+                metadata={
+                    "document_id": str(document.id),
+                    "version_id": str(version.id),
+                },
+                request=request,
+            )
+            if decision == DocumentApproval.Decision.APPROVED and version.status == DocumentVersion.Status.REVIEW:
+                _notify_next_document_approvers(version)
+            response_data = self.get_serializer(approval).data
+        return Response(response_data)
 
 
 class ReportTemplateViewSet(TM, viewsets.ModelViewSet):
