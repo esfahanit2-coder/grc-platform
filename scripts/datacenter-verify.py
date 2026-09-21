@@ -54,6 +54,18 @@ def compose_supported(value: str) -> bool:
     return version >= (2, 24, 4)
 
 
+def published_ports(text: str) -> set[str]:
+    ports = set()
+    for raw in text.splitlines():
+        value = raw.strip()
+        if not value:
+            continue
+        if ":" in value:
+            value = value.rsplit(":", 1)[-1]
+        ports.add(value)
+    return ports
+
+
 def inspect_service(compose: list[str], service: str) -> dict:
     ps = run(compose + ["ps", "-q", service])
     container_id = ps.stdout.strip()
@@ -145,6 +157,13 @@ def verify(env_file: Path, release_version: str, include_operational: bool = Tru
         report["missing_images"] = missing_images
         add_check(report, "release-images-preloaded", not missing_images)
 
+    port80 = run(compose + ["port", "gateway", "80"])
+    port443 = run(compose + ["port", "gateway", "443"])
+    ports80 = published_ports(port80.stdout) if port80.returncode == 0 else set()
+    ports443 = published_ports(port443.stdout) if port443.returncode == 0 else set()
+    report["gateway_ports"] = {"http": sorted(ports80), "https": sorted(ports443)}
+    add_check(report, "tls-gateway-ports", bool(ports443) and ports443 == {"443"} and ports80.issubset({"80"}))
+
     for service in CORE_SERVICES:
         status = inspect_service(compose, service)
         report["services"].append(status)
@@ -180,6 +199,10 @@ def self_test() -> None:
         raise SystemExit("compose v5 compatibility self-test failed")
     if compose_supported("Docker Compose version v2.24.3") or compose_supported("1.29.2"):
         raise SystemExit("compose minimum-version self-test failed")
+    if published_ports("0.0.0.0:80\n[::]:80") != {"80"}:
+        raise SystemExit("published port parser self-test failed")
+    if published_ports("0.0.0.0:8080") != {"8080"}:
+        raise SystemExit("published port parser negative self-test failed")
     report = {"ok": True, "checks": []}
     add_check(report, "pass", True)
     add_check(report, "fail", False, "bounded detail")
