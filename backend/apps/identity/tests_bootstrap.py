@@ -5,6 +5,7 @@ from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.core.management import call_command
+from django.core.management.base import CommandError
 from django.test import TestCase, override_settings
 
 from apps.identity.models import UserRoleScope
@@ -66,7 +67,7 @@ class DatacenterBootstrapCommandTests(TestCase):
 
     def test_refuses_unrelated_existing_tenant_by_default(self):
         Tenant.objects.create(name="Existing", code="existing")
-        with self.assertRaisesMessage(Exception, "Another tenant already exists"):
+        with self.assertRaisesMessage(CommandError, "Another tenant already exists"):
             call_command(
                 "bootstrap_datacenter",
                 tenant_code="new",
