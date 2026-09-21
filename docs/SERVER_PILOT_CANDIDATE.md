@@ -90,13 +90,23 @@ Do not publish PostgreSQL, Redis, object-store, backend, frontend or Ollama port
 
 ## 5. Build the exact candidate on the controlled release workstation
 
-Use the exact commit that has passed exact-head CI and Release Gate.
+Use the exact **merged main commit** that has passed post-merge CI **and** the Release Gate on the main push.
 
-Retrieve the matching SBOM/security artifacts from the same validated commit, then:
+The Release Gate uploads two artifact sets named with that exact main SHA:
+- `release-security-reports-<sha>`
+- `release-sbom-<sha>`
+
+Both artifact sets contain `release-evidence-provenance.json`, which binds the evidence to the exact source commit/tree and the backend/frontend Docker image IDs that were scanned. Download/extract those artifact sets outside the Git checkout. The offline builder refuses a dirty checkout, a different HEAD, stale evidence, or rebuilt app images whose IDs do not match the scanned images.
+
+Then:
 
 ```bash
 SOURCE_SHA="<exact-validated-main-sha>"
 VERSION="v0.9.0-pilot-${SOURCE_SHA:0:12}"
+
+git checkout --detach "$SOURCE_SHA"
+test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+test -z "$(git status --porcelain --untracked-files=all)"
 
 export OFFLINE_RELEASE_SBOM_DIR=/approved/release-evidence/sbom
 export OFFLINE_RELEASE_SECURITY_DIR=/approved/release-evidence/security
