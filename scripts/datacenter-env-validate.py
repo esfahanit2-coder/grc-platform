@@ -89,7 +89,7 @@ def resolve_env_path(env_path: Path, configured: str) -> Path:
     return candidate
 
 
-def openssl_run(*args: str) -> subprocess.CompletedProcess[bytes]:
+def openssl_run(*args: str) -> subprocess.CompletedProcess:
     try:
         return subprocess.run(
             ["openssl", *args],
