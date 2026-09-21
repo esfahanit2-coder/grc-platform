@@ -193,4 +193,15 @@ case "$COMMAND" in
     if [[ $# -gt 0 ]]; then
       python scripts/datacenter-support-bundle.py --env "$ENV_FILE" --output "$1"
     else
-      python scripts/datacenter-support-bundle.py --env""DTåeôdÄR ¢f¢³°¢VÇÂÖÂÒÖVÇ¢W6vP¢³°¢¢¢V6ò$U%$õ#¢Væ¶æ÷vâ6öÖÖæC¢D4ôÔÔäB"âc ¢W6vRâc ¢WB ¢³°¦W60
+      python scripts/datacenter-support-bundle.py --env "$ENV_FILE"
+    fi
+    ;;
+  help|-h|--help)
+    usage
+    ;;
+  *)
+    echo "ERROR: unknown command: $COMMAND" >&2
+    usage >&2
+    exit 2
+    ;;
+esac
