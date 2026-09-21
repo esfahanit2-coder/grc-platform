@@ -75,8 +75,8 @@ jobs:
 
       - name: Build release candidate images
         run: |
-          docker build -t grc-backend:ci backend
-          docker build -t grc-frontend:ci frontend
+          docker build --pull -t grc-backend:ci backend
+          docker build --pull -t grc-frontend:ci frontend
 
       - name: Bind release evidence to exact source and application image IDs
         run: |
