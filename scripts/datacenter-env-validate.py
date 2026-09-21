@@ -94,6 +94,13 @@ def validate(path: Path, expected_release: str | None = None, require_tls_files:
             "warnings": [],
         }
 
+    try:
+        env_mode = stat.S_IMODE(path.stat().st_mode)
+        if env_mode & 0o077:
+            errors.append("production environment file permissions must not grant group/other access")
+    except OSError:
+        errors.append("production environment file permissions could not be inspected")
+
     missing = [key for key in REQUIRED_KEYS if not env.get(key, "").strip()]
     if missing:
         errors.append("required keys missing or empty: " + ", ".join(sorted(missing)))
@@ -236,6 +243,7 @@ def self_test() -> None:
         }
         env_file = root / ".env"
         env_file.write_text("\n".join(f"{k}={v}" for k, v in sample.items()) + "\n", encoding="utf-8")
+        env_file.chmod(0o600)
         result = validate(env_file, expected_release="v1.2.3")
         if not result["valid"]:
             raise SystemExit("self-test valid fixture failed")
