@@ -24,6 +24,16 @@ safe_run() {
   fi
 }
 
+safe_run_json() {
+  local file="$1"
+  shift
+  if "$@" > "$OUT/$file" 2>/dev/null; then
+    printf 'success\n' > "$OUT/$file.status"
+  else
+    printf 'failed\n' > "$OUT/$file.status"
+  fi
+}
+
 safe_run docker-version.txt docker version
 safe_run compose-version.txt docker compose version
 safe_run disk-usage.txt df -h
@@ -35,7 +45,7 @@ PREFLIGHT=(python scripts/datacenter-preflight.py --env-file .env --skip-host --
 if [[ "${PILOT_TLS:-NO}" == "YES" ]]; then
   PREFLIGHT+=(--tls)
 fi
-safe_run configuration-status.json "${PREFLIGHT[@]}"
+safe_run_json configuration-status.json "${PREFLIGHT[@]}"
 
 python - .env "$OUT/release-version.json" <<'PY'
 import json
@@ -61,8 +71,8 @@ PY
 printf 'success\n' > "$OUT/release-version.json.status"
 
 if BACKEND_ID="$("${COMPOSE[@]}" ps -q backend 2>/dev/null)" && [[ -n "$BACKEND_ID" ]]; then
-  safe_run readiness.json "${COMPOSE[@]}" exec -T backend python manage.py pilot_readiness --json
-  safe_run operational-status.json "${COMPOSE[@]}" exec -T backend python manage.py operational_status --json
+  safe_run_json readiness.json "${COMPOSE[@]}" exec -T backend python manage.py pilot_readiness --json
+  safe_run_json operational-status.json "${COMPOSE[@]}" exec -T backend python manage.py operational_status --json
   safe_run migration-plan.txt "${COMPOSE[@]}" exec -T backend python manage.py showmigrations --plan
 
   if "${COMPOSE[@]}" logs --no-color --tail 500 backend worker beat gateway 2>/dev/null \
