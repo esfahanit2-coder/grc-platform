@@ -168,7 +168,8 @@ if ! git -C "$REPOSITORY" show "$SOURCE_SHA:scripts/datacenter-env-validate.py" 
 fi
 python "$TARGET_VALIDATOR" \
   --env "$REPOSITORY/.env" \
-  --release-version "$OLD_VERSION" >/dev/null
+  --release-version "$OLD_VERSION" \
+  --require-tls-files >/dev/null
 
 load_images
 git -C "$REPOSITORY" checkout -q --detach "$SOURCE_SHA"
