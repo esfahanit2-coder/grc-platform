@@ -1,5 +1,7 @@
 from django.contrib.auth import get_user_model
+from django.db import connection
 from django.test import TestCase
+from django.test.utils import CaptureQueriesContext
 from rest_framework.test import APITestCase
 from rest_framework_simplejwt.tokens import RefreshToken
 
@@ -281,13 +283,31 @@ class ControlledDocumentLifecycleTests(APITestCase):
         self.assertEqual(self.submit().status_code, 200)
 
         self.auth(self.approver)
-        first = self.client.post(
-            f"/api/v1/document-approvals/{approval.id}/decide/",
-            {
-                "decision": DocumentApproval.Decision.APPROVED,
-                "comment": "Approved",
-            },
-            format="json",
+        with CaptureQueriesContext(connection) as captured:
+            first = self.client.post(
+                f"/api/v1/document-approvals/{approval.id}/decide/",
+                {
+                    "decision": DocumentApproval.Decision.APPROVED,
+                    "comment": "Approved",
+                },
+                format="json",
+            )
+        lock_queries = [
+            row["sql"].lower()
+            for row in captured.captured_queries
+            if "for update" in row["sql"].lower()
+        ]
+        self.assertTrue(
+            any("documents_document" in sql for sql in lock_queries),
+            "Document aggregate root must be row-locked before an approval decision.",
+        )
+        self.assertTrue(
+            any("documents_documentversion" in sql for sql in lock_queries),
+            "Document version must be row-locked before an approval decision.",
+        )
+        self.assertTrue(
+            any("documents_documentapproval" in sql for sql in lock_queries),
+            "Approval row must be row-locked before applying the decision.",
         )
         second = self.client.post(
             f"/api/v1/document-approvals/{approval.id}/decide/",
