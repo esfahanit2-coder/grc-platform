@@ -148,7 +148,7 @@ EVIDENCE_MAX_FILE_SIZE = int(os.getenv("EVIDENCE_MAX_FILE_SIZE", str(25 * 1024 *
 APP_ENV = os.getenv("APP_ENV", "development")
 OPS_ASYNC_HEARTBEAT_MAX_AGE_SECONDS = int(os.getenv("OPS_ASYNC_HEARTBEAT_MAX_AGE_SECONDS", "180"))
 OPS_BACKUP_MAX_AGE_HOURS = int(os.getenv("OPS_BACKUP_MAX_AGE_HOURS", "26"))
-OPS_CELERY_QUEUE_WARN_DEPTH = int(os.getenv("OPS_CELERY_QUEUE_WARN_DEPTH", "1000"))
+OPS_CELERY_QUEUE_WARN_DEPTH = int(os.getenv("OPS_CELERY_QUEUE_WARN_DEPTH", "1000"))\nOPS_METRICS_TOKEN = os.getenv("OPS_METRICS_TOKEN", "").strip()
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 SESSION_COOKIE_SECURE = os.getenv("SESSION_COOKIE_SECURE", "1" if APP_ENV == "production" else "0") == "1"
 CSRF_COOKIE_SECURE = os.getenv("CSRF_COOKIE_SECURE", "1" if APP_ENV == "production" else "0") == "1"
@@ -217,3 +217,27 @@ AUTH_REFRESH_COOKIE = os.getenv("AUTH_REFRESH_COOKIE", "grc_refresh")
 AUTH_COOKIE_SAMESITE = os.getenv("AUTH_COOKIE_SAMESITE", "Strict")
 CSRF_COOKIE_SAMESITE = AUTH_COOKIE_SAMESITE
 CORS_ALLOW_CREDENTIALS = AUTH_COOKIE_MODE
+
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "json": {"()": "apps.common.logging.SafeJsonFormatter"},
+    },
+    "handlers": {
+        "console_json": {"class": "logging.StreamHandler", "formatter": "json"},
+    },
+    "loggers": {
+        "grc": {
+            "handlers": ["console_json"],
+            "level": os.getenv("GRC_LOG_LEVEL", "INFO"),
+            "propagate": False,
+        },
+        "django.request": {
+            "handlers": ["console_json"],
+            "level": os.getenv("DJANGO_REQUEST_LOG_LEVEL", "WARNING"),
+            "propagate": False,
+        },
+    },
+}
