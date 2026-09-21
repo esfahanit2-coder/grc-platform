@@ -53,6 +53,8 @@ SECRETISH = re.compile(
     r"-----BEGIN [^-]*PRIVATE KEY-----)"
 )
 SHA40 = re.compile(r"^[0-9a-f]{40}$")
+URI_USERINFO = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*://[^/@\\s]+@")
+PLACEHOLDER_MARKERS = ("REPLACE_WITH_", "PLACEHOLDER", "TBD")
 
 
 def utc_now() -> str:
@@ -79,7 +81,30 @@ def load_json(path: Path) -> dict[str, Any]:
 
 
 def secret_safe_text(value: Any, *, max_len: int = 1000) -> bool:
-    return isinstance(value, str) and bool(value.strip()) and len(value) <= max_len and not SECRETISH.search(value)
+    return (
+        isinstance(value, str)
+        and bool(value.strip())
+        and len(value) <= max_len
+        and not SECRETISH.search(value)
+        and not URI_USERINFO.search(value.strip())
+    )
+
+
+def is_placeholder(value: Any) -> bool:
+    if not isinstance(value, str):
+        return True
+    upper = value.strip().upper()
+    return not upper or any(marker in upper for marker in PLACEHOLDER_MARKERS)
+
+
+def valid_observed_at(value: Any) -> bool:
+    if not isinstance(value, str) or is_placeholder(value):
+        return False
+    try:
+        parsed = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    return parsed.tzinfo is not None
 
 
 def valid_evidence_refs(value: Any) -> bool:
@@ -87,7 +112,7 @@ def valid_evidence_refs(value: Any) -> bool:
         isinstance(value, list)
         and bool(value)
         and len(value) <= 20
-        and all(secret_safe_text(item, max_len=500) for item in value)
+        and all(secret_safe_text(item, max_len=500) and not is_placeholder(item) for item in value)
     )
 
 
@@ -97,10 +122,10 @@ def validate_attestation(entry: Any) -> tuple[str, str]:
     status = entry.get("status")
     if status not in {PASS, FAIL}:
         return BLOCKED, "status must be PASS or FAIL"
-    if not secret_safe_text(entry.get("reviewer"), max_len=200):
-        return BLOCKED, "reviewer is missing or unsafe"
-    if not secret_safe_text(entry.get("observed_at"), max_len=100):
-        return BLOCKED, "observed_at is missing or unsafe"
+    if not secret_safe_text(entry.get("reviewer"), max_len=200) or is_placeholder(entry.get("reviewer")):
+        return BLOCKED, "reviewer is missing, placeholder-like, or unsafe"
+    if not valid_observed_at(entry.get("observed_at")):
+        return BLOCKED, "observed_at must be a real timezone-aware ISO timestamp"
     if not secret_safe_text(entry.get("note"), max_len=1000):
         return BLOCKED, "note is missing or unsafe"
     if not valid_evidence_refs(entry.get("evidence_refs")):
@@ -269,6 +294,23 @@ def self_test() -> None:
     assert blocked["promotion_ready"] is False
     assert blocked["sanitized_attestations"]["gates"]["operator_runbook"]["status"] == BLOCKED
     assert "must-not-survive" not in json.dumps(blocked)
+
+    placeholders = json.loads(json.dumps(attestations))
+    placeholders["gates"]["operator_runbook"]["reviewer"] = "REPLACE_WITH_REVIEWER"
+    placeholders["gates"]["operator_runbook"]["evidence_refs"] = ["REPLACE_WITH_REFERENCE"]
+    placeholder_result = evaluate(pilot, placeholders, sha)
+    assert placeholder_result["promotion_ready"] is False
+    assert "operator_runbook" in placeholder_result["blockers"]
+
+    bad_time = json.loads(json.dumps(attestations))
+    bad_time["gates"]["operator_runbook"]["observed_at"] = "2026-09-21"
+    bad_time_result = evaluate(pilot, bad_time, sha)
+    assert bad_time_result["promotion_ready"] is False
+
+    userinfo = json.loads(json.dumps(attestations))
+    userinfo["gates"]["operator_runbook"]["evidence_refs"] = ["https://user:pass@example.invalid/ticket/1"]
+    userinfo_result = evaluate(pilot, userinfo, sha)
+    assert userinfo_result["promotion_ready"] is False
 
     print("final release acceptance self-test: PASS")
 
