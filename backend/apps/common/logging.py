@@ -6,17 +6,17 @@ from datetime import datetime, timezone
 
 _SECRET_PATTERNS = [
     re.compile(
-        r"(?i)\\b(password|passwd|secret|token|api[_ -]?key|authorization)\\b"
-        r"(\\s*[:=]\\s*)([^\\s,;]+)"
+        r"(?i)\b(password|passwd|secret|token|api[_ -]?key|authorization)\b"
+        r"(\s*[:=]\s*)([^\s,;]+)"
     ),
-    re.compile(r"(?i)(https?://)([^/@\\s:]+):([^/@\\s]+)@"),
+    re.compile(r"(?i)(https?://)([^/@\s:]+):([^/@\s]+)@[^\s]+"),
 ]
 
 
 def redact_log_text(value):
     text = str(value or "")
-    text = _SECRET_PATTERNS[0].sub(r"\\1\\2[REDACTED]", text)
-    text = _SECRET_PATTERNS[1].sub(r"\\1[REDACTED]@", text)
+    text = _SECRET_PATTERNS[0].sub(r"\1\2[REDACTED]", text)
+    text = _SECRET_PATTERNS[1].sub(r"\1[REDACTED]", text)
     return text
 
 
