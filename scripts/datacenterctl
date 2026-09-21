@@ -195,6 +195,8 @@ case "$COMMAND" in
       exit 2
     fi
     validate >/dev/null
+    version="$(release_version)"
+    python scripts/datacenter-verify.py --env "$ENV_FILE" --release-version "$version" --preflight >/dev/null
     bash scripts/offline-release-apply.sh update "$1" "$2" "$ROOT/.." "${3:-}"
     ;;
   restore)
