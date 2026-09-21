@@ -14,6 +14,7 @@ from apps.identity.services import (
     require_whole_tenant_permission,
 )
 from apps.organizations.models import OrganizationUnit
+from apps.notifications.models import Notification
 from apps.notifications.services import notify_user
 from apps.tenancy.models import TenantMembership
 from apps.tenancy.services import resolve_tenant_for_request
@@ -52,6 +53,16 @@ def _notify_next_document_approvers(version):
     stage = first.approval_order
     recipients = list(pending.filter(approval_order=stage))
     for approval in recipients:
+        already_notified = Notification.objects.filter(
+            tenant=version.document.tenant,
+            user=approval.approver,
+            category="approval_required",
+            object_type="document_approval",
+            object_id=approval.id,
+            deleted_at__isnull=True,
+        ).exists()
+        if already_notified:
+            continue
         notify_user(
             tenant=version.document.tenant,
             user=approval.approver,
