@@ -40,6 +40,13 @@ for index, role in enumerate(roles, start=1):
 PY
 
 SOURCE_SHA="$(git rev-parse HEAD)"
+SOURCE_TREE="$(git rev-parse HEAD^{tree})"
+python scripts/release-evidence-provenance.py write \
+  --source-commit "$SOURCE_SHA" \
+  --source-tree "$SOURCE_TREE" \
+  --backend-image-id "sha256:$(printf '%064x' 1)" \
+  --frontend-image-id "sha256:$(printf '%064x' 2)" \
+  --out "$STAGE/metadata/release-evidence-provenance.json"
 python scripts/server-pilot-candidate.py \
   --release-version v-ci \
   --source-commit "$SOURCE_SHA" \
