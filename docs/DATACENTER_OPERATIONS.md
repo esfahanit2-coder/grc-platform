@@ -245,7 +245,7 @@ bash scripts/offline-release-apply.sh update \
   <pre-upgrade-backup-name>
 ~~~
 
-Before any migration it verifies the signed release and installed source state, validates the existing production configuration, loads/verifies target images and creates a quiesced rollback backup.
+Before any migration it verifies the currently installed signed release/source/image state, verifies the target bundle with the operator-supplied trusted key, validates the existing production configuration against the target release schema, snapshots the current signed release metadata, loads/verifies target images and creates a quiesced rollback backup.
 
 The upgrade primitive then:
 
