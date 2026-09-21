@@ -85,11 +85,16 @@ class Command(BaseCommand):
                 raise CommandError("Existing bootstrap admin user is inactive; bootstrap will not reactivate it implicitly.")
             if (user.email or "").strip().lower() != email:
                 raise CommandError("Existing bootstrap admin username belongs to a different email address.")
-            if not TenantMembership.objects.filter(tenant=tenant, user=user).exists():
+            existing_membership = TenantMembership.objects.filter(tenant=tenant, user=user).first()
+            if existing_membership is None:
                 raise CommandError("Existing user is not already a member of the requested tenant; refusing implicit cross-tenant reuse.")
+            if existing_membership.deleted_at is not None:
+                raise CommandError("Existing tenant membership is soft-deleted; bootstrap will not restore it implicitly.")
 
         bootstrap_tenant_rbac(tenant, admin_user=user)
         membership = TenantMembership.objects.get(tenant=tenant, user=user)
+        if membership.deleted_at is not None:
+            raise CommandError("Tenant membership is soft-deleted; bootstrap will not restore it implicitly.")
         if not membership.is_active:
             raise CommandError("Existing tenant membership is inactive; bootstrap will not reactivate it implicitly.")
         if membership.role_code != "admin":
@@ -102,8 +107,8 @@ class Command(BaseCommand):
             role__code="tenant_admin",
             organization_unit__isnull=True,
         ).first()
-        if assignment is None or not assignment.is_active:
-            raise CommandError("Tenant administrator RBAC bootstrap did not produce an active whole-tenant assignment.")
+        if assignment is None or assignment.deleted_at is not None or not assignment.is_active:
+            raise CommandError("Tenant administrator RBAC bootstrap did not produce an active, non-deleted whole-tenant assignment.")
 
         payload = {
             "schema": "grc-datacenter-bootstrap-v1",
