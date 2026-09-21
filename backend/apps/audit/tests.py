@@ -179,3 +179,91 @@ class AuditTrailTests(APITestCase):
         with patch.dict(os.environ, {"AUDIT_INTEGRITY_KEY": ""}, clear=False):
             with self.assertRaises(AuditIntegrityConfigurationError):
                 integrity_key_bytes()
+
+
+class AuditSiemExportTests(AuditTrailTests):
+    def test_siem_export_omits_customer_payload_fields(self):
+        record_audit_event(
+            self.user,
+            self.tenant,
+            "evidence.update",
+            "evidence",
+            self.tenant.id,
+            old_data={"secret": "OLD-CUSTOMER-PAYLOAD"},
+            new_data={"secret": "NEW-CUSTOMER-PAYLOAD"},
+            metadata={"raw": "METADATA-CUSTOMER-PAYLOAD"},
+        )
+        response = self.client.get("/api/v1/audit-events/export/?after_sequence=0&limit=100")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data["events"]), 1)
+
+        event = response.data["events"][0]
+        rendered = json.dumps(event)
+        self.assertNotIn("old_data", event)
+        self.assertNotIn("new_data", event)
+        self.assertNotIn("metadata", event)
+        self.assertNotIn("OLD-CUSTOMER-PAYLOAD", rendered)
+        self.assertNotIn("NEW-CUSTOMER-PAYLOAD", rendered)
+        self.assertNotIn("METADATA-CUSTOMER-PAYLOAD", rendered)
+        self.assertEqual(event["chain_sequence"], 1)
+        self.assertTrue(event["integrity"]["event_hash"])
+
+    def test_siem_jsonl_export_is_bounded_and_cursor_driven(self):
+        first = record_audit_event(
+            self.user, self.tenant, "tenant.update", "tenant", self.tenant.id
+        )
+        second = record_audit_event(
+            self.user, self.tenant, "tenant.update", "tenant", self.tenant.id
+        )
+
+        response = self.client.get(
+            "/api/v1/audit-events/export/?after_sequence=0&limit=1&format=jsonl"
+        )
+        self.assertEqual(response.status_code, 200)
+        lines = [line for line in response.content.decode("utf-8").splitlines() if line]
+        self.assertEqual(len(lines), 1)
+        payload = json.loads(lines[0])
+        self.assertEqual(payload["event_id"], str(first.id))
+        self.assertEqual(response["X-GRC-Next-After-Sequence"], "1")
+        self.assertEqual(response["X-GRC-Has-More"], "1")
+
+        next_response = self.client.get(
+            "/api/v1/audit-events/export/?after_sequence=1&limit=1&format=jsonl"
+        )
+        next_payload = json.loads(next_response.content.decode("utf-8").strip())
+        self.assertEqual(next_payload["event_id"], str(second.id))
+        self.assertEqual(next_response["X-GRC-Has-More"], "0")
+
+    def test_siem_export_does_not_cross_tenant_boundary(self):
+        User = get_user_model()
+        other_user = User.objects.create_user(
+            username="siem-other", password="StrongPassword123!"
+        )
+        other_tenant = Tenant.objects.create(name="Other SIEM", code="other-siem")
+        TenantMembership.objects.create(
+            tenant=other_tenant, user=other_user, role_code="admin"
+        )
+        bootstrap_tenant_rbac(other_tenant, admin_user=other_user)
+        foreign = record_audit_event(
+            other_user,
+            other_tenant,
+            "tenant.update",
+            "tenant",
+            other_tenant.id,
+        )
+        local = record_audit_event(
+            self.user,
+            self.tenant,
+            "tenant.update",
+            "tenant",
+            self.tenant.id,
+        )
+
+        response = self.client.get("/api/v1/audit-events/export/")
+        ids = {row["event_id"] for row in response.data["events"]}
+        self.assertIn(str(local.id), ids)
+        self.assertNotIn(str(foreign.id), ids)
+
+    def test_siem_export_rejects_unbounded_limit(self):
+        response = self.client.get("/api/v1/audit-events/export/?limit=1001")
+        self.assertEqual(response.status_code, 400)
