@@ -12,6 +12,11 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+SIBLING_TEMPLATE = Path(__file__).resolve().parent / ".env.pilot.example"
+DEFAULT_TEMPLATE = ROOT / ".env.pilot.example"
+if not DEFAULT_TEMPLATE.is_file() and SIBLING_TEMPLATE.is_file():
+    DEFAULT_TEMPLATE = SIBLING_TEMPLATE
+
 VERSION_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 HOST_RE = re.compile(
     r"^(?=.{1,253}$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$"
@@ -50,6 +55,15 @@ def validate_release_version(version: str) -> str:
     return value
 
 
+def validate_tls_path(value: str, label: str) -> str:
+    if any(ch in value for ch in ("\n", "\r", "\x00")):
+        raise ValueError(f"{label} contains an invalid control character")
+    path = Path(value)
+    if not path.is_absolute():
+        raise ValueError(f"{label} must be an absolute host path")
+    return str(path)
+
+
 def replace_values(template: str, replacements: dict[str, str]) -> str:
     seen: set[str] = set()
     output: list[str] = []
@@ -80,6 +94,8 @@ def generate(
 ) -> dict[str, object]:
     hostname = validate_hostname(hostname)
     release_version = validate_release_version(release_version)
+    tls_cert = validate_tls_path(tls_cert, "TLS certificate path")
+    tls_key = validate_tls_path(tls_key, "TLS private-key path")
     if output_path.exists() and not force:
         raise FileExistsError(f"output already exists: {output_path}")
 
@@ -182,7 +198,7 @@ def main() -> int:
     parser.add_argument("--hostname", required=False)
     parser.add_argument("--release-version", required=False)
     parser.add_argument("--output", default="runtime/server-pilot.env")
-    parser.add_argument("--template", default=str(ROOT / ".env.pilot.example"))
+    parser.add_argument("--template", default=str(DEFAULT_TEMPLATE))
     parser.add_argument("--tls-cert", default="/opt/grc/secrets/tls/server.crt")
     parser.add_argument("--tls-key", default="/opt/grc/secrets/tls/server.key")
     parser.add_argument("--enable-ai", action="store_true")
