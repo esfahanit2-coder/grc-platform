@@ -81,6 +81,7 @@ validate() {
 }
 
 install_release() {
+  local version
   if [[ "${CONFIRM_INSTALL:-NO}" != "YES" ]]; then
     echo "ERROR: set CONFIRM_INSTALL=YES after change approval." >&2
     exit 2
@@ -126,6 +127,7 @@ PY
     }
   done
 
+  version="$(release_version)"
   python scripts/datacenter-verify.py --env "$ENV_FILE" --release-version "$version" --preflight >/dev/null
 
   services=(postgres redis objectstore backend worker beat frontend gateway)
@@ -136,8 +138,6 @@ PY
   echo "Starting exact preloaded datacenter release without build or pull..."
   "${COMPOSE[@]}" up -d --no-build --pull never --wait "${services[@]}"
 
-  local version
-  version="$(release_version)"
   python scripts/datacenter-verify.py --env "$ENV_FILE" --release-version "$version"
 }
 
