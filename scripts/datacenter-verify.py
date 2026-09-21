@@ -116,7 +116,14 @@ def verify_signed_release(report: dict, release_version: str) -> None:
         return
 
     head = run(["git", "rev-parse", "HEAD"])
-    source_matches = head.returncode == 0 and head.stdout.strip() == manifest["source_commit"]
+    worktree = run(["git", "diff", "--quiet"])
+    index = run(["git", "diff", "--cached", "--quiet"])
+    source_matches = (
+        head.returncode == 0
+        and head.stdout.strip() == manifest["source_commit"]
+        and worktree.returncode == 0
+        and index.returncode == 0
+    )
     add_check(report, "release-source-commit", source_matches)
 
     payload_row = next(
@@ -248,16 +255,16 @@ def verify(env_file: Path, release_version: str, include_operational: bool = Tru
         report["missing_images"] = missing_images
         add_check(report, "release-images-preloaded", not missing_images)
 
+    if preflight:
+        report["mode"] = "preflight"
+        return report
+
     port80 = run(compose + ["port", "gateway", "80"])
     port443 = run(compose + ["port", "gateway", "443"])
     ports80 = published_ports(port80.stdout) if port80.returncode == 0 else set()
     ports443 = published_ports(port443.stdout) if port443.returncode == 0 else set()
     report["gateway_ports"] = {"http": sorted(ports80), "https": sorted(ports443)}
     add_check(report, "tls-gateway-ports", bool(ports443) and ports443 == {"443"} and ports80.issubset({"80"}))
-
-    if preflight:
-        report["mode"] = "preflight"
-        return report
 
     for service in CORE_SERVICES:
         status = inspect_service(compose, service)
