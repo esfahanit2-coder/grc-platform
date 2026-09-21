@@ -96,6 +96,8 @@ def generate(
     release_version = validate_release_version(release_version)
     tls_cert = validate_tls_path(tls_cert, "TLS certificate path")
     tls_key = validate_tls_path(tls_key, "TLS private-key path")
+    if output_path.is_symlink():
+        raise ValueError("output path must not be a symbolic link")
     if output_path.exists() and not force:
         raise FileExistsError(f"output already exists: {output_path}")
 
@@ -130,17 +132,28 @@ def generate(
                 raise ValueError(f"generated secret key remained placeholder-like: {key.strip()}")
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    fd = os.open(output_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    temp_path: Path | None = None
     try:
+        fd, temp_name = tempfile.mkstemp(
+            prefix=f".{output_path.name}.",
+            dir=str(output_path.parent),
+            text=True,
+        )
+        temp_path = Path(temp_name)
+        os.chmod(temp_path, 0o600)
         with os.fdopen(fd, "w", encoding="utf-8") as handle:
             handle.write(rendered)
-    except Exception:
-        try:
-            output_path.unlink()
-        except OSError:
-            pass
-        raise
-    os.chmod(output_path, 0o600)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temp_path, output_path)
+        temp_path = None
+        os.chmod(output_path, 0o600)
+    finally:
+        if temp_path is not None:
+            try:
+                temp_path.unlink()
+            except OSError:
+                pass
     return {
         "schema": "grc-server-pilot-env-generation-v1",
         "output": str(output_path),
@@ -170,6 +183,26 @@ def self_test() -> None:
         content = output.read_text(encoding="utf-8")
         if "AI_ENABLED=0" not in content or "GRC_RELEASE_VERSION=v0.9.0-pilot-test" not in content:
             raise SystemExit("server env self-test failed: expected replacements missing")
+        symlink_output = root / "symlink.env"
+        symlink_target = root / "target.env"
+        symlink_target.write_text("do-not-overwrite\n", encoding="utf-8")
+        symlink_output.symlink_to(symlink_target)
+        try:
+            generate(
+                ROOT / ".env.pilot.example",
+                symlink_output,
+                "grc.customer.internal",
+                "v0.9.0-pilot-test",
+                "/opt/grc/secrets/tls/server.crt",
+                "/opt/grc/secrets/tls/server.key",
+                force=True,
+            )
+        except ValueError:
+            pass
+        else:
+            raise SystemExit("server env self-test failed: symlink output was not rejected")
+        if symlink_target.read_text(encoding="utf-8") != "do-not-overwrite\n":
+            raise SystemExit("server env self-test failed: symlink target was modified")
         validator = subprocess.run(
             [
                 sys.executable,
