@@ -6,6 +6,7 @@ import base64
 import json
 import os
 import stat
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -81,9 +82,31 @@ def split_csv(value: str) -> list[str]:
     return [item.strip() for item in value.split(",") if item.strip()]
 
 
+def resolve_env_path(env_path: Path, configured: str) -> Path:
+    candidate = Path(configured)
+    if not candidate.is_absolute():
+        candidate = (env_path.parent / candidate).resolve()
+    return candidate
+
+
+def openssl_run(*args: str) -> subprocess.CompletedProcess[bytes]:
+    try:
+        return subprocess.run(
+            ["openssl", *args],
+            capture_output=True,
+            timeout=15,
+            check=False,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return subprocess.CompletedProcess(["openssl", *args], 127, b"", b"")
+
+
 def validate(path: Path, expected_release: str | None = None, require_tls_files: bool = False) -> dict:
     errors: list[str] = []
     warnings: list[str] = []
+    tls_certificate_valid: bool | None = None
+    tls_private_key_valid: bool | None = None
+    tls_keypair_match: bool | None = None
     try:
         env = parse_env(path)
     except Exception as exc:
@@ -177,20 +200,39 @@ def validate(path: Path, expected_release: str | None = None, require_tls_files:
             errors.append("EMAIL_HOST_PASSWORD is required when EMAIL_HOST_USER is configured")
 
     if require_tls_files:
-        for key in ("TLS_CERT_PATH", "TLS_KEY_PATH"):
-            configured = env.get(key, "").strip()
-            candidate = Path(configured)
-            if not candidate.is_absolute():
-                candidate = (path.parent / candidate).resolve()
-            if not candidate.is_file():
-                errors.append(f"{key} does not point to an existing file")
-        key_path = Path(env.get("TLS_KEY_PATH", ""))
-        if not key_path.is_absolute():
-            key_path = (path.parent / key_path).resolve()
+        cert_path = resolve_env_path(path, env.get("TLS_CERT_PATH", "").strip())
+        key_path = resolve_env_path(path, env.get("TLS_KEY_PATH", "").strip())
+        if not cert_path.is_file():
+            errors.append("TLS_CERT_PATH does not point to an existing file")
+        if not key_path.is_file():
+            errors.append("TLS_KEY_PATH does not point to an existing file")
         if key_path.is_file():
             mode = stat.S_IMODE(key_path.stat().st_mode)
             if mode & 0o077:
                 errors.append("TLS private key permissions must not grant group/other access")
+
+        if cert_path.is_file():
+            cert_check = openssl_run("x509", "-in", str(cert_path), "-noout", "-checkend", "0")
+            tls_certificate_valid = cert_check.returncode == 0
+            if not tls_certificate_valid:
+                errors.append("TLS certificate must parse and must not be expired")
+        if key_path.is_file():
+            key_check = openssl_run("pkey", "-in", str(key_path), "-noout", "-check")
+            tls_private_key_valid = key_check.returncode == 0
+            if not tls_private_key_valid:
+                errors.append("TLS private key must parse successfully")
+
+        if cert_path.is_file() and key_path.is_file() and tls_certificate_valid and tls_private_key_valid:
+            cert_pub = openssl_run("x509", "-in", str(cert_path), "-pubkey", "-noout")
+            key_pub = openssl_run("pkey", "-in", str(key_path), "-pubout")
+            tls_keypair_match = (
+                cert_pub.returncode == 0
+                and key_pub.returncode == 0
+                and cert_pub.stdout == key_pub.stdout
+                and bool(cert_pub.stdout)
+            )
+            if not tls_keypair_match:
+                errors.append("TLS certificate public key does not match the configured private key")
 
     return {
         "schema": "grc-datacenter-config-validation-v1",
@@ -200,6 +242,9 @@ def validate(path: Path, expected_release: str | None = None, require_tls_files:
             "production_mode": env.get("APP_ENV") == "production",
             "secure_cookies": all(truthy(env.get(k)) for k in ("SESSION_COOKIE_SECURE", "CSRF_COOKIE_SECURE")),
             "tls_paths_checked": require_tls_files,
+            "tls_certificate_valid": tls_certificate_valid,
+            "tls_private_key_valid": tls_private_key_valid,
+            "tls_keypair_match": tls_keypair_match,
             "evidence_download_fail_closed": truthy(env.get("EVIDENCE_REQUIRE_CLEAN_DOWNLOAD")),
             "smtp_enabled": truthy(env.get("NOTIFICATION_EMAIL_ENABLED")),
         },
@@ -241,12 +286,59 @@ def self_test() -> None:
             "TLS_KEY_PATH": "./server.key",
             "NOTIFICATION_EMAIL_ENABLED": "0",
         }
+        cert_path = root / "server.crt"
+        key_path = root / "server.key"
+        generated = openssl_run(
+            "req",
+            "-x509",
+            "-newkey",
+            "rsa:2048",
+            "-nodes",
+            "-keyout",
+            str(key_path),
+            "-out",
+            str(cert_path),
+            "-subj",
+            "/CN=grc.customer.internal",
+            "-days",
+            "1",
+        )
+        if generated.returncode != 0:
+            raise SystemExit("self-test could not generate TLS fixture")
+        key_path.chmod(0o600)
+
         env_file = root / ".env"
         env_file.write_text("\n".join(f"{k}={v}" for k, v in sample.items()) + "\n", encoding="utf-8")
         env_file.chmod(0o600)
-        result = validate(env_file, expected_release="v1.2.3")
-        if not result["valid"]:
-            raise SystemExit("self-test valid fixture failed")
+        result = validate(env_file, expected_release="v1.2.3", require_tls_files=True)
+        if not result["valid"] or not all(
+            result["checks"].get(name) is True
+            for name in ("tls_certificate_valid", "tls_private_key_valid", "tls_keypair_match")
+        ):
+            raise SystemExit("self-test valid TLS fixture failed")
+
+        wrong_key = root / "wrong.key"
+        wrong = openssl_run(
+            "genpkey",
+            "-algorithm",
+            "RSA",
+            "-pkeyopt",
+            "rsa_keygen_bits:2048",
+            "-out",
+            str(wrong_key),
+        )
+        if wrong.returncode != 0:
+            raise SystemExit("self-test could not generate mismatched key")
+        wrong_key.chmod(0o600)
+        mismatch_env = env_file.read_text(encoding="utf-8").replace(
+            "TLS_KEY_PATH=./server.key", "TLS_KEY_PATH=./wrong.key"
+        )
+        env_file.write_text(mismatch_env, encoding="utf-8")
+        mismatch = validate(env_file, expected_release="v1.2.3", require_tls_files=True)
+        if mismatch["valid"] or mismatch["checks"].get("tls_keypair_match") is not False:
+            raise SystemExit("self-test TLS keypair mismatch did not fail closed")
+
+        env_file.write_text("\n".join(f"{k}={v}" for k, v in sample.items()) + "\n", encoding="utf-8")
         env_file.write_text(env_file.read_text(encoding="utf-8").replace("s" * 60, "replace-with-secret"), encoding="utf-8")
         result = validate(env_file, expected_release="v1.2.3")
         if result["valid"] or any("replace-with-secret" in item for item in result["errors"]):
