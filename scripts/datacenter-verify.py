@@ -135,14 +135,24 @@ def derive_base_url(env_file: Path, explicit: str | None = None) -> str | None:
     return None
 
 
-def probe_https(url: str, ca_cert: str | None = None, timeout: int = 10) -> tuple[bool, int | None, str | None]:
+def probe_https(
+    url: str,
+    expected_status: str,
+    ca_cert: str | None = None,
+    timeout: int = 10,
+) -> tuple[bool, int | None, str | None]:
     try:
         context = ssl.create_default_context(cafile=ca_cert) if ca_cert else ssl.create_default_context()
         request = urllib.request.Request(url, headers={"User-Agent": "grc-datacenter-verify/1"})
         with urllib.request.urlopen(request, timeout=timeout, context=context) as response:
-            response.read(65536)
+            body = response.read(65536)
             status = int(response.status)
-            return 200 <= status < 300, status, None
+            try:
+                payload = json.loads(body.decode("utf-8"))
+            except (UnicodeDecodeError, json.JSONDecodeError):
+                return False, status, "InvalidJSON"
+            payload_ok = isinstance(payload, dict) and payload.get("status") == expected_status
+            return 200 <= status < 300 and payload_ok, status, None if payload_ok else "UnexpectedHealthPayload"
     except urllib.error.HTTPError as exc:
         return False, int(exc.code), "HTTPError"
     except (urllib.error.URLError, ssl.SSLError, TimeoutError, OSError, ValueError) as exc:
@@ -400,10 +410,12 @@ def verify(
         add_check(report, "https-base-url", True)
         live_ok, live_status, live_error = probe_https(
             resolved_base_url + "/api/v1/health/live",
+            "ok",
             ca_cert=ca_cert,
         )
         ready_ok, ready_status, ready_error = probe_https(
             resolved_base_url + "/api/v1/health/ready",
+            "ready",
             ca_cert=ca_cert,
         )
         report["https_probes"] = {
