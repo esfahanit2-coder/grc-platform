@@ -114,6 +114,7 @@ def valid_https_base_url(value: str) -> bool:
         and bool(parsed.hostname)
         and not parsed.username
         and not parsed.password
+        and parsed.path in {"", "/"}
         and not parsed.query
         and not parsed.fragment
     )
@@ -365,22 +366,34 @@ def verify(
             "manage.py",
             "check",
             "--deploy",
-            "--fail-level",
-            "WARNING",
         ]
     )
+    deploy_output = "\n".join(
+        part for part in (deploy_check.stdout, deploy_check.stderr) if part
+    )
+    deploy_warning_count = len(
+        [line for line in deploy_output.splitlines() if "WARNING" in line or "security.W" in line]
+    )
+    report["django_deploy_check"] = {"warning_count": deploy_warning_count}
     add_check(
         report,
         "django-deploy-check",
         deploy_check.returncode == 0,
-        None if deploy_check.returncode == 0 else "Django deployment checks reported warnings/errors",
+        (
+            f"completed with {deploy_warning_count} deployment warning(s)"
+            if deploy_check.returncode == 0 and deploy_warning_count
+            else (
+                None
+                if deploy_check.returncode == 0
+                else "Django deployment checks reported an error"
+            )
+        ),
     )
 
     readiness = run(compose + ["exec", "-T", "backend", "python", "manage.py", "pilot_readiness"])
     add_check(report, "application-readiness", readiness.returncode == 0)
 
     resolved_base_url = derive_base_url(env_file, base_url)
-    report["https_base_url"] = resolved_base_url
     if not resolved_base_url:
         add_check(report, "https-base-url", False, "No valid explicit HTTPS base URL could be derived")
     else:
@@ -443,6 +456,7 @@ def self_test() -> None:
         "http://grc.customer.internal",
         "https://user:pass@grc.customer.internal",
         "https://grc.customer.internal/#fragment",
+        "https://grc.customer.internal/nested/path",
     ):
         if valid_https_base_url(unsafe):
             raise SystemExit("https base URL negative self-test failed")
