@@ -7,6 +7,7 @@ from django.contrib.auth import get_user_model
 from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.test import TestCase
+from django.utils import timezone
 
 from apps.identity.models import UserRoleScope
 from apps.tenancy.models import Tenant, TenantMembership
@@ -78,3 +79,21 @@ class DatacenterBootstrapCommandTests(TestCase):
                     admin_username="customer-admin",
                     admin_email="admin@example.invalid",
                 )
+
+    def test_soft_deleted_membership_is_not_restored_implicitly(self):
+        User = get_user_model()
+        user = User.objects.create_user(
+            username="customer-admin",
+            email="admin@example.invalid",
+            password=self.password,
+        )
+        tenant = Tenant.objects.create(name="Customer A", code="customer-a")
+        TenantMembership.objects.create(
+            tenant=tenant,
+            user=user,
+            role_code="admin",
+            is_active=True,
+            deleted_at=timezone.now(),
+        )
+        with self.assertRaisesMessage(CommandError, "soft-deleted"):
+            self.run_bootstrap()
