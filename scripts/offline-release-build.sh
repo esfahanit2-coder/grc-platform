@@ -141,6 +141,12 @@ fi
 if [[ -f docs/DATACENTER_OPERATIONS.md ]]; then
   install -m 600 docs/DATACENTER_OPERATIONS.md "$STAGE/docs/DATACENTER_OPERATIONS.md"
 fi
+if [[ -f docs/FINAL_RELEASE_ACCEPTANCE.md ]]; then
+  install -m 600 docs/FINAL_RELEASE_ACCEPTANCE.md "$STAGE/docs/FINAL_RELEASE_ACCEPTANCE.md"
+fi
+if [[ -f docs/FINAL_RELEASE_ATTESTATIONS.example.json ]]; then
+  install -m 600 docs/FINAL_RELEASE_ATTESTATIONS.example.json "$STAGE/docs/FINAL_RELEASE_ATTESTATIONS.example.json"
+fi
 
 python scripts/offline-release-manifest.py prepare-metadata --repo "$ROOT" --stage "$STAGE"
 
