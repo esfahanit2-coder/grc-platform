@@ -21,7 +21,7 @@ The repository provides:
 - references/digests for security reports without copying raw secret-scan results into distribution media;
 - migration artifact inventory and configuration-template schema;
 - exact-SHA Pilot Server Candidate metadata bound to the signed image identities;
-- a secret-safe production environment generator that prints no generated secret values;
+- a secret-safe production environment generator that prints no generated secret values, writes atomically and rejects symlink outputs;
 - install/update tooling that uses preloaded images and `--no-build` for the air-gapped path;
 - secret-minimized support evidence collection.
 
