@@ -71,9 +71,18 @@ def run_ai(*, tenant, user, capability, prompt, system_prompt, provider_id=None,
         return interaction, response.text
     except Exception as exc:
         interaction.status = AIInteraction.Status.FAILED
-        interaction.error = str(exc)[:4000]
+        interaction.error = type(exc).__name__
         interaction.save(update_fields=["status", "error", "updated_at"])
-        record_audit_event(user, tenant, "ai.generate", "ai_interaction", interaction.id, outcome="failure", metadata={"capability": capability}, request=request)
+        record_audit_event(
+            user,
+            tenant,
+            "ai.generate",
+            "ai_interaction",
+            interaction.id,
+            outcome="failure",
+            metadata={"capability": capability, "error_type": type(exc).__name__},
+            request=request,
+        )
         raise
 
 
