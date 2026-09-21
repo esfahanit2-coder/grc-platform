@@ -89,6 +89,14 @@ install_release() {
     command -v "$command" >/dev/null || { echo "ERROR: required command not found: $command" >&2; exit 2; }
   done
   docker info >/dev/null
+  compose_version="$(docker compose version --short 2>/dev/null || true)"
+  python - "$compose_version" <<'PY'
+import re
+import sys
+match = re.search(r"(\d+)\.(\d+)\.(\d+)", sys.argv[1])
+if not match or tuple(map(int, match.groups())) < (2, 24, 4):
+    raise SystemExit("ERROR: Docker Compose 2.24.4 or later is required")
+PY
   validate >/dev/null
   compose_args
 
