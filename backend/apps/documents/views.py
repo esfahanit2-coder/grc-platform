@@ -14,6 +14,8 @@ from apps.identity.services import (
     require_whole_tenant_permission,
 )
 from apps.organizations.models import OrganizationUnit
+from apps.notifications.models import Notification
+from apps.notifications.services import notify_user
 from apps.tenancy.models import TenantMembership
 from apps.tenancy.services import resolve_tenant_for_request
 
@@ -38,6 +40,40 @@ def _require_scoped_permission(user, tenant, permission_code, unit):
     if unit is None:
         return require_whole_tenant_permission(user, tenant, permission_code)
     return require_tenant_permission(user, tenant, permission_code, unit)
+
+
+def _notify_next_document_approvers(version):
+    pending = version.approvals.filter(
+        deleted_at__isnull=True,
+        decision=DocumentApproval.Decision.PENDING,
+    ).select_related("approver", "version__document")
+    first = pending.order_by("approval_order", "created_at").first()
+    if not first:
+        return 0
+    stage = first.approval_order
+    recipients = list(pending.filter(approval_order=stage))
+    for approval in recipients:
+        already_notified = Notification.objects.filter(
+            tenant=version.document.tenant,
+            user=approval.approver,
+            category="approval_required",
+            object_type="document_approval",
+            object_id=approval.id,
+            deleted_at__isnull=True,
+        ).exists()
+        if already_notified:
+            continue
+        notify_user(
+            tenant=version.document.tenant,
+            user=approval.approver,
+            category="approval_required",
+            title=f"سند نیازمند تأیید شماست: {version.document.title}",
+            body=f"نسخه {version.version} — مرحله تأیید {approval.approval_order}",
+            object_type="document_approval",
+            object_id=approval.id,
+            severity="warning",
+        )
+    return len(recipients)
 
 
 def _document_status_for_version(version):
@@ -337,6 +373,7 @@ class DocumentVersionViewSet(TM, viewsets.ModelViewSet):
             metadata={"document_id": str(document.id)},
             request=request,
         )
+        _notify_next_document_approvers(version)
         return Response(self.get_serializer(version).data)
 
     @action(detail=True, methods=["get"])
@@ -527,6 +564,8 @@ class DocumentApprovalViewSet(TM, viewsets.ModelViewSet):
             metadata={"document_id": str(document.id), "version_id": str(version.id)},
             request=request,
         )
+        if decision == DocumentApproval.Decision.APPROVED and version.status == DocumentVersion.Status.REVIEW:
+            _notify_next_document_approvers(version)
         return Response(self.get_serializer(approval).data)
 
 

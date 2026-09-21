@@ -221,7 +221,58 @@ The JSONL response returns cursor headers:
 The SIEM export deliberately omits `old_data`, `new_data`, free-form metadata and customer payload content. It includes the append-only integrity chain fields so the receiver can retain sequence/hash evidence.
 
 A SIEM collector should persist the last accepted `chain_sequence` and request only later events. Keep authentication at the application/API boundary and additionally restrict network access according to the customer's monitoring/SIEM zone policy.
-\n\n## 5. Local AI / air-gapped inference
+\n\n
+## SMTP notification delivery
+
+Email is a **delivery channel over the authoritative in-app Notification record**. Email success or failure never changes the underlying Action, Document approval, Workflow or operational state.
+
+Enable SMTP only after the customer's relay is available:
+
+```text
+NOTIFICATION_EMAIL_ENABLED=1
+EMAIL_HOST=smtp.example.internal
+EMAIL_PORT=587
+EMAIL_HOST_USER=<secret-backed username>
+EMAIL_HOST_PASSWORD=<secret-backed password>
+EMAIL_USE_TLS=1
+EMAIL_USE_SSL=0
+DEFAULT_FROM_EMAIL=grc@example.internal
+APP_BASE_URL=https://grc.example.internal
+```
+
+Keep `EMAIL_HOST_PASSWORD` only in the deployment secret store or protected environment file. It is not stored in the database.
+
+The product currently produces email-capable notifications for:
+
+- Action assignment/reassignment;
+- Actions due soon;
+- Overdue Actions;
+- Document approval stages;
+- Deployment operational alerts for users with whole-tenant `security.view`.
+
+Before sending, the worker re-checks that the target user is active, still has an active membership in the Notification tenant and still has a current email address. Invalid recipients are marked `skipped` rather than sent.
+
+Delivery state is separate from Notification business state. Authorized operators with whole-tenant `security.view` can inspect:
+
+```text
+GET /api/v1/notification-deliveries/
+GET /api/v1/notification-deliveries/?status=failed
+```
+
+A failed delivery can be retried with:
+
+```text
+POST /api/v1/notification-deliveries/<delivery-id>/retry/
+```
+
+Retries are also scheduled automatically. Only the exception **type** is persisted; raw SMTP exceptions, relay URLs and credentials are not stored in delivery diagnostics.
+
+SMTP is an at-least-once transport. Each delivery uses a stable Message-ID derived from its delivery UUID, but the remote relay remains responsible for its own duplicate handling if a process fails after SMTP acceptance and before local acknowledgement.
+
+For customer acceptance, verify at least one successful Assignment email, one Approval email, one failed-relay retry and one revoked-membership skip without exposing real credentials in GitHub evidence.
+
+
+## 5. Local AI / air-gapped inference
 
 AI is globally switchable with `AI_ENABLED` and provider selection remains tenant configuration.
 

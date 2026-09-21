@@ -8,6 +8,7 @@ from apps.audit.services import record_audit_event
 from apps.identity.services import accessible_organization_unit_ids,has_whole_tenant_permission,require_tenant_permission,require_whole_tenant_permission
 from apps.tenancy.models import TenantMembership
 from apps.tenancy.services import resolve_tenant_for_request
+from apps.notifications.services import notify_user
 from .models import Action
 from .serializers import ActionSerializer
 class ActionViewSet(viewsets.ModelViewSet):
@@ -47,9 +48,20 @@ class ActionViewSet(viewsets.ModelViewSet):
         })
     def perform_create(self,serializer):
         tenant=self._tenant();unit=serializer.validated_data.get("organization_unit");require_tenant_permission(self.request.user,tenant,"action.manage",unit) if unit else require_whole_tenant_permission(self.request.user,tenant,"action.manage");obj=serializer.save(tenant=tenant);record_audit_event(self.request.user,tenant,"action.create","action",obj.id,request=self.request)
+        notify_user(
+            tenant=tenant,
+            user=obj.owner,
+            category="action_assigned",
+            title=f"اقدام جدید به شما تخصیص داده شد: {obj.title}",
+            body=f"اولویت: {obj.priority}" + (f" — سررسید: {obj.due_date}" if obj.due_date else ""),
+            object_type="action",
+            object_id=obj.id,
+            severity="warning" if obj.priority in {Action.Priority.HIGH, Action.Priority.CRITICAL} else "info",
+        )
     def perform_update(self, serializer):
         tenant = self._tenant()
         instance = serializer.instance
+        previous_owner_id = instance.owner_id
         if instance.organization_unit:
             require_tenant_permission(self.request.user, tenant, "action.manage", instance.organization_unit)
         else:
@@ -65,6 +77,17 @@ class ActionViewSet(viewsets.ModelViewSet):
             obj.progress = 100
             obj.save(update_fields=["completed_at", "progress", "updated_at"])
         record_audit_event(self.request.user, tenant, "action.update", "action", obj.id, request=self.request)
+        if obj.owner_id != previous_owner_id:
+            notify_user(
+                tenant=tenant,
+                user=obj.owner,
+                category="action_assigned",
+                title=f"اقدام به شما واگذار شد: {obj.title}",
+                body=f"اولویت: {obj.priority}" + (f" — سررسید: {obj.due_date}" if obj.due_date else ""),
+                object_type="action",
+                object_id=obj.id,
+                severity="warning" if obj.priority in {Action.Priority.HIGH, Action.Priority.CRITICAL} else "info",
+            )
 
     def perform_destroy(self, instance):
         tenant=self._tenant()
