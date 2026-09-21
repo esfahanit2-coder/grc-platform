@@ -19,7 +19,7 @@ Commands:
   verify                       Emit machine-readable installation verification.
   bootstrap <options...>       Create first tenant/admin; password is read securely from terminal.
   backup [name]                Release-consistent database + object-store backup.
-  upgrade <from-ref> [backup]  Upgrade using current checked-out target release; confirmation is enforced by pilot-upgrade.sh.
+  upgrade <bundle> <key> [backup] Apply a verified signed release bundle through the offline-safe upgrade path.
   restore <backup>             Destructive restore; confirmation is enforced by pilot-restore.sh.
   rollback <backup>            Destructive release rollback; confirmation is enforced by pilot-rollback.sh.
   support [output-dir]         Create a secret-safe support bundle.
@@ -190,10 +190,12 @@ case "$COMMAND" in
       bash scripts/pilot-backup.sh "${1:-$(date -u +%Y%m%dT%H%M%SZ)}"
     ;;
   upgrade)
+    if [[ $# -lt 2 || $# -gt 3 ]]; then
+      echo "ERROR: upgrade requires <signed-bundle> <trusted-public-key> [backup-name]." >&2
+      exit 2
+    fi
     validate >/dev/null
-    PILOT_TLS=YES bash scripts/pilot-upgrade.sh "$@"
-    version="$(release_version)"
-    python scripts/datacenter-verify.py --env "$ENV_FILE" --release-version "$version"
+    bash scripts/offline-release-apply.sh update "$1" "$2" "$ROOT/.." "${3:-}"
     ;;
   restore)
     PILOT_TLS=YES bash scripts/pilot-restore.sh "$@"
@@ -201,7 +203,44 @@ case "$COMMAND" in
     python scripts/datacenter-verify.py --env "$ENV_FILE" --release-version "$version"
     ;;
   rollback)
-    PILOT_TLS=YES bash scripts/pilot-rollback.sh "$@"
+    if [[ $# -ne 1 ]]; then
+      echo "ERROR: rollback requires exactly one pre-upgrade backup name." >&2
+      exit 2
+    fi
+    backup_manifest="$ROOT/backups/$1/backup-manifest.json"
+    if [[ ! -s "$backup_manifest" ]]; then
+      echo "ERROR: rollback backup manifest is missing." >&2
+      exit 2
+    fi
+    rollback_sha="$(python - "$backup_manifest" <<'PY'
+import json
+import re
+import sys
+payload = json.load(open(sys.argv[1], encoding="utf-8"))
+value = str(payload.get("source_commit") or "")
+if not re.fullmatch(r"[0-9a-f]{40}", value):
+    raise SystemExit(2)
+print(value)
+PY
+)"
+    history_dir="$ROOT/../release/history/$rollback_sha"
+    for required in release-manifest.json release-manifest.sig trusted-release-public-key.pem; do
+      if [[ ! -s "$history_dir/$required" ]]; then
+        echo "ERROR: signed rollback metadata is missing: $history_dir/$required" >&2
+        exit 3
+      fi
+    done
+    openssl dgst -sha256       -verify "$history_dir/trusted-release-public-key.pem"       -signature "$history_dir/release-manifest.sig"       "$history_dir/release-manifest.json" >/dev/null
+    PILOT_TLS=YES bash scripts/pilot-rollback.sh "$1"
+    install -m 600 "$history_dir/release-manifest.json" "$ROOT/../release/release-manifest.json"
+    install -m 600 "$history_dir/release-manifest.sig" "$ROOT/../release/release-manifest.sig"
+    install -m 600 "$history_dir/trusted-release-public-key.pem" "$ROOT/../release/trusted-release-public-key.pem"
+    if [[ -s "$history_dir/images.json" ]]; then
+      install -m 600 "$history_dir/images.json" "$ROOT/../release/images.json"
+    else
+      rm -f "$ROOT/../release/images.json"
+    fi
+    echo "Rollback release metadata restored for source $rollback_sha."
     ;;
   support)
     if [[ $# -gt 0 ]]; then
