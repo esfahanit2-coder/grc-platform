@@ -173,7 +173,7 @@ def inspect_service(compose: list[str], service: str) -> dict:
     }
 
 
-def verify(env_file: Path, release_version: str, include_operational: bool = True) -> dict:
+def verify(env_file: Path, release_version: str, include_operational: bool = True, preflight: bool = False) -> dict:
     report = {
         "schema": "grc-datacenter-verification-v1",
         "generated_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
@@ -255,6 +255,10 @@ def verify(env_file: Path, release_version: str, include_operational: bool = Tru
     report["gateway_ports"] = {"http": sorted(ports80), "https": sorted(ports443)}
     add_check(report, "tls-gateway-ports", bool(ports443) and ports443 == {"443"} and ports80.issubset({"80"}))
 
+    if preflight:
+        report["mode"] = "preflight"
+        return report
+
     for service in CORE_SERVICES:
         status = inspect_service(compose, service)
         report["services"].append(status)
@@ -313,6 +317,7 @@ def main() -> int:
     parser.add_argument("--release-version", required=False)
     parser.add_argument("--json-out")
     parser.add_argument("--skip-operational", action="store_true")
+    parser.add_argument("--preflight", action="store_true", help="Validate config, host, signed release and images without requiring running services.")
     parser.add_argument("--self-test", action="store_true")
     args = parser.parse_args()
 
@@ -335,7 +340,7 @@ def main() -> int:
         print("ERROR: release version could not be determined", file=sys.stderr)
         return 2
 
-    report = verify(env_file, release_version, include_operational=not args.skip_operational)
+    report = verify(env_file, release_version, include_operational=not args.skip_operational, preflight=args.preflight)
     payload = json.dumps(report, indent=2, sort_keys=True)
     if args.json_out:
         target = Path(args.json_out)
