@@ -1,6 +1,8 @@
 # Offline release, update and operator support handbook
 
-This handbook is the implementation record for Issue #22. It defines the controlled path for preparing, signing, verifying, installing, updating and supporting GRC Platform in disconnected on-premise environments.
+This handbook is the implementation record for Issue #22 and the offline-release foundation reused by Issue #73. It defines the controlled path for preparing, signing, verifying, installing, updating and supporting GRC Platform in disconnected on-premise environments.
+
+For the production datacenter operator contract, including configuration validation, first-tenant bootstrap, machine-readable verification, rollback decision rules, firewall expectations and sizing hooks, use [DATACENTER_OPERATIONS.md](DATACENTER_OPERATIONS.md).
 
 The release bundle is designed so an approved target host does not need to download application packages, container images or AI models during installation/update. Host prerequisites such as Docker, Docker Compose, Git, Python, OpenSSL and standard archive/core utilities must be installed through the organization's normal operating-system provisioning process before the GRC release is transferred.
 
@@ -35,7 +37,7 @@ The repository does **not** provide or claim:
 Provision these before isolating the target host:
 
 - Linux supported by the organization's Docker policy;
-- Docker Engine and Docker Compose v2;
+- Docker Engine and Docker Compose 2.24.4 or later (required by the production TLS port replacement contract);
 - Git;
 - Python 3.12 or newer;
 - OpenSSL;
@@ -158,26 +160,14 @@ bash scripts/offline-release-apply.sh install \
 
 The helper verifies the signed bundle first, loads image archives, verifies every loaded image ID, initializes the Git repository from the bundled source, checks out the signed source commit and installs the supplied `.env` with restrictive permissions.
 
-After TLS paths and any local model prerequisites are ready, start without build/download:
+After TLS paths and any local model prerequisites are ready, start through the production operator entrypoint:
 
 ```bash
 cd /opt/grc/repository
-export GRC_RELEASE_VERSION=v1.0.0-rc1
-export PILOT_TLS=YES
-
-docker compose --env-file .env \
-  -f docker-compose.pilot.yml \
-  -f docker-compose.pilot.tls.yml \
-  config >/dev/null
-
-docker compose --env-file .env \
-  -f docker-compose.pilot.yml \
-  -f docker-compose.pilot.tls.yml \
-  up -d --no-build --wait
-
-docker compose --env-file .env -f docker-compose.pilot.yml \
-  exec -T backend python manage.py pilot_readiness
+CONFIRM_INSTALL=YES bash scripts/datacenterctl install
 ```
+
+This path validates the environment/TLS files, requires exact preloaded image references, starts with no build or pull, and runs machine-readable datacenter verification.
 
 Alternatively set `OFFLINE_INSTALL_START=YES` with the apply helper after all host prerequisites are ready.
 
@@ -294,13 +284,13 @@ Use the least sensitive evidence first.
 
 ## 12. Support evidence without secrets/customer data
 
-Run:
+For the production datacenter support package run:
 
 ```bash
-bash scripts/support-evidence.sh
+bash scripts/datacenterctl support
 ```
 
-The collector intentionally includes only low-risk operational facts such as Docker/Compose versions, disk usage, Compose service state, configured image references and a pass/fail readiness status.
+The datacenter collector includes secret-safe verification, service/dependency state, migration status, operational status and a bounded allowlist of structured error metadata. It never persists raw logs. The older scripts/support-evidence.sh remains a lower-level pilot evidence helper.
 
 It intentionally excludes:
 

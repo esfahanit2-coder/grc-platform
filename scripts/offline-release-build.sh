@@ -138,6 +138,9 @@ install -m 600 docker-compose.pilot.tls.yml "$STAGE/config/docker-compose.pilot.
 if [[ -f docs/OFFLINE_RELEASE_AND_SUPPORT.md ]]; then
   install -m 600 docs/OFFLINE_RELEASE_AND_SUPPORT.md "$STAGE/docs/OFFLINE_RELEASE_AND_SUPPORT.md"
 fi
+if [[ -f docs/DATACENTER_OPERATIONS.md ]]; then
+  install -m 600 docs/DATACENTER_OPERATIONS.md "$STAGE/docs/DATACENTER_OPERATIONS.md"
+fi
 
 python scripts/offline-release-manifest.py prepare-metadata --repo "$ROOT" --stage "$STAGE"
 

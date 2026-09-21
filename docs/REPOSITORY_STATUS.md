@@ -2,13 +2,13 @@
 
 ## Canonical repository
 
-`esfahanhonar-cyber/grc-platform` is the canonical private repository and `main` is the canonical source branch.
+`esfahanit2-coder/grc-platform` is the canonical private repository and `main` is the canonical source branch.
 
 ## Current state
 
 The Pilot Candidate source tree is fully present in GitHub and active development now flows through repository issues, branches, pull requests, CI and release gates. The old one-time import/bootstrap phase is complete and is no longer an active operating model.
 
-The project is currently in **Pilot Candidate / pre-RC hardening**. Core application foundations and the repository-side software preparation for operational UI, performance/load validation, HA/DR and upgrade/rollback, offline release/support, audit integrity, malware-scanner integration, security validation tooling and clean-host acceptance evidence are implemented.
+The project is currently in **Pilot Candidate / pre-RC hardening**. Core application foundations and the repository-side software preparation for operational UI, performance/load validation, HA/DR and upgrade/rollback, offline release/support, datacenter install/recovery packaging, audit integrity, malware-scanner integration, security validation tooling and clean-host acceptance evidence are implemented.
 
 `ROADMAP.md` is the detailed gate tracker. `RELEASE_BLOCKERS.md` is the concise source for what still prevents v1.0 RC / production rollout.
 

@@ -60,7 +60,11 @@ jobs:
           PILOT_ENV_FILE: .env.pilot.example
         run: |
           docker compose --env-file .env.pilot.example -f docker-compose.pilot.yml --profile local-ai --profile ops config >/dev/null
-          docker compose --env-file .env.pilot.example -f docker-compose.pilot.yml -f docker-compose.pilot.tls.yml --profile local-ai --profile ops config >/dev/null
+          docker compose --env-file .env.pilot.example -f docker-compose.pilot.yml -f docker-compose.pilot.tls.yml --profile local-ai --profile ops config > /tmp/grc-tls-compose.yml
+          ! grep -Eq 'published: "?8080"?' /tmp/grc-tls-compose.yml
+          grep -Eq 'published: "?80"?' /tmp/grc-tls-compose.yml
+          grep -Eq 'published: "?443"?' /tmp/grc-tls-compose.yml
+          bash -n scripts/datacenterctl
           bash -n scripts/pilot-backup.sh
           bash -n scripts/pilot-restore.sh
           bash -n scripts/pilot-upgrade.sh
@@ -72,6 +76,9 @@ jobs:
           bash -n scripts/offline-release-apply.sh
           bash -n scripts/offline-release-ci-test.sh
           bash -n scripts/support-evidence.sh
+          python scripts/datacenter-env-validate.py --self-test
+          python scripts/datacenter-verify.py --self-test
+          python scripts/datacenter-support-bundle.py --self-test
           python scripts/offline-release-manifest.py self-test
           bash scripts/offline-release-ci-test.sh
           mkdir -p /tmp/grc-tls

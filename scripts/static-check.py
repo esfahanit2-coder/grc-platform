@@ -142,6 +142,13 @@ required = [
     ".env.pilot.example",
     "backend/apps/ai_gateway/management/commands/reindex_knowledge.py",
     "backend/apps/common/management/commands/pilot_readiness.py",
+    "backend/apps/identity/management/commands/bootstrap_datacenter.py",
+    "scripts/datacenter-env-validate.py",
+    "scripts/datacenter-verify.py",
+    "scripts/datacenter-support-bundle.py",
+    "scripts/datacenterctl",
+    "docs/DATACENTER_OPERATIONS.md",
+    "docker-compose.pilot.tls.yml",
 ]
 for rel in required:
     if not (ROOT / rel).exists():
