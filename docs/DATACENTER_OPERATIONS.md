@@ -95,7 +95,7 @@ python scripts/datacenter-env-validate.py \
   --require-tls-files
 ~~~
 
-The validator checks production mode, secure cookie/redirect controls, required secret presence/shape, explicit hosts/origins, Evidence download fail-closed posture, S3 consistency, SMTP constraints when enabled, exact release version and TLS file/private-key permissions. It emits grc-datacenter-config-validation-v1 JSON and never emits secret values.
+The validator checks production mode, secure cookie/redirect controls, required secret presence/shape, explicit hosts/origins, Evidence download fail-closed posture, S3 consistency, SMTP constraints when enabled, exact release version, TLS file/private-key permissions, certificate parse/expiry, private-key parse, and certificate/private-key public-key matching. It emits grc-datacenter-config-validation-v1 JSON and never emits secret values.
 
 ## 5. TLS and PKI
 
@@ -103,7 +103,7 @@ Production datacenter startup always uses docker-compose.pilot.tls.yml.
 
 Provide TLS_CERT_PATH and TLS_KEY_PATH. The private key must not grant group/other access. Certificate and key material are not included in release bundles, backups or support bundles; recovery is through the customer's PKI/key-recovery process.
 
-Before exposing the service, validate certificate chain, hostname/SAN, renewal procedure and reverse-proxy behavior under the real customer trust store.
+Before exposing the service, validate certificate chain, hostname/SAN, renewal procedure and reverse-proxy behavior under the real customer trust store. Full `datacenterctl verify` performs an external HTTPS probe from the host to `/api/v1/health/live` and `/api/v1/health/ready`, so the configured hostname must resolve correctly and the issuing CA must be trusted by the host. For a controlled Pilot with a private CA that is not installed system-wide, export `GRC_VERIFY_CA_CERT=/path/to/approved-ca.pem` or pass `--ca-cert` to `datacenterctl verify`; production rollout should use the organization's approved trust-store procedure.
 
 ## 6. Signed air-gapped package
 
@@ -205,7 +205,9 @@ It checks and reports:
 - immutable/preloaded image references;
 - PostgreSQL, Redis, object store, backend, worker, beat, frontend and gateway service state;
 - pending migration state;
+- Django `check --deploy --fail-level WARNING` against the actual runtime settings;
 - application readiness including DB/pgvector, Redis and S3;
+- external HTTPS live/ready probes with hostname and CA validation;
 - operational health JSON.
 
 No secret values or customer Evidence payloads are included.
