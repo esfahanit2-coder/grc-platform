@@ -94,7 +94,6 @@ if [[ "$MODE" == "install" ]]; then
     echo "ERROR: install root must not already contain files: $INSTALL_ROOT" >&2
     exit 3
   fi
-  load_images
   mkdir -p "$INSTALL_ROOT" "$RELEASE_DIR"
   git init -q "$REPOSITORY"
   git -C "$REPOSITORY" fetch -q "$STAGE/source/grc-platform.bundle" \
@@ -106,6 +105,7 @@ if [[ "$MODE" == "install" ]]; then
   fi
   install -m 600 "$STAGE/release-manifest.json" "$RELEASE_DIR/release-manifest.json"
   install -m 600 "$STAGE/release-manifest.sig" "$RELEASE_DIR/release-manifest.sig"
+  install -m 600 "$STAGE/metadata/images.json" "$RELEASE_DIR/images.json"
   install -m 600 "$TRUSTED_PUBLIC_KEY" "$RELEASE_DIR/trusted-release-public-key.pem"
 
   if [[ -n "$EXTRA" ]]; then
@@ -115,13 +115,14 @@ if [[ "$MODE" == "install" ]]; then
       --release-version "$VERSION" >/dev/null
     install -m 600 "$ENV_FILE" "$REPOSITORY/.env"
   fi
+  if [[ "${OFFLINE_INSTALL_START:-NO}" == "YES" && ! -s "$REPOSITORY/.env" ]]; then
+    echo "ERROR: OFFLINE_INSTALL_START=YES requires a supplied production env file." >&2
+    exit 4
+  fi
 
+  load_images
   echo "Offline release $VERSION installed and images preloaded at $INSTALL_ROOT."
   if [[ "${OFFLINE_INSTALL_START:-NO}" == "YES" ]]; then
-    if [[ ! -s "$REPOSITORY/.env" ]]; then
-      echo "ERROR: OFFLINE_INSTALL_START=YES requires a supplied production env file." >&2
-      exit 4
-    fi
     cd "$REPOSITORY"
     export DATACENTER_LOCAL_AI="${PILOT_LOCAL_AI:-NO}"
     CONFIRM_INSTALL=YES bash scripts/datacenterctl install
@@ -154,17 +155,22 @@ if ! git -C "$REPOSITORY" diff --quiet || ! git -C "$REPOSITORY" diff --cached -
   echo "ERROR: tracked local changes block an offline update." >&2
   exit 4
 fi
-python "$REPOSITORY/scripts/datacenter-env-validate.py" \
-  --env "$REPOSITORY/.env" \
-  --release-version "$OLD_VERSION" >/dev/null
-
-load_images
 git -C "$REPOSITORY" fetch -q "$STAGE/source/grc-platform.bundle" \
   "refs/grc-release/$VERSION:refs/remotes/offline/$VERSION"
 if ! git -C "$REPOSITORY" cat-file -e "${SOURCE_SHA}^{commit}" 2>/dev/null; then
   echo "ERROR: signed target commit was not provided by the source bundle." >&2
   exit 4
 fi
+TARGET_VALIDATOR="$TMP/datacenter-env-validate.py"
+if ! git -C "$REPOSITORY" show "$SOURCE_SHA:scripts/datacenter-env-validate.py" > "$TARGET_VALIDATOR"; then
+  echo "ERROR: signed target release does not contain the datacenter environment validator." >&2
+  exit 4
+fi
+python "$TARGET_VALIDATOR" \
+  --env "$REPOSITORY/.env" \
+  --release-version "$OLD_VERSION" >/dev/null
+
+load_images
 git -C "$REPOSITORY" checkout -q --detach "$SOURCE_SHA"
 
 BACKUP_NAME="${EXTRA:-pre-upgrade-${OLD_VERSION}-to-${VERSION}}"
@@ -211,6 +217,7 @@ finally:
 PY
 install -m 600 "$STAGE/release-manifest.json" "$RELEASE_DIR/release-manifest.json"
 install -m 600 "$STAGE/release-manifest.sig" "$RELEASE_DIR/release-manifest.sig"
+install -m 600 "$STAGE/metadata/images.json" "$RELEASE_DIR/images.json"
 export DATACENTER_LOCAL_AI="${PILOT_LOCAL_AI:-NO}"
 bash scripts/datacenterctl verify >/dev/null
 
