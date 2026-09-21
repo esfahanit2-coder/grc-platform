@@ -124,6 +124,12 @@ Path(sys.argv[2]).write_text(json.dumps({"schema": "grc-offline-images-v1", "ima
 PY
 rm -f "$IMAGE_ROWS"
 
+python scripts/server-pilot-candidate.py \
+  --release-version "$VERSION" \
+  --source-commit "$SOURCE_SHA" \
+  --images "$STAGE/metadata/images.json" \
+  --out "$STAGE/metadata/server-candidate.json"
+
 echo "[4/8] Creating source Git bundle at the exact release commit..."
 git update-ref "refs/grc-release/$VERSION" "$SOURCE_SHA"
 git bundle create "$STAGE/source/grc-platform.bundle" "refs/grc-release/$VERSION"
@@ -135,6 +141,7 @@ install -m 600 "$SBOM_DIR/sbom-frontend.cdx.json" "$STAGE/sbom/sbom-frontend.cdx
 install -m 600 .env.pilot.example "$STAGE/config/.env.pilot.example"
 install -m 600 docker-compose.pilot.yml "$STAGE/config/docker-compose.pilot.yml"
 install -m 600 docker-compose.pilot.tls.yml "$STAGE/config/docker-compose.pilot.tls.yml"
+install -m 700 scripts/server-pilot-env.py "$STAGE/config/server-pilot-env.py"
 if [[ -f docs/OFFLINE_RELEASE_AND_SUPPORT.md ]]; then
   install -m 600 docs/OFFLINE_RELEASE_AND_SUPPORT.md "$STAGE/docs/OFFLINE_RELEASE_AND_SUPPORT.md"
 fi
@@ -146,6 +153,9 @@ if [[ -f docs/FINAL_RELEASE_ACCEPTANCE.md ]]; then
 fi
 if [[ -f docs/FINAL_RELEASE_ATTESTATIONS.example.json ]]; then
   install -m 600 docs/FINAL_RELEASE_ATTESTATIONS.example.json "$STAGE/docs/FINAL_RELEASE_ATTESTATIONS.example.json"
+fi
+if [[ -f docs/SERVER_PILOT_CANDIDATE.md ]]; then
+  install -m 600 docs/SERVER_PILOT_CANDIDATE.md "$STAGE/docs/SERVER_PILOT_CANDIDATE.md"
 fi
 
 python scripts/offline-release-manifest.py prepare-metadata --repo "$ROOT" --stage "$STAGE"
