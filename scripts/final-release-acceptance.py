@@ -53,7 +53,7 @@ SECRETISH = re.compile(
     r"-----BEGIN [^-]*PRIVATE KEY-----)"
 )
 SHA40 = re.compile(r"^[0-9a-f]{40}$")
-URI_USERINFO = re.compile(r"[A-Za-z][A-Za-z0-9+.-]*://[^/@\\s]+@")
+URI_USERINFO = re.compile(r"[A-Za-z][A-Za-z0-9+.-]*://[^/@\s]+@")
 PLACEHOLDER_MARKERS = ("REPLACE_WITH_", "PLACEHOLDER", "TBD")
 
 
