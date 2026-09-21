@@ -7,7 +7,7 @@ umask 077
 
 COMMAND="${1:-help}"
 [[ $# -gt 0 ]] && shift || true
-ENV_FILE="${GRC_ENV_FILE:-$ROOT/.env}"
+ENV_FILE="$ROOT/.env"
 
 usage() {
   cat <<'EOF'
@@ -26,7 +26,6 @@ Commands:
   help                         Show this help.
 
 Environment:
-  GRC_ENV_FILE                 Production env file (default: ./.env)
   DATACENTER_LOCAL_AI=YES      Include the local-ai Compose profile.
 EOF
 }
@@ -152,6 +151,11 @@ bootstrap() {
     python manage.py bootstrap_datacenter --password-stdin "$@"
   unset password confirm
 }
+
+if [[ "$COMMAND" == "help" || "$COMMAND" == "-h" || "$COMMAND" == "--help" ]]; then
+  usage
+  exit 0
+fi
 
 require_env
 compose_args
