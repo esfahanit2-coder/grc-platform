@@ -137,6 +137,14 @@ if [[ ! -d "$REPOSITORY/.git" || ! -s "$RELEASE_DIR/release-manifest.json" || ! 
   echo "ERROR: update requires an existing offline installation with repository, release manifest and .env." >&2
   exit 3
 fi
+if [[ ! -s "$RELEASE_DIR/release-manifest.sig" || ! -s "$RELEASE_DIR/trusted-release-public-key.pem" ]]; then
+  echo "ERROR: current installed release signature metadata is incomplete." >&2
+  exit 4
+fi
+if ! openssl dgst -sha256   -verify "$RELEASE_DIR/trusted-release-public-key.pem"   -signature "$RELEASE_DIR/release-manifest.sig"   "$RELEASE_DIR/release-manifest.json" >/dev/null 2>&1; then
+  echo "ERROR: current installed release manifest signature is invalid." >&2
+  exit 4
+fi
 OLD_VERSION="$(python - "$RELEASE_DIR/release-manifest.json" <<'PY'
 import json, sys
 print(json.load(open(sys.argv[1], encoding="utf-8"))["release_version"])
