@@ -18,7 +18,14 @@ CORE_SERVICES = ("postgres", "redis", "objectstore", "backend", "worker", "beat"
 
 
 def run(command: list[str], cwd: Path = ROOT, timeout: int = 90) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(command, cwd=cwd, capture_output=True, text=True, timeout=timeout)
+    try:
+        return subprocess.run(command, cwd=cwd, capture_output=True, text=True, timeout=timeout)
+    except FileNotFoundError:
+        return subprocess.CompletedProcess(command, 127, "", "command-not-found")
+    except subprocess.TimeoutExpired as exc:
+        stdout = exc.stdout if isinstance(exc.stdout, str) else ""
+        stderr = exc.stderr if isinstance(exc.stderr, str) else ""
+        return subprocess.CompletedProcess(command, 124, stdout, stderr or "command-timeout")
 
 
 def add_check(report: dict, name: str, ok: bool, detail: str | None = None) -> None:
