@@ -86,7 +86,7 @@ install_release() {
     echo "ERROR: set CONFIRM_INSTALL=YES after change approval." >&2
     exit 2
   fi
-  for command in docker python realpath; do
+  for command in docker git openssl python realpath; do
     command -v "$command" >/dev/null || { echo "ERROR: required command not found: $command" >&2; exit 2; }
   done
   docker info >/dev/null
