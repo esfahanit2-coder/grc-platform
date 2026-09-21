@@ -29,7 +29,7 @@ try:
 except Exception as exc:
     errors.append(f"package.json: {exc}")
 
-for rel in ["content-packs/examples/demo-baseline.json", "content-packs/examples/demo-risk-methodology.json", "content-packs/examples/demo-compliance-scoring.json", "content-packs/examples/demo-ai-provider.json", "content-packs/examples/pilot-isms-security-baseline.json"]:
+for rel in ["content-packs/examples/demo-baseline.json", "content-packs/examples/demo-risk-methodology.json", "content-packs/examples/demo-compliance-scoring.json", "content-packs/examples/demo-ai-provider.json", "content-packs/examples/pilot-isms-security-baseline.json", "docs/FINAL_RELEASE_ATTESTATIONS.example.json"]:
     try:
         json.loads((ROOT / rel).read_text(encoding="utf-8"))
     except Exception as exc:
@@ -149,6 +149,9 @@ required = [
     "scripts/datacenterctl",
     "docs/DATACENTER_OPERATIONS.md",
     "docker-compose.pilot.tls.yml",
+    "scripts/final-release-acceptance.py",
+    "docs/FINAL_RELEASE_ACCEPTANCE.md",
+    "docs/FINAL_RELEASE_ATTESTATIONS.example.json",
 ]
 for rel in required:
     if not (ROOT / rel).exists():
