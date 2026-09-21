@@ -1,4 +1,5 @@
 import json
+import logging
 from datetime import timedelta
 from unittest.mock import patch
 
@@ -13,6 +14,7 @@ from apps.identity.services import bootstrap_tenant_rbac
 from apps.organizations.models import OrganizationUnit
 from apps.tenancy.models import Tenant, TenantMembership
 
+from .logging import SafeJsonFormatter
 from .models import OperationalSignal
 from .tasks import record_async_heartbeat
 
@@ -210,3 +212,68 @@ class OperationalStatusTests(APITestCase):
         signal = OperationalSignal.objects.get(key="async-heartbeat")
         self.assertEqual(signal.status, OperationalSignal.Status.OK)
         self.assertEqual(signal.source, "celery-beat-worker")
+
+
+class DatacenterObservabilityTests(OperationalStatusTests):
+    @override_settings(APP_ENV="production", OPS_METRICS_TOKEN="")
+    def test_production_metrics_fail_closed_when_token_is_unconfigured(self):
+        self.client.credentials()
+        response = self.client.get("/api/v1/operations/metrics/")
+        self.assertEqual(response.status_code, 503)
+
+    @override_settings(APP_ENV="production", OPS_METRICS_TOKEN="metrics-test-token")
+    def test_metrics_require_bearer_token_and_do_not_expose_customer_labels(self):
+        self.seed_fresh_signals()
+        db, redis_probe, storage = self.mocked_dependencies(queue_depth=7)
+
+        self.client.credentials()
+        with db, redis_probe, storage:
+            denied = self.client.get("/api/v1/operations/metrics/")
+        self.assertEqual(denied.status_code, 403)
+
+        db, redis_probe, storage = self.mocked_dependencies(queue_depth=7)
+        with db, redis_probe, storage:
+            response = self.client.get(
+                "/api/v1/operations/metrics/",
+                HTTP_AUTHORIZATION="Bearer metrics-test-token",
+            )
+        self.assertEqual(response.status_code, 200)
+        body = response.content.decode("utf-8")
+        self.assertIn("grc_operational_health", body)
+        self.assertIn('grc_component_health{component="database"}', body)
+        self.assertIn("grc_celery_queue_depth 7", body)
+        self.assertNotIn(self.tenant.code, body)
+        self.assertNotIn(self.admin.username, body)
+        self.assertNotIn("backup-1", body)
+        self.assertNotIn("X-Tenant", body)
+
+    def test_json_log_formatter_redacts_credentials_and_emits_only_safe_context(self):
+        formatter = SafeJsonFormatter()
+        record = logging.LogRecord(
+            name="grc.request",
+            level=logging.INFO,
+            pathname=__file__,
+            lineno=1,
+            msg=(
+                "request token=super-secret "
+                "https://user:password@private-host.example/internal"
+            ),
+            args=(),
+            exc_info=None,
+        )
+        record.request_id = "11111111-1111-1111-1111-111111111111"
+        record.method = "GET"
+        record.path = "/api/v1/health/live"
+        record.status_code = 200
+        record.duration_ms = 12.5
+        record.customer_payload = "DO_NOT_LOG_THIS_CUSTOMER_VALUE"
+
+        payload = json.loads(formatter.format(record))
+        rendered = json.dumps(payload)
+        self.assertEqual(payload["message"].count("[REDACTED]"), 2)
+        self.assertNotIn("super-secret", rendered)
+        self.assertNotIn("user:password", rendered)
+        self.assertNotIn("private-host.example", rendered)
+        self.assertNotIn("DO_NOT_LOG_THIS_CUSTOMER_VALUE", rendered)
+        self.assertEqual(payload["request_id"], record.request_id)
+        self.assertEqual(payload["status_code"], "200")

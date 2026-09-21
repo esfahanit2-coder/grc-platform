@@ -179,7 +179,49 @@ Validate the real environment before security sign-off:
 
 These repository controls improve the software boundary but do not complete Issue #8 by themselves. Real scanner deployment/validation, audit-storage integrity validation, independent penetration testing and final security sign-off remain external acceptance evidence.
 
-## 5. Local AI / air-gapped inference
+
+## Datacenter observability
+
+The deployment exposes two different operational surfaces:
+
+1. `/api/v1/operations/status/` — authenticated human/operator JSON status, requiring whole-tenant `security.view`.
+2. `/api/v1/operations/metrics/` — Prometheus-compatible deployment metrics. It contains **no tenant, user, object, framework, evidence or customer-content labels**.
+
+In production, metrics fail closed unless `OPS_METRICS_TOKEN` is configured. Configure the scraper with:
+
+```text
+Authorization: Bearer <OPS_METRICS_TOKEN>
+```
+
+Do not publish the metrics route directly to an untrusted network. Prefer the monitoring VLAN or reverse-proxy allowlist used by the customer's observability platform.
+
+The metrics surface is intentionally bounded to deployment health, fixed component names, queue depth and operational-signal age. Do not add tenant, user or object identifiers as Prometheus labels.
+
+Application request logs are emitted as one-line JSON. They include request id, method, path, status and duration. Request bodies, query strings, tenant/customer payloads and authentication headers are not logged by the request middleware. The formatter also redacts common credential patterns and strips URL userinfo.
+
+### SIEM audit export
+
+Users or integrations with whole-tenant `audit.view` can pull a bounded audit envelope from:
+
+```text
+GET /api/v1/audit-events/export/?after_sequence=0&limit=500
+```
+
+For line-oriented ingestion:
+
+```text
+GET /api/v1/audit-events/export/?after_sequence=0&limit=500&format=jsonl
+```
+
+The JSONL response returns cursor headers:
+
+- `X-GRC-Next-After-Sequence`
+- `X-GRC-Has-More`
+
+The SIEM export deliberately omits `old_data`, `new_data`, free-form metadata and customer payload content. It includes the append-only integrity chain fields so the receiver can retain sequence/hash evidence.
+
+A SIEM collector should persist the last accepted `chain_sequence` and request only later events. Keep authentication at the application/API boundary and additionally restrict network access according to the customer's monitoring/SIEM zone policy.
+\n\n## 5. Local AI / air-gapped inference
 
 AI is globally switchable with `AI_ENABLED` and provider selection remains tenant configuration.
 
