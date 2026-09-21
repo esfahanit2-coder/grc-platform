@@ -126,6 +126,8 @@ PY
     }
   done
 
+  python scripts/datacenter-verify.py --env "$ENV_FILE" --release-version "$version" --preflight >/dev/null
+
   services=(postgres redis objectstore backend worker beat frontend gateway)
   if [[ "${DATACENTER_LOCAL_AI:-NO}" == "YES" ]]; then
     services+=(ollama)
