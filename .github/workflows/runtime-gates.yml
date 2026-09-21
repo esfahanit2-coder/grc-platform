@@ -79,6 +79,7 @@ jobs:
           python scripts/datacenter-env-validate.py --self-test
           python scripts/datacenter-verify.py --self-test
           python scripts/datacenter-support-bundle.py --self-test
+          python scripts/final-release-acceptance.py --self-test
           python scripts/offline-release-manifest.py self-test
           bash scripts/offline-release-ci-test.sh
           mkdir -p /tmp/grc-tls
