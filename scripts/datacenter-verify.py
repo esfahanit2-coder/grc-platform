@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -64,6 +65,94 @@ def published_ports(text: str) -> set[str]:
             value = value.rsplit(":", 1)[-1]
         ports.add(value)
     return ports
+
+
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def verify_signed_release(report: dict, release_version: str) -> None:
+    release_dir = ROOT.parent / "release"
+    manifest_path = release_dir / "release-manifest.json"
+    signature_path = release_dir / "release-manifest.sig"
+    public_key_path = release_dir / "trusted-release-public-key.pem"
+    images_path = release_dir / "images.json"
+    required = (manifest_path, signature_path, public_key_path, images_path)
+    if not all(path.is_file() for path in required):
+        add_check(report, "signed-release-metadata", False, "Installed signed release metadata is incomplete")
+        return
+
+    signature = run(
+        [
+            "openssl",
+            "dgst",
+            "-sha256",
+            "-verify",
+            str(public_key_path),
+            "-signature",
+            str(signature_path),
+            str(manifest_path),
+        ]
+    )
+    add_check(report, "release-manifest-signature", signature.returncode == 0)
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        images = json.loads(images_path.read_text(encoding="utf-8"))
+    except Exception:
+        add_check(report, "signed-release-metadata", False, "Installed release metadata JSON is invalid")
+        return
+
+    manifest_ok = (
+        manifest.get("schema") == "grc-offline-release-manifest-v1"
+        and manifest.get("release_version") == release_version
+        and isinstance(manifest.get("source_commit"), str)
+    )
+    add_check(report, "release-manifest-contract", manifest_ok)
+    if not manifest_ok:
+        return
+
+    head = run(["git", "rev-parse", "HEAD"])
+    source_matches = head.returncode == 0 and head.stdout.strip() == manifest["source_commit"]
+    add_check(report, "release-source-commit", source_matches)
+
+    payload_row = next(
+        (
+            row
+            for row in manifest.get("payload", [])
+            if isinstance(row, dict) and row.get("path") == "metadata/images.json"
+        ),
+        None,
+    )
+    metadata_matches = bool(
+        payload_row
+        and payload_row.get("sha256") == sha256_file(images_path)
+        and payload_row.get("size") == images_path.stat().st_size
+    )
+    add_check(report, "signed-image-metadata", metadata_matches)
+
+    rows = images.get("images") if isinstance(images, dict) else None
+    if not isinstance(rows, list) or not rows:
+        add_check(report, "signed-image-identities", False, "Installed signed image metadata has no image rows")
+        return
+    mismatches = []
+    for row in rows:
+        if not isinstance(row, dict):
+            mismatches.append("invalid-row")
+            continue
+        reference = str(row.get("reference") or "")
+        expected_id = str(row.get("image_id") or "")
+        if not reference or not expected_id:
+            mismatches.append(reference or "missing-reference")
+            continue
+        probe = run(["docker", "image", "inspect", "--format", "{{.Id}}", reference])
+        if probe.returncode != 0 or probe.stdout.strip() != expected_id:
+            mismatches.append(reference)
+    report["signed_image_mismatches"] = mismatches
+    add_check(report, "signed-image-identities", not mismatches)
 
 
 def inspect_service(compose: list[str], service: str) -> dict:
@@ -137,6 +226,8 @@ def verify(env_file: Path, release_version: str, include_operational: bool = Tru
     add_check(report, "compose-wait-capability", supports_wait)
     add_check(report, "compose-pull-policy-capability", supports_pull)
 
+    verify_signed_release(report, release_version)
+
     compose = compose_command(env_file)
     rendered = run(compose + ["config"])
     add_check(report, "compose-config", rendered.returncode == 0)
@@ -203,6 +294,11 @@ def self_test() -> None:
         raise SystemExit("published port parser self-test failed")
     if published_ports("0.0.0.0:8080") != {"8080"}:
         raise SystemExit("published port parser negative self-test failed")
+    with tempfile.TemporaryDirectory() as tmp:
+        sample = Path(tmp) / "sample"
+        sample.write_bytes(b"grc")
+        if sha256_file(sample) != hashlib.sha256(b"grc").hexdigest():
+            raise SystemExit("sha256 helper self-test failed")
     report = {"ok": True, "checks": []}
     add_check(report, "pass", True)
     add_check(report, "fail", False, "bounded detail")
