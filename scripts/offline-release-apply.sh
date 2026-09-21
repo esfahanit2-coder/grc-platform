@@ -219,6 +219,7 @@ PY
 install -m 600 "$STAGE/release-manifest.json" "$RELEASE_DIR/release-manifest.json"
 install -m 600 "$STAGE/release-manifest.sig" "$RELEASE_DIR/release-manifest.sig"
 install -m 600 "$STAGE/metadata/images.json" "$RELEASE_DIR/images.json"
+install -m 600 "$TRUSTED_PUBLIC_KEY" "$RELEASE_DIR/trusted-release-public-key.pem"
 export DATACENTER_LOCAL_AI="${PILOT_LOCAL_AI:-NO}"
 bash scripts/datacenterctl verify >/dev/null
 
