@@ -29,7 +29,14 @@ ERROR_LEVELS = {"ERROR", "CRITICAL", "FATAL"}
 
 
 def run(command: list[str], timeout: int = 120) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(command, cwd=ROOT, capture_output=True, text=True, timeout=timeout)
+    try:
+        return subprocess.run(command, cwd=ROOT, capture_output=True, text=True, timeout=timeout)
+    except FileNotFoundError:
+        return subprocess.CompletedProcess(command, 127, "", "command-not-found")
+    except subprocess.TimeoutExpired as exc:
+        stdout = exc.stdout if isinstance(exc.stdout, str) else ""
+        stderr = exc.stderr if isinstance(exc.stderr, str) else ""
+        return subprocess.CompletedProcess(command, 124, stdout, stderr or "command-timeout")
 
 
 def safe_json(text: str) -> dict | list | None:
