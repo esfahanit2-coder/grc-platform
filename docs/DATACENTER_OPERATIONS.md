@@ -84,7 +84,7 @@ Set at minimum:
 - production TLS certificate/key paths;
 - optional SMTP and connector secret references.
 
-The production file must not contain template placeholders.
+The production file must not contain template placeholders and must not grant group/other filesystem access (use mode 0600 or stricter).
 
 Validate without exposing secret values:
 
@@ -145,12 +145,12 @@ The install command:
 
 1. requires explicit confirmation;
 2. validates the production environment and TLS files;
-3. checks Docker availability and Compose capabilities;
-4. validates the merged Compose model;
-5. rejects mutable/unversioned image references;
-6. requires every resolved image to be preloaded;
+3. checks Docker, Git, OpenSSL and Compose prerequisites;
+4. validates the installed signed manifest, source commit and signed Docker image identities before startup;
+5. validates the merged Compose model;
+6. rejects mutable/unversioned image references and requires every resolved image to be preloaded;
 7. starts with --no-build --pull never --wait;
-8. runs the machine-readable datacenter verification.
+8. validates the live 80/443 gateway mapping and runs the full machine-readable datacenter verification.
 
 For a one-step prepared-host install, OFFLINE_INSTALL_START=YES on offline-release-apply.sh install invokes the same datacenterctl install path.
 
@@ -198,6 +198,9 @@ It checks and reports:
 - production configuration contract;
 - Docker Engine availability/version;
 - Docker Compose minimum/capabilities;
+- detached release-manifest signature against the separately trusted installed public key;
+- exact signed source commit plus a clean tracked worktree/index;
+- signed image-metadata hash/size and Docker image IDs;
 - merged Compose validity;
 - immutable/preloaded image references;
 - PostgreSQL, Redis, object store, backend, worker, beat, frontend and gateway service state;
