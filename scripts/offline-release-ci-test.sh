@@ -16,8 +16,20 @@ import json
 import sys
 from pathlib import Path
 stage = Path(sys.argv[1])
+roles = ["backend", "frontend", "postgres", "redis", "objectstore", "ollama", "gateway"]
+images = []
+for index, role in enumerate(roles, start=1):
+    images.append(
+        {
+            "role": role,
+            "reference": f"example/{role}:v-ci",
+            "archive": f"images/{role}.tar",
+            "image_id": "sha256:" + f"{index:064x}",
+            "repo_digests": [],
+        }
+    )
 (stage / "metadata/images.json").write_text(
-    json.dumps({"schema": "grc-offline-images-v1", "images": []}, indent=2, sort_keys=True) + "\n",
+    json.dumps({"schema": "grc-offline-images-v1", "images": images}, indent=2, sort_keys=True) + "\n",
     encoding="utf-8",
 )
 (stage / "metadata/security-evidence.json").write_text(
@@ -28,6 +40,11 @@ stage = Path(sys.argv[1])
 PY
 
 SOURCE_SHA="$(git rev-parse HEAD)"
+python scripts/server-pilot-candidate.py \
+  --release-version v-ci \
+  --source-commit "$SOURCE_SHA" \
+  --images "$STAGE/metadata/images.json" \
+  --out "$STAGE/metadata/server-candidate.json" >/dev/null
 python scripts/offline-release-manifest.py build --stage "$STAGE" --version v-ci --source-commit "$SOURCE_SHA"
 python scripts/offline-release-manifest.py verify --stage "$STAGE" >/dev/null
 
