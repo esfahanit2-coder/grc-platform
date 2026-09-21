@@ -148,6 +148,7 @@ required = [
     "scripts/datacenter-support-bundle.py",
     "scripts/server-pilot-env.py",
     "scripts/server-pilot-candidate.py",
+    "scripts/release-evidence-provenance.py",
     "scripts/datacenterctl",
     "docs/DATACENTER_OPERATIONS.md",
     "docker-compose.pilot.tls.yml",
