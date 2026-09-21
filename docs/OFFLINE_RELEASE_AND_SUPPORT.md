@@ -20,6 +20,8 @@ The repository provides:
 - CycloneDX SBOMs;
 - references/digests for security reports without copying raw secret-scan results into distribution media;
 - migration artifact inventory and configuration-template schema;
+- exact-SHA Pilot Server Candidate metadata bound to the signed image identities;
+- a secret-safe production environment generator that prints no generated secret values;
 - install/update tooling that uses preloaded images and `--no-build` for the air-gapped path;
 - secret-minimized support evidence collection.
 
@@ -44,7 +46,7 @@ Provision these before isolating the target host:
 - `tar`, `gzip`, `sha256sum`, `find` and normal GNU/core utilities;
 - sufficient disk for all container images, PostgreSQL, object storage, backups and any separately approved local-AI models;
 - approved TLS certificate/private key recovered through the organization's PKI process;
-- approved production `.env` prepared separately from the release bundle;
+- approved production `.env` generated from the signed candidate tooling or otherwise prepared under the same production configuration contract;
 - encrypted backup media outside the application data volumes.
 
 No release script installs these prerequisites from the internet.
@@ -64,7 +66,9 @@ The candidate includes:
 - `metadata/migrations.json` containing the migration-file inventory and combined tree digest;
 - `metadata/config-schema.json` describing the public pilot config template and which variables are required/sensitive;
 - `metadata/local-ai-models.json` with `distribution_mode=reference-only`;
-- public runtime configuration templates and this handbook.
+- `metadata/server-candidate.json` identifying the Pilot/pre-RC status, exact source SHA, exact image identities, runtime profile and still-open external gates;
+- `config/server-pilot-env.py` for secret-safe environment generation after bundle verification;
+- public runtime configuration templates and operator handbooks.
 
 The manifest contains no timestamp, so its bytes are stable for the same version/source/payload metadata. Every payload file is listed by path, byte size and SHA-256. Extra/missing files, symlinks and checksum changes are rejected.
 
@@ -93,7 +97,8 @@ The builder:
 7. copies SBOMs and public runtime templates;
 8. hashes but does not embed raw security scan reports;
 9. generates migration/config/model-reference metadata;
-10. generates and immediately verifies the deterministic release manifest.
+10. generates exact Server Candidate metadata from the real exported image IDs;
+11. generates and immediately verifies the deterministic release manifest.
 
 The output at this point is an **unsigned candidate** and is not approved distribution media.
 
