@@ -189,7 +189,7 @@ The generator:
 
 - creates strong random application/database/object-store/MFA/metrics secrets;
 - prints no generated secret values;
-- writes mode 0600;
+- writes atomically with mode 0600 and rejects symbolic-link output paths;
 - binds hostname/CORS/CSRF/base URL;
 - binds the exact release version;
 - defaults AI to disabled;
@@ -247,7 +247,7 @@ bash scripts/datacenterctl verify \
   --json-out artifacts/datacenter-verification.json
 ```
 
-This is supporting evidence for #7 but does not by itself close #7.
+The verifier also revalidates the signed `server_candidate` contract against the installed release version, source SHA and exact image identities. This is supporting evidence for #7 but does not by itself close #7.
 
 ## 15. Local AI Pilot
 
