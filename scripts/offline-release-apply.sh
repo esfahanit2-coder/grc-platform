@@ -161,6 +161,15 @@ if ! git -C "$REPOSITORY" cat-file -e "${SOURCE_SHA}^{commit}" 2>/dev/null; then
   echo "ERROR: signed target commit was not provided by the source bundle." >&2
   exit 4
 fi
+HISTORY_DIR="$RELEASE_DIR/history/$OLD_SHA"
+mkdir -p "$HISTORY_DIR"
+chmod 700 "$RELEASE_DIR/history" "$HISTORY_DIR" 2>/dev/null || true
+for metadata_file in release-manifest.json release-manifest.sig trusted-release-public-key.pem images.json; do
+  if [[ -s "$RELEASE_DIR/$metadata_file" ]]; then
+    install -m 600 "$RELEASE_DIR/$metadata_file" "$HISTORY_DIR/$metadata_file"
+  fi
+done
+
 TARGET_VALIDATOR="$TMP/datacenter-env-validate.py"
 if ! git -C "$REPOSITORY" show "$SOURCE_SHA:scripts/datacenter-env-validate.py" > "$TARGET_VALIDATOR"; then
   echo "ERROR: signed target release does not contain the datacenter environment validator." >&2
