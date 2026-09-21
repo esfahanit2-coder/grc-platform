@@ -242,3 +242,43 @@ LOGGING = {
         },
     },
 }
+
+
+# Notification email delivery — credentials are environment-only.
+NOTIFICATION_EMAIL_ENABLED = os.getenv("NOTIFICATION_EMAIL_ENABLED", "0") == "1"
+EMAIL_BACKEND = os.getenv(
+    "EMAIL_BACKEND",
+    "django.core.mail.backends.smtp.EmailBackend"
+    if NOTIFICATION_EMAIL_ENABLED
+    else "django.core.mail.backends.locmem.EmailBackend",
+)
+EMAIL_HOST = os.getenv("EMAIL_HOST", "")
+EMAIL_PORT = int(os.getenv("EMAIL_PORT", "587"))
+EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
+EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", "1") == "1"
+EMAIL_USE_SSL = os.getenv("EMAIL_USE_SSL", "0") == "1"
+EMAIL_TIMEOUT = int(os.getenv("EMAIL_TIMEOUT", "15"))
+DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "grc@localhost")
+EMAIL_SUBJECT_PREFIX = os.getenv("EMAIL_SUBJECT_PREFIX", "[GRC]")
+APP_BASE_URL = os.getenv("APP_BASE_URL", "").strip()
+NOTIFICATION_EMAIL_MAX_ATTEMPTS = int(os.getenv("NOTIFICATION_EMAIL_MAX_ATTEMPTS", "5"))
+NOTIFICATION_EMAIL_RETRY_SECONDS = int(os.getenv("NOTIFICATION_EMAIL_RETRY_SECONDS", "300"))
+NOTIFICATION_DUE_SOON_DAYS = int(os.getenv("NOTIFICATION_DUE_SOON_DAYS", "3"))
+
+CELERY_BEAT_SCHEDULE.update(
+    {
+        "due-action-notifications-hourly": {
+            "task": "apps.notifications.tasks.create_due_action_notifications",
+            "schedule": 3600.0,
+        },
+        "retry-failed-email-deliveries-every-five-minutes": {
+            "task": "apps.notifications.tasks.retry_failed_email_deliveries",
+            "schedule": 300.0,
+        },
+        "operational-alert-notifications-every-fifteen-minutes": {
+            "task": "apps.notifications.tasks.create_operational_alert_notifications",
+            "schedule": 900.0,
+        },
+    }
+)
