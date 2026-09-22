@@ -203,7 +203,15 @@ cat > "$DEST/backup-observation.json" <<EOF
   "note": "Measure RPO with a controlled application marker during the restore drill; do not infer it from backup duration."
 }
 EOF
-chmod 600 "$DEST"/*
+chmod 600 "$DEST"/* 2>/dev/null || true
+for backup_file in "$DEST"/*; do
+  [[ -f "$backup_file" ]] || continue
+  backup_mode="$(stat -c '%a' "$backup_file")"
+  if [[ "$backup_mode" != "600" ]]; then
+    echo "ERROR: backup file permissions are not owner-only (expected 600): $backup_file mode=$backup_mode" >&2
+    exit 3
+  fi
+done
 BACKUP_SUCCEEDED=1
 record_backup_signal ok --metadata "backup_name=$NAME" --metadata "duration_seconds=$DURATION" --metadata "release_consistent_quiesce=$QUIESCE" --metadata "outcome=success"
 
