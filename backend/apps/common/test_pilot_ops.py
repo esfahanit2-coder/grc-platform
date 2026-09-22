@@ -89,6 +89,7 @@ class PilotBackupScriptContractTests(SimpleTestCase):
         self.assertIn("COMPOSE+=(-f docker-compose.pilot.tls.yml)", script)
         self.assertIn('if [[ "${PILOT_LOCAL_AI:-NO}" == "YES" ]]', script)
         self.assertIn("COMPOSE+=(--profile local-ai)", script)
+        self.assertIn('--user "$(id -u):$(id -g)" ops', script)
 
 
 class PilotPostgresComposeContractTests(SimpleTestCase):
