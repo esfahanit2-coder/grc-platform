@@ -108,7 +108,7 @@ if [[ ! -s "$DEST/postgres.dump" ]]; then
 fi
 
 echo "[4/6] Backing up S3-compatible object storage..."
-"${COMPOSE[@]}" --profile ops run --rm ops \
+"${COMPOSE[@]}" --profile ops run --rm --user "$(id -u):$(id -g)" ops \
   python manage.py pilot_objectstore_archive export \
   --archive "/backups/$NAME/objectstore.zip"
 
