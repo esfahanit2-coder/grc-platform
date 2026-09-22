@@ -118,6 +118,7 @@ class Command(BaseCommand):
                 "manifest.json",
                 json.dumps(manifest, ensure_ascii=False, sort_keys=True, indent=2),
             )
+        path.chmod(0o600)
         self.stdout.write(self.style.SUCCESS(f"Exported {len(objects)} objects to {path}"))
 
     def _restore(self, client, bucket, path, *, replace):
