@@ -98,3 +98,12 @@ class PilotPostgresComposeContractTests(SimpleTestCase):
         self.assertIn("pgvector/pgvector:0.8.6-pg18-trixie", compose)
         self.assertIn("postgres_pilot_data:/var/lib/postgresql", compose)
         self.assertNotIn("postgres_pilot_data:/var/lib/postgresql/data", compose)
+
+
+class PilotBackendHealthcheckContractTests(SimpleTestCase):
+    def test_production_backend_healthcheck_preserves_https_semantics(self):
+        root = Path(__file__).resolve().parents[3]
+        compose = (root / "docker-compose.pilot.yml").read_text(encoding="utf-8")
+        self.assertIn("X-Forwarded-Proto: https", compose)
+        self.assertIn("DJANGO_ALLOWED_HOSTS%%,*", compose)
+        self.assertNotIn("urllib.request.urlopen(\'http://127.0.0.1:8000/api/v1/health/ready\'", compose)
