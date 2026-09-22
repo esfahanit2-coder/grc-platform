@@ -60,6 +60,7 @@ class PilotObjectStoreArchiveTests(SimpleTestCase):
             self.assertEqual(manifest["schema_version"], 1)
             self.assertEqual(manifest["object_count"], 2)
             self.assertTrue(all(len(row["sha256"]) == 64 for row in manifest["objects"]))
+            self.assertEqual(archive_path.stat().st_mode & 0o777, 0o600)
 
             target = FakeS3Client({"stale-object": b"delete-me"})
             Command()._restore(target, "grc-evidence", archive_path, replace=True)
@@ -89,6 +90,7 @@ class PilotBackupScriptContractTests(SimpleTestCase):
         self.assertIn("COMPOSE+=(-f docker-compose.pilot.tls.yml)", script)
         self.assertIn('if [[ "${PILOT_LOCAL_AI:-NO}" == "YES" ]]', script)
         self.assertIn("COMPOSE+=(--profile local-ai)", script)
+        self.assertIn("backup file permissions are not owner-only", script)
 
 
 class PilotPostgresComposeContractTests(SimpleTestCase):
