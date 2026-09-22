@@ -1,0 +1,54 @@
+name: public-pilot-export
+
+on:
+  push:
+    branches:
+      - ops/public-pilot-export
+    paths:
+      - .github/workflows/public-pilot-export.yml
+
+permissions:
+  contents: write
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout export branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build exact candidate payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          CANDIDATE="3443bea23764bcf0ebf12b43b075396565963ef0"
+          git cat-file -e "${CANDIDATE}^{commit}"
+
+          rm -rf public-export
+          mkdir -p public-export /tmp/grc-public-export
+
+          git archive --format=tar.gz --output /tmp/grc-public-export/snapshot.tar.gz "${CANDIDATE}"
+          sha256sum /tmp/grc-public-export/snapshot.tar.gz | awk '{print $1}' > public-export/snapshot.sha256
+          printf '%s\n' "${CANDIDATE}" > public-export/candidate.sha
+
+          base64 -w 0 /tmp/grc-public-export/snapshot.tar.gz \
+            | split -b 700000 -d -a 3 - public-export/chunk-
+
+          {
+            echo "candidate=${CANDIDATE}"
+            echo "archive_sha256=$(cat public-export/snapshot.sha256)"
+            echo "chunks=$(find public-export -maxdepth 1 -type f -name 'chunk-*' | wc -l)"
+            echo "created_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          } > public-export/metadata.txt
+
+      - name: Commit payload to private transfer branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public-export
+          git commit -m "[export-payload] exact candidate 3443bea23764bcf0ebf12b43b075396565963ef0"
+          git push origin HEAD:ops/public-pilot-export
