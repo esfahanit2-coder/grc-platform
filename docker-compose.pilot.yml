@@ -45,7 +45,7 @@ services:
       redis: {condition: service_healthy}
       objectstore: {condition: service_started}
     healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health/ready', timeout=2)\""]
+      test: ["CMD-SHELL", "host=$${DJANGO_ALLOWED_HOSTS%%,*}; curl -fsS -H \"Host: $$host\" -H \"X-Forwarded-Proto: https\" http://127.0.0.1:8000/api/v1/health/ready >/dev/null"]
       interval: 10s
       timeout: 5s
       retries: 15
