@@ -19,8 +19,8 @@ fi
 for command in docker git python sha256sum; do
   command -v "$command" >/dev/null || { echo "ERROR: required command not found: $command" >&2; exit 2; }
 done
-if ! git diff --quiet || ! git diff --cached --quiet; then
-  echo "ERROR: tracked working-tree changes are not allowed while preparing a release bundle." >&2
+if [[ -n "$(git status --porcelain --untracked-files=all)" ]]; then
+  echo "ERROR: release build requires a completely clean checkout, including no untracked files." >&2
   exit 2
 fi
 SOURCE_SHA="$(git rev-parse "${SOURCE_REF}^{commit}" 2>/dev/null || true)"
@@ -28,6 +28,12 @@ if [[ ! "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]; then
   echo "ERROR: source-ref must resolve to an exact Git commit." >&2
   exit 2
 fi
+HEAD_SHA="$(git rev-parse HEAD)"
+if [[ "$HEAD_SHA" != "$SOURCE_SHA" ]]; then
+  echo "ERROR: checked-out HEAD must exactly match source-ref before building release images." >&2
+  exit 2
+fi
+SOURCE_TREE="$(git rev-parse "${SOURCE_SHA}^{tree}")"
 
 STAGE="$OUTPUT_ROOT/$VERSION"
 if [[ -e "$STAGE" ]]; then
@@ -41,9 +47,9 @@ cleanup() {
 }
 trap cleanup EXIT
 
-for required in sbom-backend.cdx.json sbom-frontend.cdx.json; do
+for required in sbom-backend.cdx.json sbom-frontend.cdx.json release-evidence-provenance.json; do
   if [[ ! -s "$SBOM_DIR/$required" ]]; then
-    echo "ERROR: required SBOM is missing: $SBOM_DIR/$required" >&2
+    echo "ERROR: required SBOM/provenance artifact is missing: $SBOM_DIR/$required" >&2
     exit 3
   fi
 done
@@ -53,9 +59,9 @@ SECURITY_REPORTS=(
   trivy-backend-results.json
   trivy-frontend-results.json
 )
-for required in "${SECURITY_REPORTS[@]}"; do
+for required in "${SECURITY_REPORTS[@]}" release-evidence-provenance.json; do
   if [[ ! -s "$SECURITY_DIR/$required" ]]; then
-    echo "ERROR: required security report is missing: $SECURITY_DIR/$required" >&2
+    echo "ERROR: required security/provenance artifact is missing: $SECURITY_DIR/$required" >&2
     exit 3
   fi
 done
@@ -73,6 +79,20 @@ EXTERNAL_IMAGES=(
 echo "[1/8] Building release application images..."
 docker build --pull -t "$BACKEND_IMAGE" backend
 docker build --pull -t "$FRONTEND_IMAGE" frontend
+
+BACKEND_IMAGE_ID="$(docker image inspect --format '{{.Id}}' "$BACKEND_IMAGE")"
+FRONTEND_IMAGE_ID="$(docker image inspect --format '{{.Id}}' "$FRONTEND_IMAGE")"
+for provenance in \
+  "$SBOM_DIR/release-evidence-provenance.json" \
+  "$SECURITY_DIR/release-evidence-provenance.json"
+do
+  python scripts/release-evidence-provenance.py verify \
+    --provenance "$provenance" \
+    --source-commit "$SOURCE_SHA" \
+    --source-tree "$SOURCE_TREE" \
+    --backend-image-id "$BACKEND_IMAGE_ID" \
+    --frontend-image-id "$FRONTEND_IMAGE_ID"
+done
 
 echo "[2/8] Pulling pinned runtime dependency images..."
 for image in "${EXTERNAL_IMAGES[@]}"; do
@@ -124,6 +144,12 @@ Path(sys.argv[2]).write_text(json.dumps({"schema": "grc-offline-images-v1", "ima
 PY
 rm -f "$IMAGE_ROWS"
 
+python scripts/server-pilot-candidate.py \
+  --release-version "$VERSION" \
+  --source-commit "$SOURCE_SHA" \
+  --images "$STAGE/metadata/images.json" \
+  --out "$STAGE/metadata/server-candidate.json"
+
 echo "[4/8] Creating source Git bundle at the exact release commit..."
 git update-ref "refs/grc-release/$VERSION" "$SOURCE_SHA"
 git bundle create "$STAGE/source/grc-platform.bundle" "refs/grc-release/$VERSION"
@@ -132,9 +158,11 @@ git bundle verify "$STAGE/source/grc-platform.bundle" >/dev/null
 echo "[5/8] Copying SBOMs and public runtime templates..."
 install -m 600 "$SBOM_DIR/sbom-backend.cdx.json" "$STAGE/sbom/sbom-backend.cdx.json"
 install -m 600 "$SBOM_DIR/sbom-frontend.cdx.json" "$STAGE/sbom/sbom-frontend.cdx.json"
+install -m 600 "$SBOM_DIR/release-evidence-provenance.json" "$STAGE/metadata/release-evidence-provenance.json"
 install -m 600 .env.pilot.example "$STAGE/config/.env.pilot.example"
 install -m 600 docker-compose.pilot.yml "$STAGE/config/docker-compose.pilot.yml"
 install -m 600 docker-compose.pilot.tls.yml "$STAGE/config/docker-compose.pilot.tls.yml"
+install -m 700 scripts/server-pilot-env.py "$STAGE/config/server-pilot-env.py"
 if [[ -f docs/OFFLINE_RELEASE_AND_SUPPORT.md ]]; then
   install -m 600 docs/OFFLINE_RELEASE_AND_SUPPORT.md "$STAGE/docs/OFFLINE_RELEASE_AND_SUPPORT.md"
 fi
@@ -146,6 +174,9 @@ if [[ -f docs/FINAL_RELEASE_ACCEPTANCE.md ]]; then
 fi
 if [[ -f docs/FINAL_RELEASE_ATTESTATIONS.example.json ]]; then
   install -m 600 docs/FINAL_RELEASE_ATTESTATIONS.example.json "$STAGE/docs/FINAL_RELEASE_ATTESTATIONS.example.json"
+fi
+if [[ -f docs/SERVER_PILOT_CANDIDATE.md ]]; then
+  install -m 600 docs/SERVER_PILOT_CANDIDATE.md "$STAGE/docs/SERVER_PILOT_CANDIDATE.md"
 fi
 
 python scripts/offline-release-manifest.py prepare-metadata --repo "$ROOT" --stage "$STAGE"

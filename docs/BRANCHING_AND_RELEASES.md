@@ -75,10 +75,20 @@ Before merging any PR to `main`:
 
 ## Release naming
 
-Planned sequence:
+Real-host acceptance uses an **untagged signed Server Candidate artifact** before any GitHub release tag is promoted.
+
+Candidate artifact convention:
+
+```text
+v0.9.0-pilot-<12-char-source-sha>
+```
+
+The candidate label is bound to the full source SHA and exact image identities inside the signed offline manifest. It does not imply Pilot acceptance, RC approval or production readiness.
+
+Planned promoted tag sequence:
 
 - `v0.9.0-pilot`
 - `v1.0.0-rc1`
 - `v1.0.0`
 
-Tagged release is blocked until runtime CI, frontend lockfile, migration tests, security checks and release reproducibility gates pass, together with the external acceptance evidence tracked by the active release blockers.
+Tagged release is blocked until runtime CI, frontend lockfile, migration tests, security checks and release reproducibility gates pass, together with the applicable external acceptance evidence tracked by the active release blockers.

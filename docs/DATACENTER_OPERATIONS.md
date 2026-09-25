@@ -75,9 +75,9 @@ A fully air-gapped deployment requires no Internet egress for install/start/upda
 
 ## 4. Production configuration
 
-Start from .env.pilot.example, but treat it only as a schema/template.
+Preferred real-server path: generate the production environment with `scripts/server-pilot-env.py` after installing the verified signed source/images but before service startup. `.env.pilot.example` remains the public schema/template and must not be used unchanged.
 
-Set at minimum:
+Example generation path:\n\n~~~bash\npython scripts/server-pilot-env.py \\\n  --hostname <real-pilot-hostname> \\\n  --release-version <exact-candidate-version> \\\n  --tls-cert /opt/grc/secrets/tls/server.crt \\\n  --tls-key /opt/grc/secrets/tls/server.key \\\n  --output .env\n~~~\n\nThe generator writes mode 0600, creates cryptographically random core secrets and does not print generated secret values. AI, SMTP and connector credentials remain fail-safe disabled/unconfigured until explicitly approved.\n\nSet/confirm at minimum:
 
 - exact GRC_RELEASE_VERSION;
 - Django secret and audit-integrity key;

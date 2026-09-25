@@ -146,12 +146,18 @@ required = [
     "scripts/datacenter-env-validate.py",
     "scripts/datacenter-verify.py",
     "scripts/datacenter-support-bundle.py",
+    "scripts/server-pilot-env.py",
+    "scripts/server-pilot-candidate.py",
+    "scripts/release-evidence-provenance.py",
+    "scripts/backend-lock-check.py",
+    "backend/requirements.lock.txt",
     "scripts/datacenterctl",
     "docs/DATACENTER_OPERATIONS.md",
     "docker-compose.pilot.tls.yml",
     "scripts/final-release-acceptance.py",
     "docs/FINAL_RELEASE_ACCEPTANCE.md",
     "docs/FINAL_RELEASE_ATTESTATIONS.example.json",
+    "docs/SERVER_PILOT_CANDIDATE.md",
 ]
 for rel in required:
     if not (ROOT / rel).exists():

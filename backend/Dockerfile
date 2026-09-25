@@ -17,9 +17,9 @@ RUN apt-get update \
     fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
-RUN python -m pip install --no-cache-dir -r requirements.txt \
-    && python -m pip install --no-cache-dir --upgrade "setuptools>=78.1.1" \
+COPY requirements.txt requirements.lock.txt ./
+RUN python -m pip install --no-cache-dir -r requirements.lock.txt \
+    && python -m pip check \
     && rm -rf \
     /usr/local/lib/python3.13/site-packages/pip \
     /usr/local/lib/python3.13/site-packages/pip-*.dist-info \

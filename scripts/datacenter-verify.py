@@ -159,6 +159,75 @@ def probe_https(
         return False, None, type(exc).__name__
 
 
+def normalize_image_rows(rows: object) -> list[dict[str, object]] | None:
+    if not isinstance(rows, list):
+        return None
+    normalized: list[dict[str, object]] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            return None
+        role = row.get("role")
+        reference = row.get("reference")
+        image_id = row.get("image_id")
+        repo_digests = row.get("repo_digests")
+        if (
+            not isinstance(role, str)
+            or not role
+            or not isinstance(reference, str)
+            or not reference
+            or not isinstance(image_id, str)
+            or not re.fullmatch(r"sha256:[0-9a-f]{64}", image_id)
+            or not isinstance(repo_digests, list)
+            or any(not isinstance(item, str) for item in repo_digests)
+        ):
+            return None
+        normalized.append(
+            {
+                "role": role,
+                "reference": reference,
+                "image_id": image_id,
+                "repo_digests": sorted(repo_digests),
+            }
+        )
+    return sorted(normalized, key=lambda item: str(item["role"]))
+
+
+def verify_server_candidate_contract(
+    candidate: object,
+    release_version: str,
+    source_commit: str,
+    images: object,
+) -> bool:
+    if not isinstance(candidate, dict):
+        return False
+    runtime = candidate.get("runtime")
+    acceptance = candidate.get("external_acceptance")
+    expected_images = normalize_image_rows(images.get("images") if isinstance(images, dict) else None)
+    actual_images = normalize_image_rows(candidate.get("images"))
+    required_gates = {"#5", "#6", "#7", "#8", "#40", "#42", "#74"}
+    gates = acceptance.get("gates") if isinstance(acceptance, dict) else None
+    return bool(
+        candidate.get("schema") == "grc-server-pilot-candidate-v1"
+        and candidate.get("candidate_class") == "pilot-server-candidate"
+        and candidate.get("release_status") == "pilot-pre-rc"
+        and candidate.get("canonical_install_path") == "signed-offline-bundle"
+        and candidate.get("release_version") == release_version
+        and candidate.get("source_commit") == source_commit
+        and isinstance(runtime, dict)
+        and runtime.get("ai_enabled_by_default") is False
+        and runtime.get("customer_secrets_embedded") is False
+        and runtime.get("tls_private_key_embedded") is False
+        and runtime.get("third_party_ai_model_bytes_embedded") is False
+        and runtime.get("package_or_image_download_required_at_startup") is False
+        and isinstance(acceptance, dict)
+        and acceptance.get("complete") is False
+        and isinstance(gates, list)
+        and required_gates.issubset({str(item) for item in gates})
+        and expected_images is not None
+        and actual_images == expected_images
+    )
+
+
 def verify_signed_release(report: dict, release_version: str) -> None:
     release_dir = ROOT.parent / "release"
     manifest_path = release_dir / "release-manifest.json"
@@ -194,10 +263,24 @@ def verify_signed_release(report: dict, release_version: str) -> None:
         manifest.get("schema") == "grc-offline-release-manifest-v1"
         and manifest.get("release_version") == release_version
         and isinstance(manifest.get("source_commit"), str)
+        and bool(re.fullmatch(r"[0-9a-f]{40}", str(manifest.get("source_commit") or "")))
     )
     add_check(report, "release-manifest-contract", manifest_ok)
     if not manifest_ok:
         return
+
+    candidate_ok = verify_server_candidate_contract(
+        manifest.get("server_candidate"),
+        release_version,
+        str(manifest["source_commit"]),
+        images,
+    )
+    add_check(
+        report,
+        "server-candidate-contract",
+        candidate_ok,
+        None if candidate_ok else "Signed Pilot Server Candidate metadata is inconsistent",
+    )
 
     head = run(["git", "rev-parse", "HEAD"])
     worktree = run(["git", "diff", "--quiet"])
@@ -477,6 +560,46 @@ def self_test() -> None:
         sample.write_bytes(b"grc")
         if sha256_file(sample) != hashlib.sha256(b"grc").hexdigest():
             raise SystemExit("sha256 helper self-test failed")
+    sample_images = {
+        "images": [
+            {
+                "role": role,
+                "reference": f"example/{role}:v-test",
+                "image_id": "sha256:" + f"{index:064x}",
+                "repo_digests": [],
+            }
+            for index, role in enumerate(
+                ("backend", "frontend", "gateway", "objectstore", "ollama", "postgres", "redis"),
+                start=1,
+            )
+        ]
+    }
+    sample_candidate = {
+        "schema": "grc-server-pilot-candidate-v1",
+        "candidate_class": "pilot-server-candidate",
+        "release_status": "pilot-pre-rc",
+        "release_version": "v-test",
+        "source_commit": "a" * 40,
+        "canonical_install_path": "signed-offline-bundle",
+        "runtime": {
+            "ai_enabled_by_default": False,
+            "customer_secrets_embedded": False,
+            "tls_private_key_embedded": False,
+            "third_party_ai_model_bytes_embedded": False,
+            "package_or_image_download_required_at_startup": False,
+        },
+        "external_acceptance": {
+            "complete": False,
+            "gates": ["#5", "#6", "#7", "#8", "#40", "#42", "#74"],
+        },
+        "images": normalize_image_rows(sample_images["images"]),
+    }
+    if not verify_server_candidate_contract(sample_candidate, "v-test", "a" * 40, sample_images):
+        raise SystemExit("server candidate contract positive self-test failed")
+    sample_candidate["external_acceptance"]["complete"] = True
+    if verify_server_candidate_contract(sample_candidate, "v-test", "a" * 40, sample_images):
+        raise SystemExit("server candidate contract negative self-test failed")
+
     report = {"ok": True, "checks": []}
     add_check(report, "pass", True)
     add_check(report, "fail", False, "bounded detail")

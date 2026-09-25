@@ -19,6 +19,8 @@ METADATA_FILES = {
     "database_migrations": "metadata/migrations.json",
     "configuration_schema": "metadata/config-schema.json",
     "local_ai_models": "metadata/local-ai-models.json",
+    "server_candidate": "metadata/server-candidate.json",
+    "release_evidence_provenance": "metadata/release-evidence-provenance.json",
 }
 SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 
@@ -87,6 +89,89 @@ def enforce_model_boundary(metadata: object, stage: Path) -> None:
             raise BundleError("local AI model references must declare bytes_in_bundle=false")
 
 
+def enforce_server_candidate(
+    metadata: object,
+    release_version: str,
+    source_commit: str,
+    images_metadata: object,
+) -> None:
+    if not isinstance(metadata, dict) or metadata.get("schema") != "grc-server-pilot-candidate-v1":
+        raise BundleError("server candidate metadata has an unsupported schema")
+    if metadata.get("candidate_class") != "pilot-server-candidate":
+        raise BundleError("server candidate class is invalid")
+    if metadata.get("release_status") != "pilot-pre-rc":
+        raise BundleError("server candidate release status must remain pilot-pre-rc")
+    if metadata.get("release_version") != release_version:
+        raise BundleError("server candidate release version does not match the manifest")
+    if metadata.get("source_commit") != source_commit:
+        raise BundleError("server candidate source commit does not match the manifest")
+    acceptance = metadata.get("external_acceptance")
+    if not isinstance(acceptance, dict) or acceptance.get("complete") is not False:
+        raise BundleError("server candidate must not claim completed external acceptance")
+    runtime = metadata.get("runtime")
+    if not isinstance(runtime, dict):
+        raise BundleError("server candidate runtime policy is missing")
+    if runtime.get("ai_enabled_by_default") is not False:
+        raise BundleError("server candidate AI must remain disabled by default")
+    if runtime.get("customer_secrets_embedded") is not False:
+        raise BundleError("server candidate must declare customer_secrets_embedded=false")
+    if runtime.get("third_party_ai_model_bytes_embedded") is not False:
+        raise BundleError("server candidate must declare third_party_ai_model_bytes_embedded=false")
+
+    if not isinstance(images_metadata, dict):
+        raise BundleError("images metadata must be an object")
+    image_rows = images_metadata.get("images")
+    candidate_rows = metadata.get("images")
+    if not isinstance(image_rows, list) or not isinstance(candidate_rows, list):
+        raise BundleError("server candidate/image metadata image lists are missing")
+
+    expected = sorted(
+        [
+            {
+                "role": row.get("role"),
+                "reference": row.get("reference"),
+                "image_id": row.get("image_id"),
+                "repo_digests": sorted(row.get("repo_digests") or []),
+            }
+            for row in image_rows
+            if isinstance(row, dict)
+        ],
+        key=lambda item: str(item["role"]),
+    )
+    actual = sorted(candidate_rows, key=lambda item: str(item.get("role")) if isinstance(item, dict) else "")
+    if actual != expected:
+        raise BundleError("server candidate image identities do not match signed images metadata")
+
+
+def enforce_release_evidence_provenance(
+    metadata: object,
+    source_commit: str,
+    images_metadata: object,
+) -> None:
+    if not isinstance(metadata, dict) or metadata.get("schema") != "grc-release-evidence-provenance-v1":
+        raise BundleError("release evidence provenance has an unsupported schema")
+    if metadata.get("source_commit") != source_commit:
+        raise BundleError("release evidence provenance source commit does not match the manifest")
+    source_tree = metadata.get("source_tree")
+    if not isinstance(source_tree, str) or not SHA_RE.fullmatch(source_tree):
+        raise BundleError("release evidence provenance has an invalid source tree")
+    app_images = metadata.get("application_images")
+    if not isinstance(app_images, dict) or not isinstance(images_metadata, dict):
+        raise BundleError("release evidence provenance application image identities are missing")
+    rows = images_metadata.get("images")
+    if not isinstance(rows, list):
+        raise BundleError("signed images metadata image list is missing")
+    by_role = {
+        str(row.get("role")): row
+        for row in rows
+        if isinstance(row, dict) and isinstance(row.get("role"), str)
+    }
+    for role in ("backend", "frontend"):
+        expected = by_role.get(role)
+        if not isinstance(expected, dict) or app_images.get(role) != expected.get("image_id"):
+            raise BundleError(f"release evidence provenance does not match signed {role} image identity")
+
+
 def build_manifest(stage: Path, version: str, source_commit: str) -> dict[str, object]:
     if not version or any(ch.isspace() for ch in version):
         raise BundleError("release version must be non-empty and contain no whitespace")
@@ -96,6 +181,17 @@ def build_manifest(stage: Path, version: str, source_commit: str) -> dict[str, o
 
     metadata = require_metadata(stage)
     enforce_model_boundary(metadata["local_ai_models"], stage)
+    enforce_server_candidate(
+        metadata["server_candidate"],
+        version,
+        source_commit,
+        metadata["images"],
+    )
+    enforce_release_evidence_provenance(
+        metadata["release_evidence_provenance"],
+        source_commit,
+        metadata["images"],
+    )
 
     files = []
     for path in payload_files(stage):
@@ -140,6 +236,17 @@ def verify_manifest(stage: Path) -> dict[str, object]:
         if manifest.get(key) != value:
             raise BundleError(f"embedded metadata does not match manifest section: {key}")
     enforce_model_boundary(metadata["local_ai_models"], stage)
+    enforce_server_candidate(
+        metadata["server_candidate"],
+        str(manifest["release_version"]),
+        str(source_commit),
+        metadata["images"],
+    )
+    enforce_release_evidence_provenance(
+        metadata["release_evidence_provenance"],
+        str(source_commit),
+        metadata["images"],
+    )
 
     rows = manifest.get("payload")
     if not isinstance(rows, list):
@@ -252,13 +359,67 @@ def self_test() -> None:
         repo = root / "repo"
         (repo / "backend/apps/demo/migrations").mkdir(parents=True)
         (repo / "backend/apps/demo/migrations/0001_initial.py").write_text("# migration\n", encoding="utf-8")
-        (repo / ".env.pilot.example").write_text("DJANGO_SECRET_KEY=replace-with-secret\nAI_ENABLED=1\n", encoding="utf-8")
+        (repo / ".env.pilot.example").write_text("DJANGO_SECRET_KEY=replace-with-secret\nAI_ENABLED=0\n", encoding="utf-8")
         stage.mkdir()
         prepare_repo_metadata(repo, stage)
-        (stage / "metadata/images.json").write_text(canonical_json({"schema": "images-v1", "images": []}), encoding="utf-8")
+        image_rows = [
+            {
+                "role": "backend",
+                "reference": "example/backend:v-test",
+                "image_id": "sha256:" + "1" * 64,
+                "repo_digests": [],
+            },
+            {
+                "role": "frontend",
+                "reference": "example/frontend:v-test",
+                "image_id": "sha256:" + "2" * 64,
+                "repo_digests": [],
+            },
+        ]
+        (stage / "metadata/images.json").write_text(
+            canonical_json({"schema": "grc-offline-images-v1", "images": image_rows}),
+            encoding="utf-8",
+        )
         (stage / "metadata/security-evidence.json").write_text(canonical_json({"schema": "security-v1", "reports": []}), encoding="utf-8")
-        (stage / "payload.txt").write_text("deterministic\n", encoding="utf-8")
         source = "a" * 40
+        (stage / "metadata/release-evidence-provenance.json").write_text(
+            canonical_json(
+                {
+                    "schema": "grc-release-evidence-provenance-v1",
+                    "source_commit": source,
+                    "source_tree": "b" * 40,
+                    "application_images": {
+                        "backend": "sha256:" + "1" * 64,
+                        "frontend": "sha256:" + "2" * 64,
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        candidate = {
+            "schema": "grc-server-pilot-candidate-v1",
+            "candidate_class": "pilot-server-candidate",
+            "release_status": "pilot-pre-rc",
+            "release_version": "v-test",
+            "source_commit": source,
+            "runtime": {
+                "ai_enabled_by_default": False,
+                "customer_secrets_embedded": False,
+                "third_party_ai_model_bytes_embedded": False,
+            },
+            "external_acceptance": {"complete": False},
+            "images": [
+                {
+                    "role": row["role"],
+                    "reference": row["reference"],
+                    "image_id": row["image_id"],
+                    "repo_digests": row["repo_digests"],
+                }
+                for row in image_rows
+            ],
+        }
+        (stage / "metadata/server-candidate.json").write_text(canonical_json(candidate), encoding="utf-8")
+        (stage / "payload.txt").write_text("deterministic\n", encoding="utf-8")
         write_manifest(stage, "v-test", source)
         first = (stage / MANIFEST_NAME).read_bytes()
         verify_manifest(stage)
