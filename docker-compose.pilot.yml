@@ -5,7 +5,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-grc}
       POSTGRES_USER: ${POSTGRES_USER:-grc}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
-    volumes: [postgres_pilot_data:/var/lib/postgresql/data]
+    volumes: [postgres_pilot_data:/var/lib/postgresql]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-grc} -d ${POSTGRES_DB:-grc}"]
       interval: 5s
@@ -45,7 +45,7 @@ services:
       redis: {condition: service_healthy}
       objectstore: {condition: service_started}
     healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health/ready', timeout=2)\""]
+      test: ["CMD-SHELL", "python -c \"import urllib.request; r=urllib.request.Request('http://127.0.0.1:8000/api/v1/health/ready', headers={'X-Forwarded-Proto':'https'}); urllib.request.urlopen(r, timeout=2)\""]
       interval: 10s
       timeout: 5s
       retries: 15
