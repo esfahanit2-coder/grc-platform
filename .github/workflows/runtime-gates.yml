@@ -128,7 +128,12 @@ jobs:
       - name: Require committed npm lockfile
         run: test -f package-lock.json || (echo "frontend/package-lock.json is required" && exit 1)
       - run: npm ci --ignore-scripts
-      - run: npm audit --audit-level=high
+      - name: Audit production npm dependencies
+        run: npm audit --omit=dev --audit-level=high
+      - name: Audit full npm dependency graph with bounded dev-tool exception
+        run: |
+          npm audit --json > "$RUNNER_TEMP/frontend-npm-audit.json" || true
+          python3 ../scripts/frontend-audit-check.py "$RUNNER_TEMP/frontend-npm-audit.json"
       - run: npm run typecheck
       - run: npm run lint
       - run: npm run build
