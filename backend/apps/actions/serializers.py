@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from apps.common.domain_registry import resolve_domain_object
 from apps.tenancy.models import TenantMembership
 from .models import Action
 class ActionSerializer(serializers.ModelSerializer):
@@ -24,17 +25,14 @@ class ActionSerializer(serializers.ModelSerializer):
         source_id=attrs.get("source_id") if "source_id" in attrs else getattr(self.instance,"source_id",None)
         if bool(source_type) != bool(source_id): raise serializers.ValidationError({"source_id":"source_type and source_id must be supplied together."})
         if source_type:
-            exists=False
-            if source_type=="risk_treatment":
-                from apps.risks.models import RiskTreatment
-                exists=RiskTreatment.objects.filter(id=source_id,risk__tenant=tenant,deleted_at__isnull=True).exists()
-            elif source_type=="finding":
-                from apps.findings.models import Finding
-                exists=Finding.objects.filter(id=source_id,tenant=tenant,deleted_at__isnull=True).exists()
-            elif source_type=="assessment_item":
-                from apps.assessments.models import AssessmentItem
-                exists=AssessmentItem.objects.filter(id=source_id,assessment__tenant=tenant,deleted_at__isnull=True).exists()
-            else:
-                raise serializers.ValidationError({"source_type":"Unsupported action source type."})
-            if not exists: raise serializers.ValidationError({"source_id":"Action source does not exist in this tenant."})
+            source = resolve_domain_object(
+                tenant=tenant,
+                type_code=source_type,
+                object_id=source_id,
+                capability="action_source",
+            )
+            if source is None:
+                raise serializers.ValidationError(
+                    {"source_id":"Action source does not exist in this tenant or source_type is unsupported."}
+                )
         return attrs
