@@ -249,6 +249,15 @@ register_domain_objects(
             capabilities=COMMON_REFERENCE,
         ),
         DomainObjectSpec(
+            "control",
+            "controls",
+            "Control",
+            "tenant",
+            None,
+            allow_global_tenant=True,
+            capabilities=COMMON_AI,
+        ),
+        DomainObjectSpec(
             "control_implementation",
             "controls",
             "ControlImplementation",
