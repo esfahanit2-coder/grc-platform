@@ -238,7 +238,7 @@ register_domain_objects(
             "AuditEngagement",
             "tenant",
             "organization_unit",
-            capabilities=COMMON_REFERENCE,
+            capabilities=COMMON_DOCUMENT | COMMON_AI,
         ),
         DomainObjectSpec(
             "audit_workpaper",
