@@ -1,6 +1,6 @@
 import json
 
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 
 from apps.actions.models import Action
 from apps.ai_gateway.models import AISuggestion
@@ -96,4 +96,4 @@ class Command(BaseCommand):
                 )
 
         if findings:
-            raise SystemExit(1)
+            raise CommandError("Domain reference integrity check failed.")
