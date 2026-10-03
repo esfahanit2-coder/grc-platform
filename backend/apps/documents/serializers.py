@@ -1,5 +1,6 @@
 from rest_framework import serializers
 
+from apps.common.domain_registry import resolve_domain_object
 from apps.identity.services import has_tenant_permission, has_whole_tenant_permission
 from apps.tenancy.models import TenantMembership
 
@@ -174,6 +175,25 @@ class DocumentLinkSerializer(serializers.ModelSerializer):
         model = DocumentLink
         fields = "__all__"
         read_only_fields = ["tenant", "created_at", "updated_at", "deleted_at"]
+
+    def validate(self, attrs):
+        tenant = self.context["tenant"]
+        document = attrs.get("document", getattr(self.instance, "document", None))
+        if document and document.tenant_id != tenant.id:
+            raise serializers.ValidationError({"document": "Document must belong to tenant."})
+        object_type = attrs.get("object_type", getattr(self.instance, "object_type", None))
+        object_id = attrs.get("object_id", getattr(self.instance, "object_id", None))
+        target = resolve_domain_object(
+            tenant=tenant,
+            type_code=object_type,
+            object_id=object_id,
+            capability="document_link",
+        )
+        if target is None:
+            raise serializers.ValidationError(
+                {"object_id": "Document target does not exist in this tenant/context or object_type is unsupported."}
+            )
+        return attrs
 
 
 class ReportTemplateSerializer(serializers.ModelSerializer):
