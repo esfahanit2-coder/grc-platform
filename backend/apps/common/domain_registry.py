@@ -130,6 +130,36 @@ def domain_object_display(obj, type_code: str, object_id=None) -> str:
     return f"{type_code} / {suffix}" if suffix else str(type_code or "")
 
 
+def inspect_domain_reference(*, tenant, type_code: str, object_id, capability: str | None = None):
+    """Return an integrity status without weakening normal tenant-cloaked resolution."""
+    spec = get_domain_object_spec(type_code)
+    if not spec:
+        return {"status": "unknown_type", "object": None, "scope": None}
+    if capability and capability not in spec.capabilities:
+        return {"status": "unsupported_capability", "object": None, "scope": None}
+
+    model = apps.get_model(spec.app_label, spec.model_name)
+    obj = model._default_manager.filter(id=object_id).first()
+    if obj is None:
+        return {"status": "missing", "object": None, "scope": None}
+
+    if hasattr(obj, "deleted_at") and obj.deleted_at is not None:
+        return {"status": "deleted", "object": obj, "scope": None}
+
+    actual_tenant = None
+    if spec.tenant_lookup:
+        actual_tenant = _resolve_attr(obj, spec.tenant_lookup.replace("__", "."))
+        if not (spec.allow_global_tenant and actual_tenant is None):
+            if actual_tenant is None or actual_tenant.id != tenant.id:
+                return {"status": "cross_tenant", "object": obj, "scope": None}
+
+    scope = domain_object_scope(obj, spec)
+    if scope is not None and getattr(scope, "tenant_id", tenant.id) != tenant.id:
+        return {"status": "invalid_scope", "object": obj, "scope": scope}
+
+    return {"status": "ok", "object": obj, "scope": scope}
+
+
 COMMON_EVIDENCE = frozenset({"evidence_link"})
 COMMON_DOCUMENT = frozenset({"document_link"})
 COMMON_AI = frozenset({"ai_target"})
