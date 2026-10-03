@@ -1,8 +1,13 @@
-from django.apps import apps
 from django.db import transaction
 from rest_framework.exceptions import ValidationError
 
 from apps.audit.services import record_audit_event
+from apps.common.domain_objects import (
+    domain_object_display,
+    domain_object_scope,
+    resolve_domain_object,
+    supports_domain_object_type,
+)
 from apps.identity.services import (
     has_tenant_permission,
     has_whole_tenant_permission,
@@ -13,15 +18,6 @@ from apps.tenancy.models import TenantMembership
 
 from .models import WorkflowEvent, WorkflowInstance, WorkflowTransition
 
-
-OBJECT_MODEL_MAP = {
-    "risk": ("risks", "Risk"),
-    "assessment": ("assessments", "Assessment"),
-    "finding": ("findings", "Finding"),
-    "document": ("documents", "Document"),
-    "action": ("actions", "Action"),
-    "audit": ("internal_audits", "AuditEngagement"),
-}
 
 
 def _has_scoped_permission(user, tenant, permission_code, unit):
@@ -37,38 +33,16 @@ def _require_scoped_permission(user, tenant, permission_code, unit):
 
 
 def resolve_workflow_object(tenant, object_type, object_id):
-    spec = OBJECT_MODEL_MAP.get(object_type)
-    if not spec:
+    if not supports_domain_object_type(object_type, capability="workflow"):
         raise ValidationError("Unsupported workflow object type.")
-    model = apps.get_model(*spec)
-    queryset = model.objects.filter(id=object_id)
-    # Tenant-aware objects are cloaked at the query boundary so callers cannot
-    # distinguish a foreign UUID from a missing UUID.
-    if any(field.name == "tenant" for field in model._meta.fields):
-        queryset = queryset.filter(tenant=tenant)
-    if hasattr(model, "deleted_at"):
-        queryset = queryset.filter(deleted_at__isnull=True)
-    obj = queryset.first()
+    obj = resolve_domain_object(tenant, object_type, object_id)
     if not obj:
         raise ValidationError("Workflow target object was not found.")
     return obj
 
 
 def workflow_object_label(obj, object_type, object_id):
-    code = str(getattr(obj, "code", "") or "").strip()
-    title = str(
-        getattr(obj, "title", "")
-        or getattr(obj, "name", "")
-        or getattr(obj, "subject", "")
-        or ""
-    ).strip()
-    if code and title:
-        return f"{code} · {title}"
-    if title:
-        return title
-    if code:
-        return code
-    return f"{object_type} / {str(object_id)[:8]}"
+    return domain_object_display(object_type, obj, object_id)
 
 
 def workflow_target_display(instance):
@@ -86,7 +60,7 @@ def workflow_target_display(instance):
 
 def object_scope(tenant, object_type, object_id):
     obj = resolve_workflow_object(tenant, object_type, object_id)
-    return getattr(obj, "organization_unit", None)
+    return domain_object_scope(object_type, obj)
 
 
 def current_transitions(instance):
@@ -161,7 +135,7 @@ def start_workflow(
         raise ValidationError("Workflow has no initial state.")
 
     target = resolve_workflow_object(tenant, object_type, object_id)
-    unit = getattr(target, "organization_unit", None)
+    unit = domain_object_scope(object_type, target)
     _require_scoped_permission(user, tenant, "workflow.start", unit)
     target_display = workflow_object_label(target, object_type, object_id)
 
