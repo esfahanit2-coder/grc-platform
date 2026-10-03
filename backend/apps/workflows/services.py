@@ -136,7 +136,7 @@ def start_workflow(
         raise ValidationError("Workflow has no initial state.")
 
     target = resolve_workflow_object(tenant, object_type, object_id)
-    unit = getattr(target, "organization_unit", None)
+    unit = domain_object_scope(target, object_type)
     _require_scoped_permission(user, tenant, "workflow.start", unit)
     target_display = workflow_object_label(target, object_type, object_id)
 
