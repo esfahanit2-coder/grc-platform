@@ -7,6 +7,7 @@ from django.utils import timezone
 from pgvector.django import CosineDistance
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from apps.audit.services import record_audit_event
+from apps.common.domain_registry import resolve_domain_object
 from apps.identity.services import accessible_organization_unit_ids, has_whole_tenant_permission
 from .models import AIInteraction, AIProviderConfig, AISuggestion, KnowledgeChunk
 from .providers import provider_for
@@ -94,6 +95,17 @@ def _safe_raw_meta(raw):
 
 
 def create_suggestion(*, interaction, suggestion_type, proposed_value, confidence=None, object_type="", object_id=None):
+    if bool(object_type) != bool(object_id):
+        raise ValidationError("object_type and object_id must be supplied together.")
+    if object_type:
+        target = resolve_domain_object(
+            tenant=interaction.tenant,
+            type_code=object_type,
+            object_id=object_id,
+            capability="ai_target",
+        )
+        if target is None:
+            raise ValidationError("AI suggestion target was not found in this tenant or target type is unsupported.")
     return AISuggestion.objects.create(
         tenant=interaction.tenant, interaction=interaction, suggestion_type=suggestion_type,
         proposed_value=proposed_value, confidence=confidence, object_type=object_type, object_id=object_id,
