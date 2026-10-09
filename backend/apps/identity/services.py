@@ -21,7 +21,7 @@ PERMISSION_CATALOG = [
     ("membership.manage", "identity", "Manage tenant users"),
     ("role.view", "identity", "View roles and permissions"),
     ("role.manage", "identity", "Manage roles and assignments"),
-    ("organization.view", "objective.view", "process.view", "organization", "View organization structure"),
+    ("organization.view", "organization", "View organization structure"),
     ("organization.manage", "organization", "Manage organization structure"),
     ("objective.view", "objective", "View objectives in assigned scope"),
     ("objective.manage", "objective", "Manage objectives in assigned scope"),
