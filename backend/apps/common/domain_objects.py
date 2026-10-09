@@ -19,6 +19,14 @@ class DomainObjectSpec:
 
 _SPECS = (
     DomainObjectSpec(
+        "objective", "objectives", "Objective", "tenant", "organization_unit",
+        ("organization_unit",), capabilities=frozenset({"evidence", "workflow"}),
+    ),
+    DomainObjectSpec(
+        "business_process", "context", "BusinessProcess", "tenant", "organization_unit",
+        ("organization_unit",), capabilities=frozenset({"evidence", "workflow"}),
+    ),
+    DomainObjectSpec(
         "risk", "risks", "Risk", "tenant", "organization_unit",
         ("organization_unit",), capabilities=frozenset({"evidence", "workflow"}),
     ),

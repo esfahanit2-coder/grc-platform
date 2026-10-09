@@ -23,6 +23,8 @@ INSTALLED_APPS = [
     "apps.tenancy",
     "apps.identity",
     "apps.organizations",
+    "apps.objectives",
+    "apps.context",
     "apps.audit",
     "apps.frameworks",
     "apps.controls",
