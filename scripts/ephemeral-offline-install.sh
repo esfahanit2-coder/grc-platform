@@ -97,6 +97,16 @@ openssl pkey -in "$TMP/signing-private.pem" -pubout -out "$TMP/trusted-public.pe
 bash scripts/offline-release-sign.sh "$STAGE" "$TMP/signing-private.pem" "$SIGNED" >/dev/null
 bash scripts/offline-release-verify.sh "$SIGNED" "$TMP/trusted-public.pem" >/dev/null
 
+# Force the installer to materialize every image from signed local archives.
+# Leaving these tags preloaded would make the test a false positive for docker load.
+for tag in "${TAGS[@]}"; do docker image rm "$tag" >/dev/null; done
+for tag in "${TAGS[@]}"; do
+  if docker image inspect "$tag" >/dev/null 2>&1; then
+    echo "ERROR: a synthetic image remained preloaded before install." >&2
+    exit 4
+  fi
+done
+
 echo '[3/7] Wrong trust anchor must reject before touching install root.'
 openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 \
   -out "$TMP/untrusted-private.pem" >/dev/null 2>&1
