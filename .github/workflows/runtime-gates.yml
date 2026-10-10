@@ -71,6 +71,7 @@ jobs:
           bash -n scripts/datacenterctl
           bash -n scripts/pilot-backup.sh
           bash -n scripts/pilot-restore.sh
+          bash -n scripts/ephemeral-dr-integration.sh
           bash -n scripts/pilot-upgrade.sh
           bash -n scripts/pilot-rollback.sh
           bash -n scripts/migration-rehearsal.sh
