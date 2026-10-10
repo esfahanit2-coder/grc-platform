@@ -1,0 +1,49 @@
+name: ephemeral-synthetic-dr
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/ephemeral-synthetic-dr.yml"
+      - "scripts/ephemeral-dr-integration.sh"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: synthetic-dr-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  synthetic-recovery:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Check out exact tested source
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python for operational scripts
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      - name: Check non-sensitive runtime prerequisites
+        run: |
+          docker version --format '{{.Server.Version}}'
+          docker compose version
+          df -h .
+          test "$(df -Pk . | awk 'END {print $4}')" -gt 6000000
+
+      - name: Real database and S3 recovery using disposable synthetic data
+        timeout-minutes: 35
+        env:
+          GRC_DR_EPHEMERAL_ONLY: "YES"
+        run: bash scripts/ephemeral-dr-integration.sh
+
+      - name: Report failure without asserting operational acceptance
+        if: failure()
+        run: |
+          echo "### Synthetic DR integration: FAILED or INCOMPLETE" >> "$GITHUB_STEP_SUMMARY"
+          echo "No production install, customer recovery or RPO/RTO claim is authorized." >> "$GITHUB_STEP_SUMMARY"
