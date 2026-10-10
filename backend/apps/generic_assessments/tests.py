@@ -169,6 +169,27 @@ class GenericAssessmentCompatibilityTests(APITestCase):
         })
         self.assertIn(denied.status_code, (400, 403))
 
+
+    def test_always_applicable_item_can_complete_without_separate_applicability_decision(self):
+        version = self.make_template()
+        criterion = self.api("/api/v1/assessment-criteria/", {
+            "version": str(version), "code": "ALWAYS", "title": "Always applicable",
+            "response_type": "boolean", "required": True, "applicability_mode": "always",
+        })
+        self.assertEqual(criterion.status_code, 201, criterion.content)
+        self.login(self.reviewer)
+        published = self.api(f"/api/v1/assessment-template-versions/{version}/publish/")
+        self.assertEqual(published.status_code, 200, published.content)
+        self.login(self.author)
+        run_id = self.make_run(version)
+        item = GenericAssessmentItem.objects.get(run_id=run_id)
+        answered = self.api(f"/api/v1/generic-assessment-items/{item.id}/answer/", {"value": False})
+        self.assertEqual(answered.status_code, 200, answered.content)
+        self.login(self.reviewer)
+        completed = self.api(f"/api/v1/generic-assessments/{run_id}/complete/")
+        self.assertEqual(completed.status_code, 200, completed.content)
+        self.assertEqual(completed.data["summary"]["score_percent"], "0.000")
+
     def test_choice_type_is_strict(self):
         version, _ = self.make_published("choice", ["yes", "no"])
         run = self.make_run(version)

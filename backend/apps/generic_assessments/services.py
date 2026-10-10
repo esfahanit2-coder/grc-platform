@@ -141,6 +141,7 @@ def complete_run(*, run):
     if summary["applicability_reviews_missing"]:
         raise ValidationError("Manual applicability decisions require independent review.")
     if run.items.filter(
+        applicability_decisions__id__isnull=False,
         applicability_decisions__reviewed_at__isnull=True,
         applicability_decisions__deleted_at__isnull=True,
     ).exists():
