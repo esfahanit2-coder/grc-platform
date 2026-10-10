@@ -1,0 +1,52 @@
+name: ephemeral-offline-install
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/ephemeral-offline-install.yml"
+      - "scripts/ephemeral-offline-install.sh"
+      - "scripts/offline-release-apply.sh"
+      - "scripts/offline-release-verify.sh"
+      - "scripts/offline-release-sign.sh"
+      - "scripts/offline-release-manifest.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: offline-install-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  signed-install-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Check out exact tested source and history
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python for existing release scripts
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      - name: Verify local-only prerequisites and script syntax
+        run: |
+          docker info --format '{{.ServerVersion}}'
+          bash -n scripts/ephemeral-offline-install.sh
+          df -h .
+
+      - name: Install verified signed package using disposable local image archives
+        env:
+          GRC_OFFLINE_EPHEMERAL_ONLY: "YES"
+        timeout-minutes: 20
+        run: bash scripts/ephemeral-offline-install.sh
+
+      - name: Distinguish test failure from datacenter acceptance
+        if: failure()
+        run: |
+          echo '### Synthetic offline installer: FAILED or INCOMPLETE' >> "$GITHUB_STEP_SUMMARY"
+          echo 'No customer installation or release promotion is authorized.' >> "$GITHUB_STEP_SUMMARY"

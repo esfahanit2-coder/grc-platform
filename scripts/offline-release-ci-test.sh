@@ -59,6 +59,8 @@ openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out "$TMP/private.
 openssl pkey -in "$TMP/private.pem" -pubout -out "$TMP/public.pem" >/dev/null 2>&1
 bash scripts/offline-release-sign.sh "$STAGE" "$TMP/private.pem" "$TMP/v-ci-offline-signed.tar.gz" >/dev/null
 bash scripts/offline-release-verify.sh "$TMP/v-ci-offline-signed.tar.gz" "$TMP/public.pem" >/dev/null
+# Both extracted directory and archive entrypoints must return success under set -e.
+bash scripts/offline-release-verify.sh "$STAGE" "$TMP/public.pem" >/dev/null
 
 printf 'tampered\n' > "$STAGE/payload/probe.txt"
 if bash scripts/offline-release-verify.sh "$STAGE" "$TMP/public.pem" >/dev/null 2>&1; then

@@ -22,7 +22,12 @@ if [[ ! -s "$TRUSTED_PUBLIC_KEY" ]]; then
 fi
 
 TMP=""
-cleanup() { [[ -n "$TMP" ]] && rm -rf "$TMP"; }
+cleanup() {
+  if [[ -n "$TMP" ]]; then
+    rm -rf -- "$TMP"
+  fi
+  return 0
+}
 trap cleanup EXIT
 
 if [[ -d "$INPUT" ]]; then
