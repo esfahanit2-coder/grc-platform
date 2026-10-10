@@ -19,6 +19,7 @@ Commands:
   verify                       Emit machine-readable installation verification.
   bootstrap <options...>       Create first tenant/admin; password is read securely from terminal.
   backup [name]                Release-consistent database + object-store backup.
+  backup-status [options...]   Read-only backup freshness / checksum status; no .env needed.
   upgrade <bundle> <key> [backup] Apply a verified signed release bundle through the offline-safe upgrade path.
   restore <backup>             Destructive restore; confirmation is enforced by pilot-restore.sh.
   rollback <backup>            Destructive release rollback; confirmation is enforced by pilot-rollback.sh.
@@ -165,6 +166,13 @@ bootstrap() {
 if [[ "$COMMAND" == "help" || "$COMMAND" == "-h" || "$COMMAND" == "--help" ]]; then
   usage
   exit 0
+fi
+
+# Works during an outage, even without .env or a running Docker daemon.
+# The probe neither starts services nor opens secret-bearing backup files for display.
+if [[ "$COMMAND" == "backup-status" ]]; then
+  python scripts/datacenter-backup-status.py "$@"
+  exit $?
 fi
 
 require_env

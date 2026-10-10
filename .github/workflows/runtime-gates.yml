@@ -82,6 +82,7 @@ jobs:
           bash -n scripts/support-evidence.sh
           python scripts/datacenter-env-validate.py --self-test
           python scripts/datacenter-verify.py --self-test
+          python scripts/datacenter-backup-status.py --self-test
           python scripts/datacenter-support-bundle.py --self-test
           python scripts/server-pilot-env.py --self-test
           python scripts/server-pilot-candidate.py --self-test
