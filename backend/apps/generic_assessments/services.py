@@ -107,9 +107,6 @@ def score_summary(run):
     """Weights apply only to explicitly scored answers; report coverage separately."""
     items = list(run.items.filter(deleted_at__isnull=True))
     answered = [i for i in items if i.answer is not None]
-    scored = [i for i in applicable if i.score_percent is not None]
-    weighted = sum((i.score_percent * i.weight_snapshot for i in scored), Decimal("0"))
-    total_weight = sum((i.weight_snapshot for i in scored), Decimal("0"))
     from .models import ApplicabilityDecision
     decisions = {}
     for decision in ApplicabilityDecision.objects.filter(
@@ -117,6 +114,9 @@ def score_summary(run):
     ).order_by("-reviewed_at", "-created_at"):
         decisions.setdefault(decision.generic_item_id, decision.decision)
     applicable = [i for i in items if decisions.get(i.id) != ApplicabilityDecision.Decision.NOT_APPLICABLE]
+    scored = [i for i in applicable if i.score_percent is not None]
+    weighted = sum((i.score_percent * i.weight_snapshot for i in scored), Decimal("0"))
+    total_weight = sum((i.weight_snapshot for i in scored), Decimal("0"))
     review_missing = sum(
         i.applicability_mode_snapshot == "review" and i.id not in decisions
         for i in items
