@@ -198,6 +198,7 @@ export default function RisksPage() {
           <p>Inherent، Residual و Target Risk با تاریخچه کامل</p>
         </div>
         <div className="headActions">
+          <Link className="secondaryLink" href="/risks/governance">اشتهای ریسک و پذیرش</Link>
           <Link className="secondaryLink" href="/risks/methodologies">روش ارزیابی</Link>
           <button className="primary" type="button" onClick={() => setShowCreate(value => !value)}>
             {showCreate ? "بستن فرم" : "+ ریسک جدید"}
