@@ -87,6 +87,7 @@ jobs:
           python scripts/server-pilot-env.py --self-test
           python scripts/server-pilot-candidate.py --self-test
           python scripts/release-evidence-provenance.py self-test
+          python scripts/pilot-acceptance-evidence.py --self-test
           python scripts/final-release-acceptance.py --self-test
           python scripts/offline-release-manifest.py self-test
           bash scripts/offline-release-ci-test.sh

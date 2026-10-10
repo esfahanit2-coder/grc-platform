@@ -18,7 +18,7 @@ import ssl
 import subprocess
 import sys
 import tempfile
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 from urllib import error as urlerror
@@ -59,6 +59,7 @@ ISSUE7_REQUIRED = (
     "https_secure_cookie_csrf",
     "backup_observation",
     "restore_observation",
+    "recovery_observation_consistency",
     "restore_marker_proof",
     "object_evidence_checksum",
     "rpo_accepted",
@@ -181,25 +182,60 @@ def load_json(path: Path | None) -> dict[str, Any] | None:
     return payload if isinstance(payload, dict) else None
 
 
+def observation_time(value: Any) -> datetime | None:
+    """Validate operator timestamps without returning unrestricted input text."""
+    if not isinstance(value, str) or len(value) > 48:
+        return None
+    try:
+        result = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if result.tzinfo is None:
+        return None
+    return result.astimezone(timezone.utc)
+
+
+def observed_interval(started: Any, completed: Any, elapsed: Any) -> tuple[datetime, datetime] | None:
+    if isinstance(elapsed, bool) or not isinstance(elapsed, int) or not 0 <= elapsed <= 7 * 86400:
+        return None
+    first, last = observation_time(started), observation_time(completed)
+    if not first or not last or first > last:
+        return None
+    delta = (last - first).total_seconds()
+    # Shell scripts record second-granularity UTC wall-clock and integer duration.
+    if abs(delta - elapsed) > 2 or last > datetime.now(timezone.utc) + timedelta(minutes=5):
+        return None
+    return first, last
+
+
+def valid_backup_name(value: Any) -> bool:
+    return isinstance(value, str) and bool(re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", value))
+
+
 def validate_backup_observation(payload: dict[str, Any] | None) -> tuple[dict[str, Any], dict[str, Any] | None]:
     if payload is None:
         return check(NOT_MEASURED, "backup-observation", "No backup observation was supplied."), None
     name = payload.get("backup_name")
     duration = payload.get("duration_seconds")
-    started = payload.get("started_at")
-    completed = payload.get("completed_at")
-    if not isinstance(name, str) or not name or not isinstance(duration, int) or duration < 0 or not started or not completed:
-        return check(FAIL, "backup-observation", "Backup observation is malformed or incomplete."), None
+    interval = observed_interval(payload.get("started_at"), payload.get("completed_at"), duration)
+    if (
+        not valid_backup_name(name) or interval is None
+        or payload.get("release_consistent_quiesce") is not True
+        or payload.get("contains_secret_bearing_config") is not True
+        or payload.get("tls_private_key_included") is not False
+    ):
+        return check(FAIL, "backup-observation", "Backup metadata, timestamp, interval or release-consistency contract failed."), None
+    started, completed = interval
     sanitized = {
         "backup_name": name,
-        "started_at": str(started),
-        "completed_at": str(completed),
+        "started_at": started.isoformat(),
+        "completed_at": completed.isoformat(),
         "duration_seconds": duration,
-        "release_consistent_quiesce": bool(payload.get("release_consistent_quiesce")),
-        "contains_secret_bearing_config": bool(payload.get("contains_secret_bearing_config")),
-        "tls_private_key_included": bool(payload.get("tls_private_key_included")),
+        "release_consistent_quiesce": True,
+        "contains_secret_bearing_config": True,
+        "tls_private_key_included": False,
     }
-    return check(PASS, "backup-observation", "Backup observation is structurally valid.", duration_seconds=duration), sanitized
+    return check(PASS, "backup-observation", "Backup metadata and timing are consistent.", duration_seconds=duration), sanitized
 
 
 def validate_restore_observation(payload: dict[str, Any] | None) -> tuple[dict[str, Any], dict[str, Any] | None]:
@@ -207,22 +243,49 @@ def validate_restore_observation(payload: dict[str, Any] | None) -> tuple[dict[s
         return check(NOT_MEASURED, "restore-observation", "No restore observation was supplied."), None
     name = payload.get("backup_name")
     rto = payload.get("observed_rto_seconds")
-    started = payload.get("restore_started_at")
-    ready_at = payload.get("service_readiness_confirmed_at")
-    if not isinstance(name, str) or not name or not isinstance(rto, int) or rto < 0 or not started or not ready_at:
-        return check(FAIL, "restore-observation", "Restore observation is malformed or incomplete."), None
+    interval = observed_interval(
+        payload.get("restore_started_at"), payload.get("service_readiness_confirmed_at"), rto,
+    )
+    backup_commit = payload.get("backup_source_commit")
+    checkout_commit = payload.get("restore_checkout_commit")
+    pg_major = payload.get("postgres_major")
+    forward = payload.get("forward_compatible_restore")
+    if (
+        not valid_backup_name(name) or interval is None
+        or not isinstance(backup_commit, str) or not HEX40.fullmatch(backup_commit)
+        or not isinstance(checkout_commit, str) or not HEX40.fullmatch(checkout_commit)
+        or isinstance(pg_major, bool) or not isinstance(pg_major, int) or not 1 <= pg_major <= 99
+        or not isinstance(forward, bool)
+        or (backup_commit != checkout_commit and not forward)
+        or (backup_commit == checkout_commit and forward)
+    ):
+        return check(FAIL, "restore-observation", "Restore metadata, release identity or recovery timing is invalid."), None
+    started, completed = interval
     sanitized = {
         "backup_name": name,
-        "backup_source_commit": str(payload.get("backup_source_commit") or ""),
-        "restore_checkout_commit": str(payload.get("restore_checkout_commit") or ""),
-        "forward_compatible_restore": bool(payload.get("forward_compatible_restore")),
-        "postgres_major": payload.get("postgres_major"),
-        "restore_started_at": str(started),
-        "service_readiness_confirmed_at": str(ready_at),
+        "backup_source_commit": backup_commit,
+        "restore_checkout_commit": checkout_commit,
+        "forward_compatible_restore": forward,
+        "postgres_major": pg_major,
+        "restore_started_at": started.isoformat(),
+        "service_readiness_confirmed_at": completed.isoformat(),
         "observed_rto_seconds": rto,
-        "local_ai_smoke_requested": bool(payload.get("local_ai_smoke_requested")),
+        "local_ai_smoke_requested": payload.get("local_ai_smoke_requested") is True,
     }
-    return check(PASS, "restore-observation", "Restore observation is structurally valid.", observed_rto_seconds=rto), sanitized
+    return check(PASS, "restore-observation", "Restore metadata and timing are consistent.", observed_rto_seconds=rto), sanitized
+
+
+def recovery_observation_consistency(
+    backup: dict[str, Any] | None, restore: dict[str, Any] | None,
+) -> dict[str, Any]:
+    if backup is None or restore is None:
+        return check(NOT_MEASURED, "recovery-consistency", "Valid backup and restore observations are both required.")
+    if (
+        backup["backup_name"] != restore["backup_name"]
+        or observation_time(restore["restore_started_at"]) <= observation_time(backup["completed_at"])
+    ):
+        return check(FAIL, "recovery-consistency", "Backup/restore identity or chronological ordering does not match.")
+    return check(PASS, "recovery-consistency", "Observed restore begins after the matching completed backup.")
 
 
 def sanitize_ai_report(payload: dict[str, Any] | None) -> tuple[dict[str, Any], dict[str, Any] | None]:
@@ -422,9 +485,42 @@ def self_test() -> None:
             "restore_started_at": "2026-09-16T00:01:00Z",
             "service_readiness_confirmed_at": "2026-09-16T00:01:30Z",
             "observed_rto_seconds": 30,
+            "backup_source_commit": "a" * 40,
+            "restore_checkout_commit": "a" * 40,
+            "forward_compatible_restore": False,
+            "postgres_major": 18,
         }
     )
     assert restore_ok["status"] == PASS
+    restore_clean = validate_restore_observation({
+        "backup_name": "drill-1", "restore_started_at": "2026-09-16T00:01:00Z",
+        "service_readiness_confirmed_at": "2026-09-16T00:01:30Z",
+        "observed_rto_seconds": 30, "backup_source_commit": "a" * 40,
+        "restore_checkout_commit": "a" * 40,
+        "forward_compatible_restore": False, "postgres_major": 18,
+    })[1]
+    assert restore_clean and backup_clean
+    assert recovery_observation_consistency(backup_clean, restore_clean)["status"] == PASS
+    for changes in (
+        {"backup_name": "another-drill"},
+        {"restore_started_at": "2026-09-16T00:00:01+00:00"},
+    ):
+        assert recovery_observation_consistency(
+            backup_clean, {**restore_clean, **changes},
+        )["status"] == FAIL
+    assert validate_backup_observation({
+        "backup_name": "drill-1", "started_at": "2026-09-16T00:00:00Z",
+        "completed_at": "2026-09-16T00:00:05Z",
+        "duration_seconds": 5, "contains_secret_bearing_config": True,
+        "tls_private_key_included": False, "release_consistent_quiesce": False,
+    })[0]["status"] == FAIL
+    assert validate_restore_observation({
+        "backup_name": "drill-1", "restore_started_at": "2026-09-16T00:01:00Z",
+        "service_readiness_confirmed_at": "2026-09-16T00:01:30Z",
+        "observed_rto_seconds": 999, "backup_source_commit": "a" * 40,
+        "restore_checkout_commit": "a" * 40,
+        "forward_compatible_restore": False, "postgres_major": 18,
+    })[0]["status"] == FAIL
     mock_ai, _ = sanitize_ai_report(
         {
             "schema": AI_SCHEMA,
@@ -608,6 +704,9 @@ def main() -> int:
     automated["restore_observation"] = restore_check
     if restore_sanitized is not None:
         secure_json(out / "restore-observation-summary.json", restore_sanitized)
+    automated["recovery_observation_consistency"] = recovery_observation_consistency(
+        backup_sanitized, restore_sanitized,
+    )
 
     manual_payload = load_json(args.manual_observations)
     manual, manual_sanitized = manual_checks(manual_payload)
