@@ -1,0 +1,63 @@
+# Temporary, branch-scoped bootstrap: removed by this job after successful fix.
+# No changes are made to main; standard PR CI/release gates remain mandatory.
+name: patch-dependencies-111
+on:
+  push:
+    branches:
+      - fix/security-111-node-dependencies
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Pin patched transitive dependencies and regenerate lockfile
+        run: |
+          npm pkg set 'overrides.sharp=0.35.5' 'overrides.source-map-js=1.2.2'
+          npm install --package-lock-only --ignore-scripts --no-fund
+          npm ci --ignore-scripts
+      - name: Verify security and app compatibility
+        run: |
+          npm ls sharp source-map-js
+          npm audit --omit=dev --audit-level=high
+          npm run typecheck
+          npm run lint
+          npm run build
+  publish:
+    needs: validate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Regenerate verified versioned lockfile without package lifecycle scripts
+        working-directory: frontend
+        run: |
+          npm pkg set 'overrides.sharp=0.35.5' 'overrides.source-map-js=1.2.2'
+          npm install --package-lock-only --ignore-scripts --no-fund
+          npm audit --omit=dev --audit-level=high
+      - name: Commit only dependency fix; remove temporary workflow
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/security-dependency-autofix.yml
+          git add frontend/package.json frontend/package-lock.json
+          git diff --cached --stat
+          git commit -m "fix(security): patch sharp and source-map-js dependencies (#111)"
+          git push origin HEAD:fix/security-111-node-dependencies
