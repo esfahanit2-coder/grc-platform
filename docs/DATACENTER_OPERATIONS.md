@@ -241,6 +241,27 @@ The existing backup primitive captures:
 
 The backup directory contains secrets and customer data. Store it only on approved encrypted recovery media and keep it out of Git/support tickets.
 
+### Read-only backup freshness and integrity monitoring
+
+For an operational health check that works even if Docker, the application or the production `.env` is unavailable:
+
+~~~bash
+bash scripts/datacenterctl backup-status --max-age-hours 26
+~~~
+
+This returns **secret-safe JSON only**: `healthy`, age/timestamp of the most recent structurally valid backup, release-consistency flag, and a machine-readable `reason`. Exit code **0** means fresh metadata/files within the configured threshold; exit code **4** means stale/missing/incomplete/not release-consistent, suitable for a scheduler or monitoring alert. Exit code 2 denotes invalid arguments.
+
+An optional, slower periodic check streams each file in the newest qualifying backup through SHA-256 (it can read many GB and should not run at high frequency):
+
+~~~bash
+bash scripts/datacenterctl backup-status --max-age-hours 26 --verify-hashes
+~~~
+
+The probe validates the manifest and completion observation, expected PostgreSQL/object-store/config files, restrictive file types (no symlinks), and the canonical checksum catalog. It **does not print backup names, paths, hashes, configuration, customer records or secrets**. It never modifies backups or attempts a restore. Only allow trusted operators to access the backup directory. Note that the checksum catalog and observation timestamp are **not cryptographically signed**; this is freshness and accidental-corruption monitoring, not adversarial tamper-proof attestation.
+
+A fresh, checksum-matching backup is **not proof of recoverability or measured RPO/RTO**. Continue mandatory isolated restore drills under Issue #7 and independent security/operations acceptance under Issues #8/#68/#74. The threshold must reflect the actual approved backup schedule; a 26-hour example presumes a roughly daily backup cadence, not a policy decision made by the software.
+
+
 ## 11. Upgrade
 
 The signed offline update path is the preferred production path:
