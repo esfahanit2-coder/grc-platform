@@ -1,5 +1,6 @@
 import hashlib
 import json
+import re
 import tempfile
 import zipfile
 from datetime import datetime, timezone
@@ -120,56 +121,110 @@ class Command(BaseCommand):
             )
         self.stdout.write(self.style.SUCCESS(f"Exported {len(objects)} objects to {path}"))
 
+    @staticmethod
+    def _validate_archive(archive):
+        """Validate every ZIP payload before destination deletion or upload."""
+        members = archive.infolist()
+        if len(members) > 1000001:
+            raise CommandError("Archive contains too many members.")
+        names = [info.filename for info in members]
+        name_set = set(names)
+        if len(names) != len(name_set) or "manifest.json" not in name_set:
+            raise CommandError("Archive has duplicate or missing members.")
+        header = archive.getinfo("manifest.json")
+        if header.is_dir() or header.file_size > 32 * 1024 * 1024:
+            raise CommandError("Archive manifest is not a bounded regular member.")
+        try:
+            manifest = json.loads(archive.read(header))
+        except (json.JSONDecodeError, UnicodeError) as exc:
+            raise CommandError("Archive manifest is invalid.") from exc
+        if not isinstance(manifest, dict) or manifest.get("schema_version") != ARCHIVE_SCHEMA_VERSION:
+            raise CommandError("Unsupported or invalid object-store archive schema.")
+        rows = manifest.get("objects")
+        count = manifest.get("object_count")
+        if (
+            not isinstance(rows, list) or isinstance(count, bool)
+            or not isinstance(count, int) or count != len(rows)
+            or len(members) != len(rows) + 1
+        ):
+            raise CommandError("Archive object count or member list is inconsistent.")
+        seen_keys = set()
+        for index, row in enumerate(rows):
+            if not isinstance(row, dict):
+                raise CommandError("Archive object entry must be a mapping.")
+            key = row.get("key")
+            name = row.get("archive_name")
+            length = row.get("size")
+            digest_expected = row.get("sha256")
+            content_type = row.get("content_type", "application/octet-stream")
+            metadata = row.get("metadata", {})
+            expected_name = f"objects/{index:08d}.bin"
+            if (
+                not isinstance(key, str) or not key or key in seen_keys
+                or name != expected_name or name not in name_set
+                or isinstance(length, bool) or not isinstance(length, int) or length < 0
+                or not isinstance(digest_expected, str)
+                or not re.fullmatch(r"[0-9a-f]{64}", digest_expected)
+                or not isinstance(content_type, str) or not content_type
+                or not isinstance(metadata, dict)
+                or not all(isinstance(k, str) and isinstance(v, str)
+                           for k, v in metadata.items())
+            ):
+                raise CommandError("Archive object metadata failed validation.")
+            seen_keys.add(key)
+            member = archive.getinfo(name)
+            if member.is_dir() or member.file_size != length:
+                raise CommandError("Archive member size differs from manifest.")
+            checksum = hashlib.sha256()
+            observed_size = 0
+            with archive.open(member, "r") as source:
+                while True:
+                    chunk = source.read(CHUNK_SIZE)
+                    if not chunk:
+                        break
+                    checksum.update(chunk)
+                    observed_size += len(chunk)
+            if observed_size != length or checksum.hexdigest() != digest_expected:
+                raise CommandError("Archive object checksum/length mismatch.")
+        return rows
+
     def _restore(self, client, bucket, path, *, replace):
-        if not path.is_file():
-            raise CommandError(f"Archive does not exist: {path}")
+        if not path.is_file() or path.is_symlink():
+            raise CommandError("Archive is missing or is not a regular file.")
         existing = list(list_objects(client, bucket))
         if existing and not replace:
             raise CommandError(
                 "Target object-storage bucket is not empty. Re-run with --replace only after explicit restore approval."
             )
-
-        with zipfile.ZipFile(path, "r") as archive:
-            try:
-                manifest = json.loads(archive.read("manifest.json"))
-            except (KeyError, json.JSONDecodeError) as exc:
-                raise CommandError("Archive manifest is missing or invalid.") from exc
-            if manifest.get("schema_version") != ARCHIVE_SCHEMA_VERSION:
-                raise CommandError("Unsupported object-store archive schema version.")
-            rows = manifest.get("objects")
-            if not isinstance(rows, list):
-                raise CommandError("Archive manifest object list is invalid.")
-
-            if existing and replace:
-                delete_all_objects(client, bucket)
-
-            restored = 0
-            for row in rows:
-                key = row.get("key")
-                archive_name = row.get("archive_name")
-                expected_sha256 = row.get("sha256")
-                if not key or not archive_name or not expected_sha256:
-                    raise CommandError("Archive manifest contains an incomplete object entry.")
-                try:
-                    source = archive.open(archive_name, "r")
-                except KeyError as exc:
-                    raise CommandError(f"Archive member is missing: {archive_name}") from exc
-                digest = hashlib.sha256()
-                with source, tempfile.SpooledTemporaryFile(max_size=8 * CHUNK_SIZE) as staged:
-                    while True:
-                        chunk = source.read(CHUNK_SIZE)
-                        if not chunk:
-                            break
-                        digest.update(chunk)
-                        staged.write(chunk)
-                    if digest.hexdigest() != expected_sha256:
-                        raise CommandError(f"Checksum mismatch for archived object {key!r}.")
-                    staged.seek(0)
-                    extra = {
-                        "ContentType": row.get("content_type") or "application/octet-stream",
-                        "Metadata": row.get("metadata") or {},
-                    }
-                    client.upload_fileobj(staged, bucket, key, ExtraArgs=extra)
-                restored += 1
-
+        try:
+            with zipfile.ZipFile(path, "r") as archive:
+                # A direct manage.py restore must be as safe as the outer
+                # datacenterctl preflight: validate ALL objects before delete.
+                rows = self._validate_archive(archive)
+                if existing and replace:
+                    delete_all_objects(client, bucket)
+                restored = 0
+                for row in rows:
+                    key = row["key"]
+                    digest = hashlib.sha256()
+                    size = 0
+                    with archive.open(row["archive_name"], "r") as source, tempfile.SpooledTemporaryFile(max_size=8 * CHUNK_SIZE) as staged:
+                        while True:
+                            chunk = source.read(CHUNK_SIZE)
+                            if not chunk:
+                                break
+                            digest.update(chunk)
+                            size += len(chunk)
+                            staged.write(chunk)
+                        if size != row["size"] or digest.hexdigest() != row["sha256"]:
+                            raise CommandError("Archive object changed after preflight validation.")
+                        staged.seek(0)
+                        extra = {
+                            "ContentType": row.get("content_type") or "application/octet-stream",
+                            "Metadata": row.get("metadata") or {},
+                        }
+                        client.upload_fileobj(staged, bucket, key, ExtraArgs=extra)
+                    restored += 1
+        except (zipfile.BadZipFile, EOFError, UnicodeError, RuntimeError, OSError) as exc:
+            raise CommandError("Archive is corrupt or unreadable; restore was not completed.") from exc
         self.stdout.write(self.style.SUCCESS(f"Restored {restored} objects into bucket {bucket}"))

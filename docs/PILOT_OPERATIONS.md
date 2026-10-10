@@ -30,6 +30,8 @@ When a destructive restore or rollback is explicitly approved, the operator entr
 
 Use `python scripts/datacenter-backup-status.py --restore-preflight <backup-name>` to test an existing backup read-only without Docker or a working `.env`. This check is not a real-host restore drill; the operator must still prove recovered application records, Evidence checksum and RPO/RTO. Only backups created in quiesced/release-consistent mode are accepted by these destructive restore helpers.
 
+The internal Django `pilot_objectstore_archive restore --replace` additionally fails closed on a malformed or corrupt ZIP/object even if invoked directly: all members are validated before any bucket deletion; every object's hash is verified again before upload. **This is not an atomic transaction**: failures during S3 upload after deletion still require repeating the full coordinated restore from protected source media and verifying application-level Evidence. Do not invoke direct low-level restore against a live customer bucket.
+
 ## 1. Clean-host prerequisites
 
 Prepare a Linux host with:
