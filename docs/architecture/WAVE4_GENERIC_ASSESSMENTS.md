@@ -70,3 +70,13 @@ UI: `/assessments/generic`. Existing `/assessments/` and `/assessment-items/` re
 - No untrusted formula/script execution.
 - No guarantee of full scoring for narrative criteria until a reviewed rubric is modeled and versioned.
 - Broader human usability/UAT, reporting, policy mapping reviews, and air-gapped customer-DC deployment remain independent release gates tracked by #68.
+
+## Additive read-only compatibility index
+
+`GET /api/v1/assessment-history/` presents **both legacy and generic records** with an explicit `source` discriminator. It uses a database-level ordered union, applies `assessment.view` and tenant/org-unit RBAC before selecting rows, and returns bounded pages. Filters: `source=legacy|generic|all`, `organization_unit`, `search`, `page`, `page_size`. A generic run's score is `null` rather than inferring a numeric value, whereas a legacy record retains its historical `overall_score`. The endpoint does **not** write, migrate or modify completed assessments.
+
+A staged backfill/conversion of legacy snapshots requires separate owner-approved mapping, dry-run reconciliation, reversible migrations and representative-host rehearsal; it is intentionally not automatic.
+
+### Operator-only reconciliation preview (no writes)
+
+Run `python manage.py assessment_backfill_plan --tenant-code YOUR_TENANT_CODE --limit 500` inside the authorized backend runtime. The command emits a JSON plan with source assessment IDs, protected-completed flags, item counts, and at most three same-tenant, scope-compatible, already-published profile candidates. It **never writes**, never copies answers and never changes historical scores. `execution_supported=false` is an explicit safety boundary: actual migration requires a separate approved, reversible implementation and audited before/after comparison.

@@ -1,4 +1,6 @@
+from django.urls import path
 from rest_framework.routers import DefaultRouter
+from .compatibility import assessment_history
 from .views import (
     ApplicabilityViewSet, CriterionMappingViewSet, GenericAssessmentItemViewSet,
     GenericAssessmentRunViewSet, ProfileViewSet, TemplateCriterionViewSet,
@@ -14,4 +16,6 @@ router.register("assessment-criterion-mappings", CriterionMappingViewSet, basena
 router.register("generic-assessments", GenericAssessmentRunViewSet, basename="generic-assessment")
 router.register("generic-assessment-items", GenericAssessmentItemViewSet, basename="generic-assessment-item")
 router.register("assessment-applicability-decisions", ApplicabilityViewSet, basename="assessment-applicability")
-urlpatterns = router.urls
+urlpatterns = router.urls + [
+    path("assessment-history/", assessment_history, name="assessment-history"),
+]
