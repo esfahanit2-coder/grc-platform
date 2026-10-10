@@ -64,6 +64,22 @@ jobs:
           PILOT_ENV_FILE: .env.pilot.example
         run: |
           docker compose --env-file .env.pilot.example -f docker-compose.pilot.yml --profile local-ai --profile ops config >/dev/null
+          # Production ALLOWED_HOSTS excludes loopback; backend probe must send the approved Host.
+          python - <<'PY'
+          import json
+          import subprocess
+          model = json.loads(subprocess.check_output([
+              "docker", "compose", "--env-file", ".env.pilot.example",
+              "-f", "docker-compose.pilot.yml", "--profile", "local-ai",
+              "--profile", "ops", "config", "--format", "json",
+          ], text=True))
+          test = model["services"]["backend"]["healthcheck"]["test"]
+          assert test[0] == "CMD-SHELL" and len(test) == 2
+          command = test[1]
+          for required in ("DJANGO_ALLOWED_HOSTS", "'Host':host", "'X-Forwarded-Proto':'https'"):
+              assert required in command, "Production backend health probe lacks approved Host/proxy header"
+          print("Backend production Host/HTTPS health probe contract PASS")
+          PY
           docker compose --env-file .env.pilot.example -f docker-compose.pilot.yml -f docker-compose.pilot.tls.yml --profile local-ai --profile ops config > /tmp/grc-tls-compose.yml
           ! grep -Eq 'published: "?8080"?' /tmp/grc-tls-compose.yml
           grep -Eq 'published: "?80"?' /tmp/grc-tls-compose.yml

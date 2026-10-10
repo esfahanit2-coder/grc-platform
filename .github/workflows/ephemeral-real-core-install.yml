@@ -1,0 +1,51 @@
+name: ephemeral-real-core-install
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/ephemeral-real-core-install.yml"
+      - "scripts/ephemeral-real-core-install.sh"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: real-core-install-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  signed-core-runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - name: Checkout exact code and Git history
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Prepare Python for repository operator scripts
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      - name: Check bounded CI runner prerequisites
+        run: |
+          docker version --format '{{.Server.Version}}'
+          docker compose version
+          bash -n scripts/ephemeral-real-core-install.sh
+          df -h .
+          test "$(df -Pk . | awk 'END {print $4}')" -gt 9000000
+          free -m
+
+      - name: Build, sign, import and boot true core GRC images
+        timeout-minutes: 50
+        env:
+          GRC_CORE_INSTALL_EPHEMERAL_ONLY: "YES"
+        run: bash scripts/ephemeral-real-core-install.sh
+
+      - name: Never treat a failed smoke as datacenter acceptance
+        if: failure()
+        run: |
+          echo '### Real-core signed install: FAILED or INCOMPLETE' >> "$GITHUB_STEP_SUMMARY"
+          echo 'No production release or customer recovery accepted.' >> "$GITHUB_STEP_SUMMARY"
