@@ -66,6 +66,19 @@ Recommended sequence:
 
 The collector copies only sanitized observation metadata. It never copies the database dump, object archive, TLS key, or secret-bearing backup configuration.
 
+### Fail-closed recovery-observation consistency gate
+
+The acceptance collector now checks that:
+- the backup and restore observations identify **the same** named backup;
+- both timestamps are timezone-aware and the recorded duration/RTO agrees with elapsed wall-clock time (within the scripts' two-second timing tolerance);
+- restore starts **after** the matching backup completes;
+- the backup has `release_consistent_quiesce=true`, a protected configuration copy, and no TLS private key;
+- restore source and checkout commits are valid and a changed commit is explicitly marked as a forward-compatible restore;
+- the PostgreSQL major version and measured RTO have valid types.
+
+It records a separate `recovery_observation_consistency` check and **blocks** Issue #7 closure when either observation is missing, malformed or mutually inconsistent. These automated checks **do not** verify the two application markers, Evidence checksum, actual outage start, approved RPO target, tamper-resistant provenance or operator approval. Keep the restricted real-host drill evidence and named manual attestations; never substitute this check for a real successful restore. Existing old acceptance summaries must be regenerated against the actual current candidate release.
+
+
 ## 4. Prove local AI under the intended network boundary
 
 Block internet egress according to the approved pilot network design before running the local-model acceptance test. Keep only the connectivity required for the approved on-prem services.
