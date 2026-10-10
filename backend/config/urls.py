@@ -19,6 +19,7 @@ urlpatterns = [
     path("api/v1/", include("apps.assets.urls")),
     path("api/v1/", include("apps.actions.urls")),
     path("api/v1/", include("apps.risks.urls")),
+    path("api/v1/", include("apps.risk_governance.urls")),
     path("api/v1/", include("apps.assessments.urls")),
     path("api/v1/", include("apps.evidence.urls")),
     path("api/v1/", include("apps.findings.urls")),

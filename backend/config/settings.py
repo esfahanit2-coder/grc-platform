@@ -31,6 +31,7 @@ INSTALLED_APPS = [
     "apps.assets",
     "apps.actions",
     "apps.risks",
+    "apps.risk_governance",
     "apps.assessments",
     "apps.evidence",
     "apps.findings",
@@ -284,3 +285,9 @@ CELERY_BEAT_SCHEDULE.update(
         },
     }
 )
+
+# Risk acceptance reminders are idempotent per day and scoped per tenant.
+CELERY_BEAT_SCHEDULE["risk-acceptance-review-daily"] = {
+    "task": "apps.risk_governance.tasks.create_risk_acceptance_review_notifications",
+    "schedule": 86400.0,
+}
