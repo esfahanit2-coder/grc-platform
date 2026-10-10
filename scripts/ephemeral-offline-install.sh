@@ -133,6 +133,14 @@ echo '[5/7] Applying approved signed archive from local bytes, without service s
 OFFLINE_INSTALL_START=NO bash scripts/offline-release-apply.sh install \
   "$SIGNED" "$TMP/trusted-public.pem" "$TMP/installed" >/dev/null
 [[ "$(git -C "$TMP/installed/repository" rev-parse HEAD)" == "$SOURCE_SHA" ]]
+# The canonical installer must establish a non-symlink private backup bind source,
+# owned by the same operator as the clean installed repo, before Docker uses it.
+[[ -d "$TMP/installed/repository/backups" && ! -L "$TMP/installed/repository/backups" ]]
+[[ -w "$TMP/installed/repository/backups" ]]
+[[ "$(stat -c '%a' "$TMP/installed/repository/backups")" == "700" ]] || {
+  echo 'ERROR: installed backups directory is not protected mode 0700' >&2
+  exit 4
+}
 [[ ! -e "$TMP/installed/repository/.env" ]] || { echo 'ERROR: runtime env unexpectedly created.' >&2; exit 4; }
 openssl dgst -sha256 -verify "$TMP/trusted-public.pem" \
   -signature "$TMP/installed/release/release-manifest.sig" \
