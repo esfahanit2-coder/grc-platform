@@ -183,6 +183,7 @@ export default function Assessments() {
           <p>Framework Assessment با Snapshot تاریخی و امتیاز انطباق</p>
         </div>
         <Link className="secondaryLink" href="/assessments/generic">موتور ارزیابی عمومی</Link>
+        <Link className="secondaryLink" href="/assessments/history">سوابق یکپارچه</Link>
         <button className="primary" type="button" onClick={() => setShowCreate(value => !value)}>
           {showCreate ? "بستن فرم" : "+ ارزیابی جدید"}
         </button>
