@@ -11,6 +11,7 @@ import json
 import re
 import stat
 import tempfile
+import zipfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -20,7 +21,7 @@ REQUIRED = frozenset({
     "backup-manifest.json",
 })
 ALLOWED = REQUIRED | {"docker-compose.pilot.tls.yml"}
-NAME_RE = re.compile(r"[A-Za-z0-9._-]+\Z")
+NAME_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}\Z")
 HASH_LINE_RE = re.compile(r"([a-fA-F0-9]{64})  (.+)\Z")
 SHA_RE = re.compile(r"[a-fA-F0-9]{40}\Z")
 SCHEMA = "grc-backup-freshness-v1"
@@ -195,6 +196,116 @@ def check(backups_dir: Path, *, max_age_hours: float = 26,
     return result
 
 
+def check_restore(backups_dir: Path, name: str, *,
+                  now: datetime | None = None) -> dict:
+    """Pre-destructive guard for a named backup, irrespective of backup age.
+
+    The result never discloses a backup name/path, archive object names or data.
+    """
+    now = now or datetime.now(timezone.utc)
+    report = {
+        "schema": "grc-restore-preflight-v1", "healthy": False,
+        "checked_hashes": True, "validated_object_archive": False,
+        "release_consistent": None, "reason": "invalid_backup_name_or_directory",
+    }
+    if not NAME_RE.fullmatch(name) or not safe_directory(backups_dir):
+        return report
+    selected = backups_dir / name
+    probe = backup_probe(selected, now)
+    if probe is None:
+        report["reason"] = "backup_metadata_or_files_invalid"
+        return report
+    if not probe["release_consistent"]:
+        report["reason"] = "backup_not_release_consistent"
+        return report
+    report["release_consistent"] = True
+    manifest = read_json(selected / "backup-manifest.json")
+    pg = manifest.get("postgres") if manifest else None
+    if (
+        not isinstance(pg, dict) or isinstance(pg.get("major"), bool)
+        or not isinstance(pg.get("major"), int) or not 1 <= pg["major"] <= 99
+        or manifest.get("objectstore_archive_schema") != 1
+    ):
+        report["reason"] = "backup_format_unsupported"
+        return report
+    try:
+        source_path = selected / "source-commit.txt"
+        if source_path.stat().st_size > 100 or (
+            source_path.read_text(encoding="ascii").strip()
+            != manifest["source_commit"]
+        ):
+            report["reason"] = "backup_release_identity_mismatch"
+            return report
+        with (selected / "postgres.dump").open("rb") as stream:
+            if stream.read(5) != b"PGDMP":
+                report["reason"] = "postgres_custom_dump_header_invalid"
+                return report
+    except (OSError, UnicodeError, KeyError):
+        report["reason"] = "backup_release_identity_mismatch"
+        return report
+
+    catalog = integrity_catalog(selected)
+    if catalog is None or not hash_matches(selected, catalog):
+        report["reason"] = "backup_checksum_mismatch"
+        return report
+
+    # Validate the manifest and every ZIP member *before* a restore script can
+    # delete/replace the target object-storage contents.
+    try:
+        with zipfile.ZipFile(selected / "objectstore.zip") as archive:
+            members = archive.infolist()
+            if len(members) > 1000000:
+                raise ValueError("too many archive members")
+            files = {row.filename: row for row in members}
+            if len(files) != len(members) or "manifest.json" not in files:
+                raise ValueError("ambiguous ZIP member")
+            index = files["manifest.json"]
+            if index.file_size > 32 * 1024 * 1024:
+                raise ValueError("unbounded archive manifest")
+            manifest_bytes = archive.read(index)
+            archive_manifest = json.loads(manifest_bytes)
+            if (
+                not isinstance(archive_manifest, dict)
+                or archive_manifest.get("schema_version") != 1
+                or not isinstance(archive_manifest.get("objects"), list)
+                or archive_manifest.get("object_count") != len(archive_manifest["objects"])
+                or isinstance(archive_manifest["object_count"], bool)
+            ):
+                raise ValueError("invalid archive schema")
+            rows = archive_manifest["objects"]
+            if len(files) != len(rows) + 1:
+                raise ValueError("unexpected archive members")
+            for index, row in enumerate(rows):
+                if not isinstance(row, dict):
+                    raise ValueError("malformed object entry")
+                member_name = f"objects/{index:08d}.bin"
+                expected_size = row.get("size")
+                expected_digest = row.get("sha256")
+                if (
+                    row.get("archive_name") != member_name
+                    or not isinstance(row.get("key"), str) or not row["key"]
+                    or isinstance(expected_size, bool) or not isinstance(expected_size, int)
+                    or expected_size < 0 or member_name not in files
+                    or files[member_name].file_size != expected_size
+                    or not isinstance(expected_digest, str)
+                    or not re.fullmatch(r"[0-9a-f]{64}", expected_digest)
+                ):
+                    raise ValueError("invalid archived object contract")
+                digest = hashlib.sha256()
+                with archive.open(member_name) as stream:
+                    for block in iter(lambda: stream.read(1024 * 1024), b""):
+                        digest.update(block)
+                if digest.hexdigest() != expected_digest:
+                    raise ValueError("inner object checksum mismatch")
+    except (OSError, ValueError, RuntimeError, zipfile.BadZipFile, KeyError, TypeError, EOFError):
+        report["reason"] = "objectstore_archive_invalid"
+        return report
+    report["validated_object_archive"] = True
+    report["healthy"] = True
+    report["reason"] = "validated_before_destructive_restore"
+    return report
+
+
 def self_test() -> None:
     now = datetime(2026, 10, 10, 12, tzinfo=timezone.utc)
     with tempfile.TemporaryDirectory() as directory:
@@ -247,6 +358,47 @@ def self_test() -> None:
         observation["release_consistent_quiesce"] = False
         (backup / "backup-observation.json").write_text(json.dumps(observation), encoding="utf-8")
         assert check(root, now=now)["reason"] == "no_valid_backup"
+        # Recovery-specific fixture: custom-format PG header plus the real
+        # S3-archive manifest contract. Age is deliberately unrestricted.
+        observation["release_consistent_quiesce"] = True
+        (backup / "backup-observation.json").write_text(json.dumps(observation), encoding="utf-8")
+        manifest["postgres"]["major"] = 18
+        manifest["objectstore_archive_schema"] = 1
+        (backup / "backup-manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+        (backup / "source-commit.txt").write_text("a" * 40 + "\n", encoding="ascii")
+        (backup / "postgres.dump").write_bytes(b"PGDMPtest archive header")
+        def make_zip(*, bad_digest: bool = False):
+            with zipfile.ZipFile(backup / "objectstore.zip", "w") as archive:
+                payload = b"sample evidence"
+                archive.writestr("objects/00000000.bin", payload)
+                archive.writestr("manifest.json", json.dumps({
+                    "schema_version": 1, "object_count": 1,
+                    "objects": [{"key": "evidence/test", "archive_name": "objects/00000000.bin",
+                                 "size": len(payload),
+                                 "sha256": "0" * 64 if bad_digest else hashlib.sha256(payload).hexdigest()}],
+                }))
+            rewrite_catalog()
+        make_zip()
+        assert check_restore(root, backup.name, now=now)["healthy"]
+        assert check_restore(root, backup.name, now=now + timedelta(days=500))["healthy"]
+        for unsafe in ("..", ".", "../other", ".hidden", "name/child", ""):
+            assert not check_restore(root, unsafe, now=now)["healthy"]
+        make_zip(bad_digest=True)
+        assert check_restore(root, backup.name, now=now)["reason"] == "objectstore_archive_invalid"
+        make_zip()
+        (backup / "postgres.dump").write_bytes(b"invalid")
+        rewrite_catalog()
+        assert check_restore(root, backup.name, now=now)["reason"] == "postgres_custom_dump_header_invalid"
+        (backup / "postgres.dump").write_bytes(b"PGDMPtest archive header")
+        rewrite_catalog()
+        (backup / "source-commit.txt").write_text("f" * 40, encoding="ascii")
+        rewrite_catalog()
+        assert check_restore(root, backup.name, now=now)["reason"] == "backup_release_identity_mismatch"
+        (backup / "source-commit.txt").write_text("a" * 40 + "\n", encoding="ascii")
+        rewrite_catalog()
+        (backup / "objectstore.zip").unlink()
+        (backup / "objectstore.zip").symlink_to(backup / "postgres.dump")
+        assert check_restore(root, backup.name, now=now)["reason"] == "backup_metadata_or_files_invalid"
     print("datacenter backup freshness and integrity probe self-test passed")
 
 
@@ -259,6 +411,7 @@ def main() -> int:
     )
     parser.add_argument("--max-age-hours", type=float, default=26)
     parser.add_argument("--verify-hashes", action="store_true")
+    parser.add_argument("--restore-preflight", metavar="BACKUP_NAME", help="Validate selected older backup, complete checksums and object archive before destructive restore.")
     parser.add_argument("--self-test", action="store_true")
     args = parser.parse_args()
     if args.self_test:
@@ -266,10 +419,13 @@ def main() -> int:
         return 0
     if not 1 <= args.max_age_hours <= 24 * 365:
         parser.error("--max-age-hours must be between 1 and 8760")
-    outcome = check(
-        Path(args.backups_dir), max_age_hours=args.max_age_hours,
-        verify_hashes=args.verify_hashes,
-    )
+    if args.restore_preflight is not None:
+        outcome = check_restore(Path(args.backups_dir), args.restore_preflight)
+    else:
+        outcome = check(
+            Path(args.backups_dir), max_age_hours=args.max_age_hours,
+            verify_hashes=args.verify_hashes,
+        )
     print(json.dumps(outcome, indent=2, sort_keys=True))
     return 0 if outcome["healthy"] else 4
 

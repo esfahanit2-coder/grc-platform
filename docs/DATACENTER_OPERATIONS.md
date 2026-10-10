@@ -337,6 +337,21 @@ CONFIRM_RESTORE=YES bash scripts/datacenterctl restore <backup-name>
 
 The restore path validates checksums/manifest/source compatibility and PostgreSQL major version, stops writers, restores PostgreSQL and object storage, applies the approved migration path, restarts the application and runs readiness.
 
+### Mandatory non-destructive restore preflight
+
+Before any approved destructive restore or rollback, the operator may validate a **specific** historical backup with no age expiry:
+
+~~~bash
+bash scripts/datacenterctl backup-status --restore-preflight <backup-name>
+~~~
+
+The restore and rollback entrypoints also enforce this check automatically **before changing configuration, stopping services, or switching Git revisions**. The check only accepts safe single-directory backup names and canonical known checksum entries (not arbitrary filesystem paths), rejects symlinks, requires complete release-consistent metadata and a matching source commit, streams full SHA-256 checksums, validates the PostgreSQL custom-dump signature, and checks the object-store ZIP manifest plus the digest/size of each enclosed Evidence object.
+
+The operator receives only a bounded **secret-safe JSON result** and exit status (0 success; 4 missing, malformed or corrupt). A restore from an older backup is permitted if its metadata and complete content are valid; the `--max-age-hours` monitoring threshold does not apply to `--restore-preflight`. An online/non-quiesced backup is deliberately rejected for a coordinated PostgreSQL/object-store disaster-recovery operation.
+
+**Important:** archive structure, hash checks and a valid PostgreSQL header do **not** guarantee that a SQL restore will succeed or prove live service readiness. This check does not write to the database or object store, decrypt customer backups, validate media custody, or measure RPO/RTO. Continue performing an actual isolated restore drill with approved maintenance controls. Use encrypted, access-restricted backup media and never attach backup payloads to GitHub.
+
+
 Issue #7 must execute this on a clean/replacement real host and measure the organization's actual RPO/RTO using controlled application markers. Do not derive an RPO/RTO promise from script duration or CI.
 
 ## 14. Secret-safe support bundle

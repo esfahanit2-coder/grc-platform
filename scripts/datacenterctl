@@ -217,6 +217,12 @@ case "$COMMAND" in
       echo "ERROR: rollback requires exactly one pre-upgrade backup name." >&2
       exit 2
     fi
+    # Validate the entire selected backup before inspecting rollback metadata or
+    # switching Git commits. Does not require a running application or Docker.
+    if ! python scripts/datacenter-backup-status.py --restore-preflight "$1" >/dev/null; then
+      echo "ERROR: rollback backup failed non-destructive preflight." >&2
+      exit 3
+    fi
     backup_manifest="$ROOT/backups/$1/backup-manifest.json"
     if [[ ! -s "$backup_manifest" ]]; then
       echo "ERROR: rollback backup manifest is missing." >&2

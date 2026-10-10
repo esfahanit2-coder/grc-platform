@@ -11,7 +11,7 @@ if [[ ! -f .env ]]; then
 fi
 
 NAME="${1:-$(date -u +%Y%m%dT%H%M%SZ)}"
-if [[ ! "$NAME" =~ ^[A-Za-z0-9._-]+$ ]]; then
+if [[ ! "$NAME" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$ ]]; then
   echo "ERROR: backup name may contain only letters, numbers, dot, underscore and dash." >&2
   exit 2
 fi
