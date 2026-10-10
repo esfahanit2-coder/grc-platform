@@ -21,6 +21,7 @@ urlpatterns = [
     path("api/v1/", include("apps.risks.urls")),
     path("api/v1/", include("apps.risk_governance.urls")),
     path("api/v1/", include("apps.assessments.urls")),
+    path("api/v1/", include("apps.generic_assessments.urls")),
     path("api/v1/", include("apps.evidence.urls")),
     path("api/v1/", include("apps.findings.urls")),
     path("api/v1/", include("apps.internal_audits.urls")),

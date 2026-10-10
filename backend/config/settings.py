@@ -33,6 +33,7 @@ INSTALLED_APPS = [
     "apps.risks",
     "apps.risk_governance",
     "apps.assessments",
+    "apps.generic_assessments",
     "apps.evidence",
     "apps.findings",
     "apps.internal_audits",
