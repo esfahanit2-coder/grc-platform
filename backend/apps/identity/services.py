@@ -23,6 +23,10 @@ PERMISSION_CATALOG = [
     ("role.manage", "identity", "Manage roles and assignments"),
     ("organization.view", "organization", "View organization structure"),
     ("organization.manage", "organization", "Manage organization structure"),
+    ("objective.view", "objective", "View objectives in assigned scope"),
+    ("objective.manage", "objective", "Manage objectives in assigned scope"),
+    ("process.view", "process", "View business processes in assigned scope"),
+    ("process.manage", "process", "Manage business processes in assigned scope"),
     ("audit.view", "audit", "View audit trail"),
     ("security.view", "security", "View security configuration"),
     ("security.manage", "security", "Manage security configuration"),
@@ -87,7 +91,7 @@ SYSTEM_ROLES = {
         "name": "GRC Manager",
         "permissions": [
             "tenant.view", "membership.view", "role.view",
-            "organization.view", "organization.manage", "audit.view", "security.view",
+            "organization.view", "objective.view", "process.view", "objective.manage", "process.manage", "organization.manage", "audit.view", "security.view",
             "framework.view", "framework.manage", "framework.import",
             "framework.mapping.view", "framework.mapping.manage",
             "control.view", "control.manage", "control.implementation.view", "control.implementation.manage",
@@ -116,7 +120,7 @@ SYSTEM_ROLES = {
     "compliance_manager": {
         "name": "Compliance Manager",
         "permissions": [
-            "tenant.view", "organization.view", "framework.view", "framework.mapping.view",
+            "tenant.view", "organization.view", "objective.view", "process.view", "framework.view", "framework.mapping.view",
             "control.view", "control.implementation.view", "risk.view", "asset.view",
             "assessment.view", "assessment.manage", "assessment.perform", "assessment.review",
             "evidence.view", "evidence.manage", "finding.view", "finding.manage", "finding.close",
@@ -136,7 +140,7 @@ SYSTEM_ROLES = {
     "risk_manager": {
         "name": "Risk Manager",
         "permissions": [
-            "tenant.view", "organization.view", "framework.view", "framework.mapping.view",
+            "tenant.view", "organization.view", "objective.view", "process.view", "framework.view", "framework.mapping.view",
             "control.view", "control.implementation.view", "control.implementation.manage",
             "asset.view", "asset.manage", "risk.view", "risk.manage", "risk.evaluate", "risk.treatment.manage",
             "action.view", "action.manage",
@@ -153,7 +157,7 @@ SYSTEM_ROLES = {
     "control_owner": {
         "name": "Control Owner",
         "permissions": [
-            "tenant.view", "organization.view", "framework.view", "control.view",
+            "tenant.view", "organization.view", "objective.view", "process.view", "framework.view", "control.view",
             "control.implementation.view", "control.implementation.manage", "asset.view", "risk.view", "action.view", "action.manage",
             "assessment.view", "assessment.perform", "evidence.view", "evidence.manage", "finding.view",
             "control.test.view",
@@ -168,7 +172,7 @@ SYSTEM_ROLES = {
     "auditor": {
         "name": "Auditor",
         "permissions": [
-            "tenant.view", "organization.view", "audit.view", "framework.view", "framework.mapping.view",
+            "tenant.view", "organization.view", "objective.view", "process.view", "audit.view", "framework.view", "framework.mapping.view",
             "control.view", "control.implementation.view", "asset.view", "risk.view", "action.view",
             "assessment.view", "assessment.perform", "assessment.review", "evidence.view", "finding.view", "finding.manage", "finding.close",
             "internal_audit.view",
@@ -187,7 +191,7 @@ SYSTEM_ROLES = {
     "viewer": {
         "name": "Viewer",
         "permissions": [
-            "tenant.view", "organization.view", "framework.view", "framework.mapping.view",
+            "tenant.view", "organization.view", "objective.view", "process.view", "framework.view", "framework.mapping.view",
             "control.view", "control.implementation.view", "asset.view", "risk.view", "action.view",
             "assessment.view", "evidence.view", "finding.view",
             "internal_audit.view",

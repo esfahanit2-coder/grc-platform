@@ -10,6 +10,8 @@ urlpatterns = [
     path("api/v1/auth/", include("apps.tenancy.auth_urls")),
     path("api/v1/", include("apps.tenancy.urls")),
     path("api/v1/", include("apps.organizations.urls")),
+    path("api/v1/", include("apps.objectives.urls")),
+    path("api/v1/", include("apps.context.urls")),
     path("api/v1/", include("apps.identity.urls")),
     path("api/v1/", include("apps.audit.urls")),
     path("api/v1/", include("apps.frameworks.urls")),
