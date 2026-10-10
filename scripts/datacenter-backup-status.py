@@ -136,7 +136,7 @@ def backup_probe(path: Path, now: datetime) -> dict | None:
         return None
     age = max(0, (now - finished).total_seconds() / 3600)
     return {
-        "name": path.name, "age_hours": round(age, 2),
+        "name": path.name, "age_hours": age,
         "completed_at": finished.isoformat(),
         "release_consistent": manifest["release_consistent_quiesce"],
     }
@@ -173,7 +173,7 @@ def check(backups_dir: Path, *, max_age_hours: float = 26,
         return result
     latest = max(valid, key=lambda row: row["completed_at"])
     result.update(
-        latest_age_hours=latest["age_hours"],
+        latest_age_hours=round(latest["age_hours"], 2),
         latest_completed_at=latest["completed_at"],
         release_consistent=latest["release_consistent"],
     )
@@ -225,6 +225,8 @@ def self_test() -> None:
         rewrite_catalog()
         assert check(root, now=now, verify_hashes=True)["healthy"]
         assert check(root, now=now + timedelta(days=3))["reason"] == "backup_stale"
+        # Never round monitoring thresholds before deciding if a backup is stale.
+        assert check(root, now=now + timedelta(hours=26, seconds=1))["reason"] == "backup_stale"
         (backup / "postgres.dump").write_bytes(b"modified")
         assert check(root, now=now)["healthy"]  # Metadata alone cannot detect damaged bytes.
         assert check(root, now=now, verify_hashes=True)["reason"] == "backup_checksum_mismatch"
