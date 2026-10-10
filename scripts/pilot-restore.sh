@@ -6,7 +6,7 @@ cd "$ROOT"
 umask 077
 
 NAME="${1:-}"
-if [[ -z "$NAME" || ! "$NAME" =~ ^[A-Za-z0-9._-]+$ ]]; then
+if [[ -z "$NAME" || ! "$NAME" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$ ]]; then
   echo "Usage: CONFIRM_RESTORE=YES $0 <backup-name>" >&2
   exit 2
 fi
@@ -20,17 +20,13 @@ if [[ ! -d "$SRC" ]]; then
   echo "ERROR: backup directory not found: $SRC" >&2
   exit 2
 fi
-for required in postgres.dump objectstore.zip config.env backup-manifest.json source-commit.txt SHA256SUMS; do
-  if [[ ! -s "$SRC/$required" ]]; then
-    echo "ERROR: required backup component is missing or empty: $required" >&2
-    exit 3
-  fi
-done
-
-(
-  cd "$SRC"
-  sha256sum -c SHA256SUMS
-)
+# Fail before modifying .env, stopping writers or replacing PostgreSQL/S3.
+# Unlike a raw 'sha256sum -c', the preflight rejects arbitrary paths,
+# unsafe symlinks, incomplete catalogs, broken archives and non-quiesced sets.
+if ! python scripts/datacenter-backup-status.py --restore-preflight "$NAME" >/dev/null; then
+  echo "ERROR: named backup failed the mandatory non-destructive restore preflight." >&2
+  exit 3
+fi
 
 read_manifest() {
   python - "$SRC/backup-manifest.json" "$1" <<'PY'

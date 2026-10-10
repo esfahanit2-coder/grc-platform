@@ -24,6 +24,12 @@ Do not close Issue #7 until the **Measured pilot observations** section is popul
 
 The Django application still talks only to the S3 abstraction. An approved external S3-compatible service can replace the bundled object store through `.env` without changing domain code.
 
+### Restore safety guard
+
+When a destructive restore or rollback is explicitly approved, the operator entrypoint first performs an **offline preflight** on the named backup. It checks canonical SHA-256 catalogs, safe file types, release-consistent PostgreSQL/S3 backup metadata, the PostgreSQL custom-dump header, and the ZIP manifest and enclosed object checksums **before stopping application writers or deleting object storage**.
+
+Use `python scripts/datacenter-backup-status.py --restore-preflight <backup-name>` to test an existing backup read-only without Docker or a working `.env`. This check is not a real-host restore drill; the operator must still prove recovered application records, Evidence checksum and RPO/RTO. Only backups created in quiesced/release-consistent mode are accepted by these destructive restore helpers.
+
 ## 1. Clean-host prerequisites
 
 Prepare a Linux host with:

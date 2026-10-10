@@ -6,7 +6,7 @@ cd "$ROOT"
 umask 077
 
 NAME="${1:-}"
-if [[ -z "$NAME" || ! "$NAME" =~ ^[A-Za-z0-9._-]+$ ]]; then
+if [[ -z "$NAME" || ! "$NAME" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$ ]]; then
   echo "Usage: CONFIRM_ROLLBACK=YES $0 <pre-upgrade-backup-name>" >&2
   exit 2
 fi
@@ -26,10 +26,11 @@ if [[ ! -s "$MANIFEST" || ! -s "$SUMS" ]]; then
   exit 3
 fi
 
-(
-  cd "$ROOT/backups/$NAME"
-  sha256sum -c SHA256SUMS
-)
+# Validate the specific backup before any checkout switch or service change.
+if ! python scripts/datacenter-backup-status.py --restore-preflight "$NAME" >/dev/null; then
+  echo "ERROR: rollback backup failed mandatory non-destructive preflight." >&2
+  exit 3
+fi
 
 read_manifest() {
   python - "$MANIFEST" "$1" <<'PY'
