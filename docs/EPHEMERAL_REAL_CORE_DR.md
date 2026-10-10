@@ -15,6 +15,10 @@ The existing scoped `ephemeral-real-core-install` workflow, on its targeted chan
 7. Calls `datacenterctl verify` again, checks the original backup, checks restore source commit, and only records the synthetic wall-clock duration as a CI observation with customer RPO unset.
 8. Scrubs all temporary files, containers, local volumes and keys in the parent script EXIT trap; the entire runner is disposable. No backup archives, environment files, image tarballs or secrets are uploaded as GitHub artifacts.
 
+## First-run finding and remediation
+
+The initial scoped full-stack run (GitHub Actions run `38083547253`) built and installed the actual signed images and passed real core startup and initial SQL/S3 synthetic markers, but the official backup stopped immediately when it could not create `repository/backups/<name>`: `Permission denied`. The ops container bind mount `./backups:/backups` had created the missing host directory as Docker's root user during the earlier test marker, making it unwritable by the non-root offline-install operator. The **canonical offline installer** now explicitly creates an operator-owned, private mode-0700 `repository/backups` directory as part of clean installation, before any ops container can mount it. The full-stack script also asserts this directory exists, is not a symlink, is writable and has mode 0700 before startup. This is a clean-host operational defect, not a change to Docker daemon permissions or an excuse to run backup with privileged sudo. The next exact-head test must prove the remedy.
+
 ## Bounded runtime and controls
 
 - Outer and inner scripts require `GITHUB_ACTIONS=true` plus separate `GRC_CORE_INSTALL_EPHEMERAL_ONLY=YES` and `GRC_CORE_DR_EPHEMERAL_ONLY=YES`. Scripts reject existing checkout .env, source-SHA mismatch or reused backup name.
