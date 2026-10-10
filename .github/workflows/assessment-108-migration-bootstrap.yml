@@ -1,0 +1,45 @@
+# Branch-scoped one-shot migration generation; removes itself after successful push.
+name: generate-generic-assessment-migration-108
+on:
+  push:
+    branches: [feature/108-generic-assessment-foundations]
+permissions:
+  contents: read
+jobs:
+  generate:
+    if: github.event.head_commit.message == 'chore(108): generate reproducible Django migration'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      APP_ENV: test
+      DJANGO_SECRET_KEY: migration-bootstrap-secret-key-long-enough-for-django
+      POSTGRES_DB: grc_bootstrap
+      POSTGRES_USER: grc
+      POSTGRES_PASSWORD: grc
+      POSTGRES_HOST: 127.0.0.1
+      POSTGRES_PORT: "5432"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install locked runtime requirements
+        run: python -m pip install -r backend/requirements.lock.txt
+      - name: Reproducibly generate migration
+        working-directory: backend
+        run: |
+          python manage.py makemigrations generic_assessments --noinput
+          python manage.py check
+          test -f apps/generic_assessments/migrations/0001_initial.py
+      - name: Publish generated migration and delete this bootstrap workflow
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add backend/apps/generic_assessments/migrations/0001_initial.py
+          git rm .github/workflows/assessment-108-migration-bootstrap.yml
+          git diff --cached --stat
+          git commit -m "build(108): generated additive assessment model migration"
+          git push origin HEAD:feature/108-generic-assessment-foundations
