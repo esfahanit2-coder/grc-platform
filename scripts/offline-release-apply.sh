@@ -50,7 +50,7 @@ if len(roots) != 1:
     raise SystemExit("ERROR: bundle must contain exactly one top-level directory")
 PY
 STAGE="$(find "$TMP" -mindepth 1 -maxdepth 1 -type d -print -quit)"
-"$ROOT/scripts/offline-release-verify.sh" "$STAGE" "$TRUSTED_PUBLIC_KEY" >/dev/null
+bash "$ROOT/scripts/offline-release-verify.sh" "$STAGE" "$TRUSTED_PUBLIC_KEY" >/dev/null
 
 read_manifest() {
   python - "$STAGE/release-manifest.json" "$1" <<'PY'
