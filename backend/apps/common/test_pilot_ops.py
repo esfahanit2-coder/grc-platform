@@ -1,3 +1,4 @@
+import hashlib
 import io
 import json
 import tempfile
@@ -79,6 +80,77 @@ class PilotObjectStoreArchiveTests(SimpleTestCase):
             with self.assertRaisesMessage(CommandError, "not empty"):
                 Command()._restore(target, "grc-evidence", archive_path, replace=False)
             self.assertEqual(target.objects, {"existing": b"keep"})
+
+
+    def test_bad_later_object_is_rejected_before_replace_deletes_original(self):
+        source = FakeS3Client({"one": b"valid", "two": b"expected-later-object"})
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "objects.zip"
+            Command()._export(source, "grc-evidence", path)
+            with zipfile.ZipFile(path) as archive:
+                manifest = json.loads(archive.read("manifest.json"))
+            with zipfile.ZipFile(path, "w") as archive:
+                archive.writestr("objects/00000000.bin", b"valid")
+                archive.writestr("objects/00000001.bin", b"modified-after-backup")
+                archive.writestr("manifest.json", json.dumps(manifest))
+            target = FakeS3Client({"existing-valuable-evidence": b"keep this"})
+            with self.assertRaisesMessage(CommandError, "checksum/length mismatch"):
+                Command()._restore(target, "grc-evidence", path, replace=True)
+            self.assertEqual(target.objects, {"existing-valuable-evidence": b"keep this"})
+
+    def test_untrusted_archive_metadata_never_reaches_destructive_restore(self):
+        payload = b"evidence bytes"
+        valid_row = {
+            "key": "tenant/evidence-1", "archive_name": "objects/00000000.bin",
+            "size": len(payload), "sha256": hashlib.sha256(payload).hexdigest(),
+            "content_type": "application/octet-stream", "metadata": {},
+        }
+        manifest = {
+            "schema_version": 1, "object_count": 1,
+            "objects": [valid_row],
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "objects.zip"
+            cases = [
+                ("unsupported-schema", {**manifest, "schema_version": 2}, ["objects/00000000.bin"]),
+                ("wrong-count", {**manifest, "object_count": 2}, ["objects/00000000.bin"]),
+                ("missing-member", manifest, []),
+                ("extra-member", manifest, ["objects/00000000.bin", "extra/file"]),
+                ("wrong-member-name", {**manifest, "objects": [
+                    {**valid_row, "archive_name": "../other"}]}, ["objects/00000000.bin"]),
+                ("wrong-size", {**manifest, "objects": [
+                    {**valid_row, "size": len(payload) + 5}]}, ["objects/00000000.bin"]),
+                ("wrong-hash", {**manifest, "objects": [
+                    {**valid_row, "sha256": "0" * 64}]}, ["objects/00000000.bin"]),
+                ("unsafe-metadata", {**manifest, "objects": [
+                    {**valid_row, "metadata": {"scope": ["bad-type"]}}]}, ["objects/00000000.bin"]),
+                ("duplicate-keys", {**manifest, "object_count": 2, "objects": [
+                    valid_row, {**valid_row, "archive_name": "objects/00000001.bin"}]},
+                    ["objects/00000000.bin", "objects/00000001.bin"]),
+            ]
+            for label, sample_manifest, members in cases:
+                with self.subTest(case=label):
+                    with zipfile.ZipFile(path, "w") as archive:
+                        for member in members:
+                            archive.writestr(member, payload)
+                        archive.writestr("manifest.json", json.dumps(sample_manifest))
+                    target = FakeS3Client({"existing": b"cannot-delete"})
+                    with self.assertRaises(CommandError):
+                        Command()._restore(target, "grc-evidence", path, replace=True)
+                    self.assertEqual(target.objects, {"existing": b"cannot-delete"})
+
+    def test_corrupt_archive_and_symlink_fail_before_replace(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "invalid.zip"
+            path.write_bytes(b"not-a-zip")
+            target = FakeS3Client({"existing": b"do-not-delete"})
+            with self.assertRaises(CommandError):
+                Command()._restore(target, "grc-evidence", path, replace=True)
+            link = Path(directory) / "linked.zip"
+            link.symlink_to(path)
+            with self.assertRaises(CommandError):
+                Command()._restore(target, "grc-evidence", link, replace=True)
+            self.assertEqual(target.objects, {"existing": b"do-not-delete"})
 
 
 class PilotBackupScriptContractTests(SimpleTestCase):
