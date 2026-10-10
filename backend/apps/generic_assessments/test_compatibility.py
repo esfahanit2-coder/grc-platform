@@ -44,7 +44,7 @@ class AssessmentHistoryTests(APITestCase):
         )
         version = AssessmentTemplateVersion.objects.create(template=template, version_code="1")
         TemplateCriterion.objects.create(version=version, code="A", title="Recovery readiness", response_type="boolean")
-        publish_template(version=version, user=self.reviewer)
+        version = publish_template(version=version, user=self.reviewer)
         self.generic = GenericAssessmentRun.objects.create(
             tenant=self.tenant, organization_unit=self.scope, template_version=version,
             owner=self.admin, title="Modern result",
