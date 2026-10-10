@@ -89,7 +89,9 @@ INSERT INTO ci_real_core_recovery_marker(marker) VALUES ('pre-backup');
 SQL
       ;;
     mutate)
-      "${COMPOSE[@]}" exec -T postgres sh -c 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "INSERT INTO ci_real_core_recovery_marker(marker) VALUES ('\''post-backup'\'');"' >/dev/null
+      "${COMPOSE[@]}" exec -T postgres sh -c 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"' <<'SQL' >/dev/null
+INSERT INTO ci_real_core_recovery_marker(marker) VALUES ('post-backup');
+SQL
       ;;
     prove-denial)
       local rows
@@ -120,7 +122,7 @@ echo '[DR 3/8] Introducing post-backup mutations in running PostgreSQL and Seawe
 db_marker mutate
 s3_marker mutate
 echo '[DR 4/8] Proving a corrupted backup is refused BEFORE database or Evidence deletion.'
-ORIGINAL="$(mktemp --tmpdir "${NAME}-original-objectstore-XXXXXXXX.zip")"
+ORIGINAL="$(mktemp "$INSTALL_REPO/../${NAME}-original-objectstore-XXXXXXXX.zip")"
 chmod 600 "$ORIGINAL"
 cp "$BACKUP/objectstore.zip" "$ORIGINAL"
 # A checksum mismatch must stop the destructive recovery script before any service changes.
