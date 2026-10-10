@@ -148,7 +148,8 @@ assert {x['role'] for x in images} == {'backend','frontend','postgres','redis',
                                        'objectstore','ollama','gateway'}
 assert all(row['image_id'] == sys.argv[2] for row in images), 'unexpected image identity'
 PY
-for tag in "${TAGS[@]}"; do
+# The import-only base tag was not part of the signed seven-role release.
+for tag in "${TAGS[@]:1}"; do
   [[ "$(docker image inspect --format '{{.Id}}' "$tag")" == "$BASE_ID" ]]
 done
 
