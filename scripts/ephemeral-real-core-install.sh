@@ -179,6 +179,11 @@ assert not report.get('missing_images'), 'Missing signed image'
 print('Full signed core runtime checks PASSED (synthetic operator keys).')
 PY
 
+if [[ "${GRC_CORE_DR_EPHEMERAL_ONLY:-NO}" == "YES" ]]; then
+  echo '[DR] Running real full-stack synthetic recovery on the installed signed commit.'
+  bash "$INSTALL/repository/scripts/ephemeral-real-core-dr.sh" "$INSTALL/repository" "$SHA"
+fi
+
 echo '[8/8] Recording CI-only evidence; cleaning synthetic environment.'
 if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
   {
