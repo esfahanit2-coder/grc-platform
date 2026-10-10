@@ -103,6 +103,15 @@ if [[ "$MODE" == "install" ]]; then
     echo "ERROR: source bundle checkout does not match signed source commit." >&2
     exit 4
   fi
+  # Bind-mounted /backups must be created by the host operator before the first
+  # 'docker compose run ops'. Otherwise Docker creates a root-owned directory
+  # and legitimate operator backups fail with Permission denied.
+  if [[ -L "$REPOSITORY/backups" || -e "$REPOSITORY/backups" ]]; then
+    echo "ERROR: freshly installed repository unexpectedly contains a backups path." >&2
+    exit 4
+  fi
+  install -d -m 700 "$REPOSITORY/backups"
+
   install -m 600 "$STAGE/release-manifest.json" "$RELEASE_DIR/release-manifest.json"
   install -m 600 "$STAGE/release-manifest.sig" "$RELEASE_DIR/release-manifest.sig"
   install -m 600 "$STAGE/metadata/images.json" "$RELEASE_DIR/images.json"
