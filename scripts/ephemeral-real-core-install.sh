@@ -155,6 +155,13 @@ echo '[6/8] Using the unmodified signed offline installer to restore core images
 OFFLINE_INSTALL_START=NO bash scripts/offline-release-apply.sh install \
   "$SIGNED" "$TMP/trusted-public.pem" "$INSTALL" "$TMP/production.env" >/dev/null
 [[ "$(git -C "$INSTALL/repository" rev-parse HEAD)" == "$SHA" ]]
+# A clean install must never let Docker first-create /backups as root.
+[[ -d "$INSTALL/repository/backups" && ! -L "$INSTALL/repository/backups" ]]
+[[ -w "$INSTALL/repository/backups" ]]
+[[ "$(stat -c '%a' "$INSTALL/repository/backups")" == "700" ]] || {
+  echo 'ERROR: signed installer did not provision operator-writable private backups directory.' >&2
+  exit 4
+}
 for tag in "${TEST_TAGS[@]}"; do docker image inspect "$tag" >/dev/null; done
 echo '[7/8] Starting exact preloaded core application through datacenterctl.'
 (
