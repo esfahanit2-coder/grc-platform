@@ -212,3 +212,64 @@ class NotificationDeliveryTests(APITestCase):
         self.auth(self.user)
         denied = self.client.get("/api/v1/notification-deliveries/")
         self.assertEqual(denied.status_code, 403)
+
+    def test_notification_inbox_summary_and_bulk_read_are_user_tenant_scoped(self):
+        own = Notification.objects.create(
+            tenant=self.tenant,
+            user=self.user,
+            title="My notification",
+        )
+        someone_elses = Notification.objects.create(
+            tenant=self.tenant,
+            user=self.admin,
+            title="Admin notification",
+        )
+        separate_tenant = Tenant.objects.create(
+            name="Separate notification tenant",
+            code="separate-notification-tenant",
+        )
+        TenantMembership.objects.create(
+            tenant=separate_tenant,
+            user=self.user,
+            role_code="member",
+        )
+        another_tenant = Notification.objects.create(
+            tenant=separate_tenant,
+            user=self.user,
+            title="Other tenant notification",
+        )
+
+        self.auth(self.user)
+        inbox = self.client.get("/api/v1/notifications/?unread=1")
+        self.assertEqual(inbox.status_code, 200)
+        self.assertEqual(inbox.data["count"], 1)
+        self.assertEqual(str(inbox.data["results"][0]["id"]), str(own.id))
+
+        summary = self.client.get("/api/v1/notifications/summary/")
+        self.assertEqual(summary.status_code, 200)
+        self.assertEqual(summary.data["unread"], 1)
+
+        cross_user = self.client.post(
+            f"/api/v1/notifications/{someone_elses.id}/read/"
+        )
+        self.assertEqual(cross_user.status_code, 404)
+        cross_tenant = self.client.post(
+            f"/api/v1/notifications/{another_tenant.id}/read/"
+        )
+        self.assertEqual(cross_tenant.status_code, 404)
+
+        bulk = self.client.post("/api/v1/notifications/read-all/")
+        self.assertEqual(bulk.status_code, 200)
+        self.assertEqual(bulk.data["updated"], 1)
+        own.refresh_from_db()
+        someone_elses.refresh_from_db()
+        another_tenant.refresh_from_db()
+        self.assertIsNotNone(own.read_at)
+        self.assertIsNone(someone_elses.read_at)
+        self.assertIsNone(another_tenant.read_at)
+
+        after = self.client.get("/api/v1/notifications/?unread=1")
+        self.assertEqual(after.data["count"], 0)
+        self.assertEqual(
+            self.client.get("/api/v1/notifications/summary/").data["unread"], 0
+        )
