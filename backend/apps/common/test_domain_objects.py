@@ -377,3 +377,65 @@ class DomainObjectRegistryTests(TestCase):
         self.assertTrue(valid_link("risk", self.risk.id))
         self.assertTrue(supports_domain_object_type("audit", capability="workflow"))
         self.assertFalse(valid_link("unregistered", self.risk.id))
+
+
+    def test_corrupted_foreign_organization_scope_is_cloaked_across_consumers(self):
+        from rest_framework.exceptions import ValidationError
+        from apps.common.domain_objects import inspect_domain_reference
+        from apps.documents.models import Document
+        from apps.documents.serializers import DocumentLinkSerializer
+        from apps.evidence.services import link_scope
+        from apps.risks.models import Risk
+        from apps.workflows.services import resolve_workflow_object
+
+        # Construct an import-corrupted relationship that normal public
+        # serializers should never allow: owning tenant A, scope tenant B.
+        corrupted = Risk.objects.create(
+            tenant=self.tenant, organization_unit=self.other_unit,
+            code="CROSS-SCOPE", title="Invalid scope", owner=self.user,
+        )
+        self.assertEqual(
+            inspect_domain_reference(
+                tenant=self.tenant, type_code="risk",
+                object_id=corrupted.id, capability="evidence",
+            ),
+            "invalid_scope",
+        )
+        self.assertIsNone(
+            resolve_domain_object(self.tenant, "risk", corrupted.id)
+        )
+        self.assertEqual(
+            link_scope(self.tenant, "risk", corrupted.id), (None, None)
+        )
+        with self.assertRaises(ValidationError):
+            resolve_workflow_object(self.tenant, "risk", corrupted.id)
+
+        document = Document.objects.create(
+            tenant=self.tenant, organization_unit=self.unit,
+            document_type="policy", code="SCOPE-CLOAK",
+            title="Safe document", owner=self.user,
+        )
+        link = DocumentLinkSerializer(
+            data={
+                "document": str(document.id), "object_type": "risk",
+                "object_id": str(corrupted.id), "relation_type": "supports",
+            },
+            context={"tenant": self.tenant},
+        )
+        self.assertFalse(link.is_valid())
+        self.assertIn("object_id", link.errors)
+
+        # Valid local scope and optional (unassigned) organization scope
+        # remain resolvable; this change is restrictive only for invalid data.
+        self.assertEqual(
+            resolve_domain_object(self.tenant, "risk", self.risk.id),
+            self.risk,
+        )
+        unscoped = Risk.objects.create(
+            tenant=self.tenant, organization_unit=None,
+            code="NO-SCOPE", title="Unscoped risk", owner=self.user,
+        )
+        self.assertEqual(
+            resolve_domain_object(self.tenant, "risk", unscoped.id),
+            unscoped,
+        )
