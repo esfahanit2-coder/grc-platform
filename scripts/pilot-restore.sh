@@ -115,8 +115,10 @@ START_ISO="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 echo "[1/8] Stopping application writers..."
 "${COMPOSE[@]}" stop gateway frontend worker beat backend >/dev/null 2>&1 || true
 
-echo "[2/8] Starting restore dependencies..."
-"${COMPOSE[@]}" up -d postgres redis objectstore >/dev/null
+echo "[2/8] Starting restore dependencies and waiting for PostgreSQL/Redis health..."
+# A completely empty replacement volume requires database initialization before psql/pg_restore.
+# Compose --wait blocks until healthy services (PostgreSQL/Redis) or started non-healthchecked services (S3).
+"${COMPOSE[@]}" up -d --wait postgres redis objectstore >/dev/null
 
 TARGET_PG_VERSION_NUM="$("${COMPOSE[@]}" exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atqc "SHOW server_version_num"' | tr -d '\r[:space:]')"
 if [[ ! "$TARGET_PG_VERSION_NUM" =~ ^[0-9]+$ ]]; then
@@ -142,11 +144,15 @@ echo "[4/8] Auditing pending migrations before application startup..."
 echo "[5/8] Applying audited forward migrations..."
 "${COMPOSE[@]}" --profile ops run --rm ops python manage.py migrate --noinput
 
+S3_RESTORE_ARGS=(--replace)
+if [[ "${RESTORE_INITIALIZE_MISSING_BUCKET:-NO}" == "YES" ]]; then
+  S3_RESTORE_ARGS+=(--initialize-missing-bucket)
+fi
 echo "[6/8] Restoring object storage..."
 "${COMPOSE[@]}" --profile ops run --rm ops \
   python manage.py pilot_objectstore_archive restore \
   --archive "/backups/$NAME/objectstore.zip" \
-  --replace
+  "${S3_RESTORE_ARGS[@]}"
 
 echo "[7/8] Starting application services and waiting for health..."
 APP_SERVICES=(backend worker beat frontend gateway)
