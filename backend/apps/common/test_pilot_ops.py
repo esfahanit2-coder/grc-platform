@@ -5,6 +5,9 @@ import tempfile
 import zipfile
 from pathlib import Path
 
+from botocore.exceptions import ClientError
+from unittest.mock import patch
+
 from django.core.management.base import CommandError
 from django.test import SimpleTestCase
 
@@ -70,6 +73,50 @@ class PilotObjectStoreArchiveTests(SimpleTestCase):
                 target.metadata["tenant/a/evidence/one.txt"],
                 {"classification": "internal"},
             )
+
+    def test_missing_replacement_bucket_requires_opt_in_and_integrity(self):
+        source = FakeS3Client({"ci/marker": b"pre-backup"})
+        with tempfile.TemporaryDirectory() as directory:
+            archive = Path(directory) / "objectstore.zip"
+            Command()._export(source, "grc-evidence", archive)
+
+            class MissingBucket(FakeS3Client):
+                created = False
+
+                def head_bucket(self, Bucket):
+                    if not self.created:
+                        raise ClientError({"Error": {"Code": "404", "Message": "not found"}}, "HeadBucket")
+
+                def create_bucket(self, Bucket, **kwargs):
+                    assert Bucket == "grc-evidence"
+                    self.created = True
+
+            target = MissingBucket()
+            with (
+                patch("apps.common.management.commands.pilot_objectstore_archive.s3_client", return_value=target),
+                patch("apps.common.management.commands.pilot_objectstore_archive.settings.S3_BUCKET", "grc-evidence"),
+                patch("apps.common.management.commands.pilot_objectstore_archive.settings.S3_REGION", "us-east-1"),
+            ):
+                with self.assertRaises(CommandError):
+                    Command().handle(operation="restore", archive=str(archive), replace=True,
+                                     initialize_missing_bucket=False)
+                self.assertFalse(target.created)
+                with self.assertRaises(CommandError):
+                    Command().handle(operation="restore", archive=str(archive), replace=False,
+                                     initialize_missing_bucket=True)
+                self.assertFalse(target.created)
+
+                corrupt = Path(directory) / "invalid.zip"
+                corrupt.write_bytes(b"not a zip")
+                with self.assertRaises(CommandError):
+                    Command().handle(operation="restore", archive=str(corrupt), replace=True,
+                                     initialize_missing_bucket=True)
+                self.assertFalse(target.created)
+
+                Command().handle(operation="restore", archive=str(archive), replace=True,
+                                 initialize_missing_bucket=True)
+                self.assertTrue(target.created)
+                self.assertEqual(target.objects, source.objects)
 
     def test_restore_refuses_nonempty_bucket_without_replace(self):
         source = FakeS3Client({"one": b"1"})
