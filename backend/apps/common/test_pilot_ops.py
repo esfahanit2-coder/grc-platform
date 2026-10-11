@@ -237,6 +237,22 @@ class PilotRestoreIdentityContractTests(SimpleTestCase):
         )
 
 
+class DatacenterEncryptedCustodyContractTests(SimpleTestCase):
+    def test_custody_commands_bypass_docker_and_never_take_secret_key_values(self):
+        root = Path(__file__).resolve().parents[3]
+        cli = (root / "scripts" / "datacenterctl").read_text(encoding="utf-8")
+        transfer = (root / "scripts" / "datacenter-backup-transfer.py").read_text(encoding="utf-8")
+        self.assertIn('if [[ "$COMMAND" == "custody-export" || "$COMMAND" == "custody-import" ]]', cli)
+        self.assertLess(
+            cli.index('if [[ "$COMMAND" == "custody-export" || "$COMMAND" == "custody-import" ]]'),
+            cli.index("require_env\\ncompose_args"),
+        )
+        self.assertIn("valid_backup(root, name)", transfer)
+        self.assertIn("status.check_restore(staging, name)", transfer)
+        self.assertIn("os.link(temp_name, output)", transfer)
+        self.assertIn("os.rename(selected, destination)", transfer)
+
+
 class DatacenterRecoveryPreflightContractTests(SimpleTestCase):
     def test_recovery_preflight_is_read_only_and_bypasses_docker(self):
         root = Path(__file__).resolve().parents[3]
