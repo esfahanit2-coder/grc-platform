@@ -191,6 +191,12 @@ if [[ "${GRC_CORE_DR_EPHEMERAL_ONLY:-NO}" == "YES" ]]; then
   bash "$INSTALL/repository/scripts/ephemeral-real-core-dr.sh" "$INSTALL/repository" "$SHA"
 fi
 
+if [[ "${GRC_CORE_REPLACEMENT_EPHEMERAL_ONLY:-NO}" == "YES" ]]; then
+  echo '[REPL] Switching to a second signed install and clean Docker volumes.'
+  bash "$INSTALL/repository/scripts/ephemeral-replacement-core-dr.sh" \
+    "$INSTALL/repository" "$SIGNED" "$TMP/trusted-public.pem" \
+    "$TMP/replacement" "$TMP/production.env" "$SHA"
+fi
 echo '[8/8] Recording CI-only evidence; cleaning synthetic environment.'
 if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
   {
