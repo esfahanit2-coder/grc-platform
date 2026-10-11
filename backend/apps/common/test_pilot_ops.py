@@ -245,7 +245,7 @@ class DatacenterEncryptedCustodyContractTests(SimpleTestCase):
         self.assertIn('if [[ "$COMMAND" == "custody-export" || "$COMMAND" == "custody-import" ]]', cli)
         self.assertLess(
             cli.index('if [[ "$COMMAND" == "custody-export" || "$COMMAND" == "custody-import" ]]'),
-            cli.index("require_env\\ncompose_args"),
+            cli.index("require_env\ncompose_args"),
         )
         self.assertIn("valid_backup(root, name)", transfer)
         self.assertIn("status.check_restore(staging, name)", transfer)
