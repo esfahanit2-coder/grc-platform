@@ -423,15 +423,15 @@ class ControlledDocumentLifecycleTests(APITestCase):
         )
         foreign_doc = Document.objects.create(
             tenant=foreign_tenant, organization_unit=foreign_unit,
-            document_type="policy", code="F-1", title="Foreign doc", owner=self.user,
+            document_type="policy", code="F-1", title="Foreign doc", owner=self.admin,
         )
         foreign_risk = Risk.objects.create(
             tenant=foreign_tenant, organization_unit=foreign_unit,
-            code="FOREIGN-DOC-LINK", title="Foreign risk", owner=self.user,
+            code="FOREIGN-DOC-LINK", title="Foreign risk", owner=self.admin,
         )
         own_risk = Risk.objects.create(
             tenant=self.tenant, organization_unit=self.unit,
-            code="LOCAL-DOC-LINK", title="Own risk", owner=self.user,
+            code="LOCAL-DOC-LINK", title="Own risk", owner=self.admin,
         )
         def check(document_id, type_code, target_id):
             serializer = DocumentLinkSerializer(
