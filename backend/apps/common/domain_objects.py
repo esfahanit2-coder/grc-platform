@@ -20,73 +20,83 @@ class DomainObjectSpec:
 _SPECS = (
     DomainObjectSpec(
         "objective", "objectives", "Objective", "tenant", "organization_unit",
-        ("organization_unit",), capabilities=frozenset({"evidence", "workflow"}),
+        ("organization_unit",), capabilities=frozenset({"evidence", "workflow", "document_link"}),
     ),
     DomainObjectSpec(
         "business_process", "context", "BusinessProcess", "tenant", "organization_unit",
-        ("organization_unit",), capabilities=frozenset({"evidence", "workflow"}),
+        ("organization_unit",), capabilities=frozenset({"evidence", "workflow", "document_link"}),
     ),
     DomainObjectSpec(
         "risk", "risks", "Risk", "tenant", "organization_unit",
-        ("organization_unit",), capabilities=frozenset({"evidence", "workflow", "ai_target"}),
+        ("organization_unit",), capabilities=frozenset({"evidence", "workflow", "ai_target", "document_link"}),
     ),
     DomainObjectSpec(
         "assessment", "assessments", "Assessment", "tenant", "organization_unit",
-        ("organization_unit",), capabilities=frozenset({"evidence", "workflow"}),
+        ("organization_unit",), capabilities=frozenset({"evidence", "workflow", "document_link"}),
     ),
     DomainObjectSpec(
         "assessment_item", "assessments", "AssessmentItem", "assessment__tenant",
         "assessment__organization_unit", ("assessment__organization_unit",),
-        capabilities=frozenset({"evidence", "action_source"}),
+        capabilities=frozenset({"evidence", "action_source", "document_link"}),
     ),
     DomainObjectSpec(
         "control_implementation", "controls", "ControlImplementation", "tenant",
-        "organization_unit", ("organization_unit",), capabilities=frozenset({"evidence"}),
+        "organization_unit", ("organization_unit",), capabilities=frozenset({"evidence", "document_link"}),
     ),
     DomainObjectSpec(
         "finding", "findings", "Finding", "tenant", "organization_unit",
-        ("organization_unit",), capabilities=frozenset({"evidence", "workflow", "action_source"}),
+        ("organization_unit",), capabilities=frozenset({"evidence", "workflow", "action_source", "document_link"}),
     ),
     DomainObjectSpec(
         "risk_treatment", "risks", "RiskTreatment", "risk__tenant",
         "risk__organization_unit", ("risk__organization_unit",),
-        capabilities=frozenset({"action_source"}),
+        capabilities=frozenset({"action_source", "document_link"}),
     ),
     DomainObjectSpec(
         "control", "controls", "Control", "tenant", None, (),
-        allow_global=True, capabilities=frozenset({"ai_target"}),
+        allow_global=True, capabilities=frozenset({"ai_target", "document_link"}),
     ),
     DomainObjectSpec(
         "action", "actions", "Action", "tenant", "organization_unit",
-        ("organization_unit",), capabilities=frozenset({"evidence", "workflow"}),
+        ("organization_unit",), capabilities=frozenset({"evidence", "workflow", "document_link"}),
     ),
     DomainObjectSpec(
         "requirement", "frameworks", "Requirement",
         "framework_version__framework__tenant", None,
         ("framework_version__framework",), allow_global=True,
-        capabilities=frozenset({"evidence"}),
+        capabilities=frozenset({"evidence", "document_link"}),
     ),
     DomainObjectSpec(
         "audit_workpaper", "internal_audits", "Workpaper", "engagement__tenant",
         "engagement__organization_unit", ("engagement__organization_unit",),
-        capabilities=frozenset({"evidence"}),
+        capabilities=frozenset({"evidence", "document_link"}),
     ),
     DomainObjectSpec(
         "control_test_run", "controls", "ControlTestRun",
         "control_test__control_implementation__tenant",
         "control_test__control_implementation__organization_unit",
         ("control_test__control_implementation__organization_unit",),
-        capabilities=frozenset({"evidence"}),
+        capabilities=frozenset({"evidence", "document_link"}),
     ),
     DomainObjectSpec(
         "document", "documents", "Document", "tenant", "organization_unit",
-        ("organization_unit",), capabilities=frozenset({"evidence", "workflow"}),
+        ("organization_unit",), capabilities=frozenset({"evidence", "workflow", "document_link"}),
+    ),
+    DomainObjectSpec(
+        "audit_engagement", "internal_audits", "AuditEngagement", "tenant",
+        "organization_unit", ("organization_unit",),
+        capabilities=frozenset({"document_link"}),
+    ),
+    DomainObjectSpec(
+        "evidence", "evidence", "Evidence", "tenant",
+        "organization_unit", ("organization_unit",),
+        capabilities=frozenset({"document_link"}),
     ),
     # Keep the legacy workflow type code stable. Future APIs may expose the
     # more explicit audit_engagement code without breaking existing records.
     DomainObjectSpec(
         "audit", "internal_audits", "AuditEngagement", "tenant", "organization_unit",
-        ("organization_unit",), capabilities=frozenset({"workflow"}),
+        ("organization_unit",), capabilities=frozenset({"workflow", "document_link"}),
     ),
 )
 
