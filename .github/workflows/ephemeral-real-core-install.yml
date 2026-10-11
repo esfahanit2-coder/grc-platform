@@ -9,6 +9,8 @@ on:
       - "scripts/ephemeral-replacement-core-dr.sh"
       - "scripts/pilot-restore.sh"
       - "scripts/datacenter-restore-config-check.py"
+      - "scripts/datacenter-recovery-preflight.py"
+      - "scripts/datacenterctl"
       - "backend/apps/common/management/commands/pilot_objectstore_archive.py"
   workflow_dispatch:
 
