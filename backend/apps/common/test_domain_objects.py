@@ -439,3 +439,61 @@ class DomainObjectRegistryTests(TestCase):
             resolve_domain_object(self.tenant, "risk", unscoped.id),
             unscoped,
         )
+
+
+    def test_integrity_audit_enforces_document_link_capability_like_serializer(self):
+        from unittest.mock import patch
+
+        from apps.common.domain_objects import (
+            DOMAIN_OBJECT_REGISTRY,
+            DomainObjectSpec,
+        )
+        from apps.common.management.commands.verify_domain_references import (
+            collect_domain_reference_findings,
+        )
+        from apps.documents.models import Document, DocumentLink
+        from apps.documents.serializers import DocumentLinkSerializer
+
+        document = Document.objects.create(
+            tenant=self.tenant, organization_unit=self.unit,
+            document_type="policy", code="AUDIT-CAPABILITY",
+            title="Document capability audit", owner=self.user,
+        )
+        synthetic_type = "evidence_only_test_type"
+        # Simulate a future registered target type that intentionally does
+        # not support document_link; all currently shipped types do support it.
+        spec = DomainObjectSpec(
+            synthetic_type, "risks", "Risk", "tenant",
+            "organization_unit", ("organization_unit",),
+            capabilities=frozenset({"evidence"}),
+        )
+        # A legacy or direct-DB link can predate serializer validation.
+        link = DocumentLink.objects.create(
+            tenant=self.tenant, document=document,
+            object_type=synthetic_type, object_id=self.risk.pk,
+            relation_type="supports",
+        )
+        with patch.dict(DOMAIN_OBJECT_REGISTRY, {synthetic_type: spec}):
+            serializer = DocumentLinkSerializer(
+                data={
+                    "document": str(document.pk),
+                    "object_type": synthetic_type,
+                    "object_id": str(self.risk.pk),
+                    "relation_type": "supports",
+                },
+                context={"tenant": self.tenant},
+            )
+            self.assertFalse(serializer.is_valid())
+            self.assertIn("object_type", serializer.errors)
+
+            report = collect_domain_reference_findings(tenant_id=self.tenant.pk)
+            findings = [
+                item for item in report["findings"]
+                if item["source"] == "document_link"
+                and item["row_id"] == str(link.pk)
+            ]
+            self.assertEqual(len(findings), 1)
+            self.assertEqual(findings[0]["status"], "unsupported_capability")
+            self.assertEqual(
+                report["by_status"].get("unsupported_capability"), 1
+            )
