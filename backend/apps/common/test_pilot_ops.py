@@ -217,6 +217,14 @@ class PilotRestoreScriptContractTests(SimpleTestCase):
         self.assertIn('--user "$(id -u):$(id -g)"', script)
         self.assertIn("restore-migration-plan.json", script)
 
+    def test_fresh_replacement_volume_waits_for_database_health_before_psql(self):
+        root = Path(__file__).resolve().parents[3]
+        script = (root / "scripts" / "pilot-restore.sh").read_text(encoding="utf-8")
+        dependency_wait = '"${COMPOSE[@]}" up -d --wait postgres redis objectstore'
+        first_psql = 'TARGET_PG_VERSION_NUM="$('
+        self.assertIn(dependency_wait, script)
+        self.assertLess(script.index(dependency_wait), script.index(first_psql))
+
 class PilotPostgresComposeContractTests(SimpleTestCase):
     def test_postgres18_uses_parent_persistent_volume_layout(self):
         root = Path(__file__).resolve().parents[3]
