@@ -152,6 +152,12 @@ class AllDomainReferenceTypesContractTests(TestCase):
 
         for type_code, spec in DOMAIN_OBJECT_REGISTRY.items():
             with self.subTest(type_code=type_code):
+                self.assertEqual(
+                    spec.reference_policy, "capability_gated_scoped_resolution"
+                )
+                self.assertEqual(
+                    spec.deleted_target_policy, "reject_resolution_report_integrity"
+                )
                 obj = own[type_code]
                 self.assertEqual(
                     obj._meta.label_lower,

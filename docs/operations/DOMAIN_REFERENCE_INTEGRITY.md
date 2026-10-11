@@ -25,6 +25,15 @@ data. Output includes source row, tenant and referenced target identifiers:
 protect the output as organization-sensitive operational metadata and do not
 post it to public issues or logs.
 
+## Registry reference and deletion policies
+
+Every registered `DomainObjectSpec` exposes two explicit, frozen metadata codes:
+
+- `reference_policy=capability_gated_scoped_resolution`: callers must enforce the operation-specific registry capability before tenant-cloaked and organization-scoped target resolution. The registry does not replace user-level RBAC, which remains a separate authorization layer. Entries with `allow_global=True` retain their existing explicitly global visibility.
+- `deleted_target_policy=reject_resolution_report_integrity`: soft-deleted targets are not resolvable to customer-facing consumers, and persisted references to deleted targets are reported by this read-only integrity command. This code does **not** automatically delete, rewrite, detach or cascade references, and does not alter relational FK `on_delete` behavior.
+
+A new reference policy or deletion behavior requires an explicit separately reviewed implementation and regression tests; changing only a metadata code does not enact a new policy.
+
 ## Scope and interpretation
 
 Sources: `EvidenceLink`, `DocumentLink`, `Action.source_type/source_id`,
