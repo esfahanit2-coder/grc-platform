@@ -146,7 +146,17 @@ def resolve_domain_object(tenant, type_code, object_id):
     if spec.select_related:
         queryset = queryset.select_related(*spec.select_related)
 
-    return queryset.first()
+    obj = queryset.first()
+    if obj is None:
+        return None
+
+    # A row may have the correct owning tenant but a corrupted foreign
+    # organization-unit relationship (e.g. from a legacy import). Do not
+    # expose it via evidence, document, workflow, action or AI references.
+    scope = domain_object_scope(type_code, obj)
+    if scope is not None and getattr(scope, "tenant_id", None) != tenant.pk:
+        return None
+    return obj
 
 
 def _resolve_attr_path(obj, path):
