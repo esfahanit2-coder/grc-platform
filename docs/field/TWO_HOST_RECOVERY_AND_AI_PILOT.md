@@ -129,6 +129,8 @@ For the local-AI step, follow `docs/PILOT_OPERATIONS.md` and `docs/PILOT_ACCEPTA
 From B's approved restricted checkout, copy the repository template into Git-ignored runtime storage and complete it with **real** reviewer references (never fill hypothetical `PASS`):
 
 ```bash
+mkdir -p runtime
+chmod 700 runtime
 cp docs/PILOT_MANUAL_OBSERVATIONS.example.json runtime/pilot-manual-observations.json
 chmod 600 runtime/pilot-manual-observations.json
 
