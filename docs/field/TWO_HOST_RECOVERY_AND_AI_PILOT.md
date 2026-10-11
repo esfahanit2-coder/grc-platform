@@ -108,7 +108,7 @@ OFFLINE_INSTALL_START=NO bash scripts/offline-release-apply.sh install \
   <signed-release-bundle> <trusted-public-key> <empty-install-root> <approved-target-env-file>
 ```
 
-On B only: copy the verified encrypted-custody backup into `<empty-install-root>/repository/backups/<approved-backup-name>/` using the approved access-restricted procedure; `cd` into `<empty-install-root>/repository`. The copied backup must be protected, readable by the operator and unmodified. Note that the example target `.env` is already provisioned; generating a new independent key set on B is **not** a valid recovery of encrypted/signed records.
+On B only: **choose one** approved transport method. For the existing manual transfer path, copy the verified custody backup directory into `<empty-install-root>/repository/backups/<approved-backup-name>/` with access-restricted permissions. For the optional **age envelope** path above, use `custody-import` from the installed B checkout instead; do not copy or overwrite the restored directory again. Then `cd` into `<empty-install-root>/repository`. Confirm the canonical backup contents are protected, readable by the operator and unmodified. The target `.env` is already provisioned: generating new independent application cryptographic keys on B is **not** a valid recovery of signed/encrypted records.
 
 Before **any** destructive restore or new destination database creation:
 
