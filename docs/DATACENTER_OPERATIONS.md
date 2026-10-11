@@ -264,6 +264,32 @@ The probe validates the manifest and completion observation, expected PostgreSQL
 A fresh, checksum-matching backup is **not proof of recoverability or measured RPO/RTO**. Continue mandatory isolated restore drills under Issue #7 and independent security/operations acceptance under Issues #8/#68/#74. The threshold must reflect the actual approved backup schedule; a 26-hour example presumes a roughly daily backup cadence, not a policy decision made by the software.
 
 
+### Optional encrypted backup custody transfer (customer-controlled age keys)
+
+The canonical `datacenterctl backup` directory contains plaintext PostgreSQL/S3 data **and secret-bearing `config.env`**. For customer-approved, recipient-encrypted **offline handoff** use the optional `age` CLI, provisioned from a trusted offline package source. The external `age` executable supplies authenticated encryption; the platform does not invent its own cryptographic primitive, generate/store the customer identity, or upload data.
+
+On A after the full `backup-status --restore-preflight` passes, using an **independently verified** customer recipient-public-key file:
+
+~~~bash
+bash scripts/datacenterctl custody-export <backup-name> \
+  /secure/recipients.txt /mnt/approved-custody/backup-transfer.age
+~~~
+
+The file must be a **new**, external `.age` path. The script streams the validated *canonical* backup files into age without writing an extra plaintext TAR, prevents overwriting an existing envelope and returns only bounded nonsecret status. The protected backup directory remains on A until customer retention/cleanup decisions.
+
+On B **after** installing the exact trusted signed release without starting services, with customer-held 0600 age **private identity** and an at-rest-encrypted, mode-0700 `backups/` directory:
+
+~~~bash
+cd <empty-install-root>/repository
+bash scripts/datacenterctl custody-import <backup-name> \
+  /mnt/approved-custody/backup-transfer.age /secure/identity.txt
+bash scripts/datacenterctl recovery-preflight <backup-name>
+~~~
+
+The importer rejects existing named backups, symlinks, archive traversal, duplicate/unknown members and unauthenticated/truncated ciphertext. It decrypts into a private staging directory and runs the mandatory full integrity/archive validator **before** placing the canonical backup in its final path. **Imported SQL, S3 and config are again plaintext on B in the restricted backup directory**; B storage encryption, custody/witnesses, identity-file protection and deletion are mandatory external operator responsibilities.
+
+The recipient's public key must be trusted **out of band**, and `age` encryption alone authenticates ciphertext integrity **not the sender, backup custody or the signed-release provenance**. A green synthetic CI encryption roundtrip does not prove independent real-host recovery. Never put private identities, actual backup archives or recovered customer material in GitHub or ChatGPT. See `docs/field/TWO_HOST_RECOVERY_AND_AI_PILOT.md` for complete two-host STOP/GO checks.
+
 ## 11. Upgrade
 
 The signed offline update path is the preferred production path:
