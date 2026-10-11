@@ -28,7 +28,7 @@ _SPECS = (
     ),
     DomainObjectSpec(
         "risk", "risks", "Risk", "tenant", "organization_unit",
-        ("organization_unit",), capabilities=frozenset({"evidence", "workflow"}),
+        ("organization_unit",), capabilities=frozenset({"evidence", "workflow", "ai_target"}),
     ),
     DomainObjectSpec(
         "assessment", "assessments", "Assessment", "tenant", "organization_unit",
@@ -37,7 +37,7 @@ _SPECS = (
     DomainObjectSpec(
         "assessment_item", "assessments", "AssessmentItem", "assessment__tenant",
         "assessment__organization_unit", ("assessment__organization_unit",),
-        capabilities=frozenset({"evidence"}),
+        capabilities=frozenset({"evidence", "action_source"}),
     ),
     DomainObjectSpec(
         "control_implementation", "controls", "ControlImplementation", "tenant",
@@ -45,7 +45,16 @@ _SPECS = (
     ),
     DomainObjectSpec(
         "finding", "findings", "Finding", "tenant", "organization_unit",
-        ("organization_unit",), capabilities=frozenset({"evidence", "workflow"}),
+        ("organization_unit",), capabilities=frozenset({"evidence", "workflow", "action_source"}),
+    ),
+    DomainObjectSpec(
+        "risk_treatment", "risks", "RiskTreatment", "risk__tenant",
+        "risk__organization_unit", ("risk__organization_unit",),
+        capabilities=frozenset({"action_source"}),
+    ),
+    DomainObjectSpec(
+        "control", "controls", "Control", "tenant", None, (),
+        allow_global=True, capabilities=frozenset({"ai_target"}),
     ),
     DomainObjectSpec(
         "action", "actions", "Action", "tenant", "organization_unit",
