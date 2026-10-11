@@ -6,6 +6,7 @@ on:
       - ".github/workflows/ephemeral-real-core-install.yml"
       - "scripts/ephemeral-real-core-install.sh"
       - "scripts/ephemeral-real-core-dr.sh"
+      - "scripts/ephemeral-replacement-core-dr.sh"
   workflow_dispatch:
 
 permissions:
@@ -18,7 +19,7 @@ concurrency:
 jobs:
   signed-core-runtime:
     runs-on: ubuntu-latest
-    timeout-minutes: 75
+    timeout-minutes: 100
     steps:
       - name: Checkout exact code and Git history
         uses: actions/checkout@v7
@@ -34,16 +35,17 @@ jobs:
         run: |
           docker version --format '{{.Server.Version}}'
           docker compose version
-          bash -n scripts/ephemeral-real-core-install.sh scripts/ephemeral-real-core-dr.sh
+          bash -n scripts/ephemeral-real-core-install.sh scripts/ephemeral-real-core-dr.sh scripts/ephemeral-replacement-core-dr.sh
           df -h .
           test "$(df -Pk . | awk 'END {print $4}')" -gt 9000000
           free -m
 
-      - name: Sign, boot, back up and restore real GRC core services
-        timeout-minutes: 70
+      - name: Sign, boot, restore and recover to separate clean Docker volumes
+        timeout-minutes: 95
         env:
           GRC_CORE_INSTALL_EPHEMERAL_ONLY: "YES"
           GRC_CORE_DR_EPHEMERAL_ONLY: "YES"
+          GRC_CORE_REPLACEMENT_EPHEMERAL_ONLY: "YES"
         run: bash scripts/ephemeral-real-core-install.sh
 
       - name: Never treat a failed smoke as datacenter acceptance
