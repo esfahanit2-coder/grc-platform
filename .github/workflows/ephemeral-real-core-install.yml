@@ -8,6 +8,7 @@ on:
       - "scripts/ephemeral-real-core-dr.sh"
       - "scripts/ephemeral-replacement-core-dr.sh"
       - "scripts/pilot-restore.sh"
+      - "scripts/datacenter-restore-config-check.py"
       - "backend/apps/common/management/commands/pilot_objectstore_archive.py"
   workflow_dispatch:
 
