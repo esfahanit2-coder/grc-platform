@@ -7,6 +7,8 @@ on:
       - "scripts/ephemeral-real-core-install.sh"
       - "scripts/ephemeral-real-core-dr.sh"
       - "scripts/ephemeral-replacement-core-dr.sh"
+      - "scripts/pilot-restore.sh"
+      - "backend/apps/common/management/commands/pilot_objectstore_archive.py"
   workflow_dispatch:
 
 permissions:
