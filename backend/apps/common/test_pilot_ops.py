@@ -237,6 +237,21 @@ class PilotRestoreIdentityContractTests(SimpleTestCase):
         )
 
 
+class DatacenterRecoveryPreflightContractTests(SimpleTestCase):
+    def test_recovery_preflight_is_read_only_and_bypasses_docker(self):
+        root = Path(__file__).resolve().parents[3]
+        ctl = (root / "scripts" / "datacenterctl").read_text(encoding="utf-8")
+        probe = (root / "scripts" / "datacenter-recovery-preflight.py").read_text(encoding="utf-8")
+        self.assertIn('if [[ "$COMMAND" == "recovery-preflight" ]]', ctl)
+        self.assertLess(
+            ctl.index('if [[ "$COMMAND" == "recovery-preflight" ]]'),
+            ctl.index("require_env\ncompose_args"),
+        )
+        self.assertIn("checks.check_restore(backups, name)", probe)
+        self.assertIn("crypto.compatible(root / \".env\", selected / \"config.env\")", probe)
+        self.assertIn("ready_for_operator_review", probe)
+
+
 class PilotPostgresComposeContractTests(SimpleTestCase):
     def test_postgres18_uses_parent_persistent_volume_layout(self):
         root = Path(__file__).resolve().parents[3]
