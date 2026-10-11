@@ -15,6 +15,13 @@ class DomainObjectSpec:
     select_related: tuple[str, ...] = ()
     allow_global: bool = False
     capabilities: frozenset[str] = frozenset()
+    # Cross-domain reference contract metadata, not database FK on_delete rules.
+    # All supported references require the caller to check the declared
+    # capability and resolve through tenant/organization-scope cloaking.
+    reference_policy: str = "capability_gated_scoped_resolution"
+    # Soft-deleted targets must not resolve for a new/updated reference; the
+    # operator-only integrity checker reports pre-existing deleted links.
+    deleted_target_policy: str = "reject_resolution_report_integrity"
 
 
 _SPECS = (
