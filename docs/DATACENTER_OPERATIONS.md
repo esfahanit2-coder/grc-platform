@@ -337,6 +337,16 @@ CONFIRM_RESTORE=YES bash scripts/datacenterctl restore <backup-name>
 
 The restore path validates checksums/manifest/source compatibility and PostgreSQL major version, stops writers, restores PostgreSQL and object storage, applies the approved migration path, restarts the application and runs readiness.
 
+### Guard against incompatible recovery secrets
+
+The backed-up `config.env` is a **protected, secret-bearing part of the same recovery point** as the SQL dump and S3 archive. A replacement host may use new DNS names, TLS certificates, S3 access credentials and database passwords, but it must not silently regenerate the `DJANGO_SECRET_KEY`, `AUDIT_INTEGRITY_KEY` or `MFA_ENCRYPTION_KEY`. The target `S3_BUCKET` must match the backup's bucket identity. Otherwise, authenticated/signature-bearing or encrypted application records may be unusable even when PostgreSQL and the object objects appear healthy.
+
+The official `datacenterctl restore` now calls a **read-only, strict mode-0600** configuration compatibility check against `backups/<backup-name>/config.env` **before stopping application writers or replacing any database/object content**. A mismatch, missing key, duplicate key, symlink or permissive file mode fails closed; neither values nor fingerprints of sensitive keys are printed. The guard ignores host-specific PostgreSQL and S3 access credentials, which are allowed to differ. It does not replace whole-configuration validation or prove a login journey.
+
+On a replacement installation, provision the original protected application cryptographic keys from approved recovery custody **before** invoking normal restore. Alternatively, explicit `RESTORE_CONFIG=YES CONFIRM_RESTORE=YES bash scripts/datacenterctl restore <backup-name>` restores the original `.env` from the protected backup, and therefore must be used only if the operator has reviewed the original host-specific TLS, DNS, storage and network values and approved their replacement-host compatibility. Do not turn off the guard or invent fresh cryptographic identities to force a successful status. Planned key rotation requires an independently reviewed data migration.
+
+
+
 ### Mandatory non-destructive restore preflight
 
 Before any approved destructive restore or rollback, the operator may validate a **specific** historical backup with no age expiry:

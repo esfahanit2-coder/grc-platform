@@ -225,6 +225,18 @@ class PilotRestoreScriptContractTests(SimpleTestCase):
         self.assertIn(dependency_wait, script)
         self.assertLess(script.index(dependency_wait), script.index(first_psql))
 
+class PilotRestoreIdentityContractTests(SimpleTestCase):
+    def test_critical_key_check_runs_before_any_destructive_restore(self):
+        root = Path(__file__).resolve().parents[3]
+        script = (root / "scripts" / "pilot-restore.sh").read_text(encoding="utf-8")
+        self.assertIn('if [[ "${RESTORE_CONFIG:-NO}" != "YES" ]]', script)
+        self.assertIn("datacenter-restore-config-check.py", script)
+        self.assertLess(
+            script.index("datacenter-restore-config-check.py"),
+            script.index('echo "[1/8] Stopping application writers..."'),
+        )
+
+
 class PilotPostgresComposeContractTests(SimpleTestCase):
     def test_postgres18_uses_parent_persistent_volume_layout(self):
         root = Path(__file__).resolve().parents[3]
