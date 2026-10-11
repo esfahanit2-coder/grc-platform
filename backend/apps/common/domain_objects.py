@@ -176,3 +176,42 @@ def domain_object_display(type_code, obj, object_id=None):
     if code:
         return code
     return f"{type_code} / {str(object_id or getattr(obj, 'id', ''))[:8]}"
+
+
+def inspect_domain_reference(*, tenant, type_code, object_id, capability=None):
+    """Read-only operator diagnostic; never use this to authorize an API request.
+
+    Unlike resolve_domain_object(), this method deliberately inspects an
+    unscoped row so an authorized offline operator can distinguish a missing
+    reference from a foreign-tenant reference. It returns only a status code.
+    Normal customer-facing resolution must stay tenant-cloaked.
+    """
+    spec = get_domain_object_spec(type_code)
+    if spec is None:
+        return "unknown_type"
+    if capability and capability not in spec.capabilities:
+        return "unsupported_capability"
+    if object_id is None:
+        return "incomplete_reference"
+
+    model = apps.get_model(spec.app_label, spec.model_name)
+    target = model._default_manager.filter(pk=object_id).first()
+    if target is None:
+        return "missing"
+
+    if spec.tenant_lookup:
+        owning_tenant = _resolve_attr_path(target, spec.tenant_lookup)
+        if owning_tenant is None:
+            if not spec.allow_global:
+                return "cross_tenant"
+        elif owning_tenant.pk != tenant.pk:
+            return "cross_tenant"
+
+    if _model_has_field(model, "deleted_at") and target.deleted_at is not None:
+        return "deleted"
+
+    scope = domain_object_scope(type_code, target)
+    if scope is not None and getattr(scope, "tenant_id", None) != tenant.pk:
+        return "invalid_scope"
+
+    return "ok"
