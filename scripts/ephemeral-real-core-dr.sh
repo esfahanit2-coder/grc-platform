@@ -132,7 +132,7 @@ data=path.read_text(encoding="utf-8")
 rows=data.splitlines(keepends=True)
 indices=[index for index, row in enumerate(rows) if row.startswith("MFA_ENCRYPTION_KEY=")]
 assert len(indices)==1
-rows[indices[0]]="MFA_ENCRYPTION_KEY=ci-intentionally-wrong-recovery-identity\\n".replace("\\\\n","\\n")
+rows[indices[0]]="MFA_ENCRYPTION_KEY=ci-intentionally-wrong-recovery-identity" + chr(10)
 path.write_text("".join(rows), encoding="utf-8")
 PY
 if CONFIRM_RESTORE=YES bash scripts/datacenterctl restore "$NAME" >/dev/null 2>&1; then
