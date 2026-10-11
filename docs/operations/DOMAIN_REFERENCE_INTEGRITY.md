@@ -28,7 +28,14 @@ post it to public issues or logs.
 ## Scope and interpretation
 
 Sources: `EvidenceLink`, `DocumentLink`, `Action.source_type/source_id`,
-`WorkflowInstance`, and `AISuggestion.object_type/object_id`. Soft-deleted
+`WorkflowInstance`, and `AISuggestion.object_type/object_id`.
+
+The registry also resolves `audit_engagement` and `evidence` as document
+link targets, with strict tenant and soft-deletion checks. The historical
+`audit` type code continues to resolve audit-engagement workflows; it is
+not silently migrated or renamed. `document_link` is an explicit registry
+capability. Existing registered types retain that capability for compatibility.
+ Soft-deleted
 **source** rows and intentionally unbound Action/AI rows are skipped. The
 source count and finding details are deterministic and sorted.
 

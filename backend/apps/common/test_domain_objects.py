@@ -298,3 +298,82 @@ class DomainObjectRegistryTests(TestCase):
         self.assertEqual(report["findings"], [])
         with self.assertRaisesMessage(CommandError, "valid UUID"):
             call_command("verify_domain_references", "--tenant-id", "not-a-uuid")
+
+
+    def test_document_link_type_coverage_and_tenant_safe_resolution(self):
+        """Keep previously accepted link types and allow the two missing v2 types."""
+        from django.utils import timezone
+        from apps.common.domain_objects import DOMAIN_OBJECT_REGISTRY
+        from apps.documents.models import Document
+        from apps.documents.serializers import DocumentLinkSerializer
+        from apps.evidence.models import Evidence
+        from apps.internal_audits.models import AuditEngagement
+
+        for type_code in DOMAIN_OBJECT_REGISTRY:
+            with self.subTest(type_code=type_code):
+                self.assertTrue(
+                    supports_domain_object_type(type_code, capability="document_link")
+                )
+        for type_code in ("audit_engagement", "evidence"):
+            self.assertFalse(supports_domain_object_type(type_code, capability="workflow"))
+            self.assertFalse(supports_domain_object_type(type_code, capability="ai_target"))
+            self.assertFalse(supports_domain_object_type(type_code, capability="evidence"))
+
+        own_audit = AuditEngagement.objects.create(
+            tenant=self.tenant, organization_unit=self.unit,
+            title="Authorized audit", lead_auditor=self.user,
+        )
+        foreign_audit = AuditEngagement.objects.create(
+            tenant=self.other_tenant, organization_unit=self.other_unit,
+            title="Foreign audit", lead_auditor=self.user,
+        )
+        own_evidence = Evidence.objects.create(
+            tenant=self.tenant, organization_unit=self.unit,
+            title="Authorized evidence", owner=self.user,
+        )
+        foreign_evidence = Evidence.objects.create(
+            tenant=self.other_tenant, organization_unit=self.other_unit,
+            title="Foreign evidence", owner=self.user,
+        )
+        document = Document.objects.create(
+            tenant=self.tenant, organization_unit=self.unit,
+            document_type="policy", code="REGISTRY-DOC",
+            title="Link target test", owner=self.user,
+        )
+
+        def valid_link(type_code, object_id):
+            serializer = DocumentLinkSerializer(
+                data={
+                    "document": str(document.id), "object_type": type_code,
+                    "object_id": str(object_id), "relation_type": "supports",
+                },
+                context={"tenant": self.tenant},
+            )
+            return serializer.is_valid()
+
+        for type_code, own, foreign in (
+            ("audit_engagement", own_audit, foreign_audit),
+            ("evidence", own_evidence, foreign_evidence),
+        ):
+            with self.subTest(type_code=type_code):
+                self.assertEqual(
+                    resolve_domain_object(self.tenant, type_code, own.id), own
+                )
+                self.assertEqual(domain_object_scope(type_code, own), self.unit)
+                self.assertIsNone(
+                    resolve_domain_object(self.tenant, type_code, foreign.id)
+                )
+                self.assertTrue(valid_link(type_code, own.id))
+                self.assertFalse(valid_link(type_code, foreign.id))
+
+                own.deleted_at = timezone.now()
+                own.save(update_fields=["deleted_at"])
+                self.assertIsNone(
+                    resolve_domain_object(self.tenant, type_code, own.id)
+                )
+                self.assertFalse(valid_link(type_code, own.id))
+
+        # Existing types/legacy workflow alias remain document-link compatible.
+        self.assertTrue(valid_link("risk", self.risk.id))
+        self.assertTrue(supports_domain_object_type("audit", capability="workflow"))
+        self.assertFalse(valid_link("unregistered", self.risk.id))
