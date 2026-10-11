@@ -1,0 +1,140 @@
+.container {
+  max-width: 1240px;
+  margin-inline: auto;
+  display: grid;
+  gap: 16px;
+}
+.actions,
+.filters,
+.bulk,
+.tags,
+.itemFooter,
+.pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.bulk {
+  justify-content: flex-end;
+}
+.muted {
+  color: var(--ui-text-muted);
+  font-size: 13px;
+  line-height: 1.8;
+}
+.confirm {
+  margin-top: 16px;
+  border-top: 1px solid var(--ui-border);
+  padding-top: 14px;
+}
+.confirm p {
+  margin: 0 0 12px;
+  line-height: 1.9;
+}
+.list {
+  display: grid;
+  gap: 12px;
+}
+.item {
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-md);
+  padding: 20px;
+  box-shadow: var(--ui-shadow-sm);
+  min-width: 0;
+}
+.unread {
+  border-right: 4px solid var(--ui-primary);
+}
+.read {
+  background: var(--ui-surface-subtle);
+}
+.itemHeader,
+.itemFooter {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+.itemTitle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.itemTitle h2 {
+  margin: 0;
+  font-size: 17px;
+  line-height: 1.75;
+  overflow-wrap: anywhere;
+}
+.unreadDot {
+  flex: 0 0 9px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--ui-primary);
+}
+.tag {
+  background: var(--ui-primary-soft);
+  color: var(--ui-primary);
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.info {
+  background: var(--ui-info-soft);
+  color: var(--ui-info);
+}
+.warning {
+  background: var(--ui-warning-soft);
+  color: var(--ui-warning);
+}
+.danger {
+  background: var(--ui-danger-soft);
+  color: var(--ui-danger);
+}
+.body {
+  margin: 12px 0 18px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.9;
+}
+.itemFooter {
+  border-top: 1px solid var(--ui-border);
+  padding-top: 12px;
+}
+.pagination {
+  justify-content: center;
+  padding: 8px 0 18px;
+}
+@media (max-width: 680px) {
+  .item {
+    padding: 14px;
+  }
+  .toolbar,
+  .itemHeader,
+  .itemFooter {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .bulk {
+    justify-content: flex-start;
+  }
+  .tags {
+    gap: 6px;
+  }
+  .filters > button {
+    flex-grow: 1;
+  }
+}
