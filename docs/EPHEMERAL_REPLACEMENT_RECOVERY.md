@@ -1,0 +1,28 @@
+# Disposable replacement-install recovery (separate root and fresh volumes)
+
+Related: #7, #68, #74, and the earlier single-install full-stack DR proof in #124.
+
+## Purpose and hard boundary
+
+Prove that a **different installation checkout** of the identical verified signed release can recover the real PostgreSQL 18 and SeaweedFS Evidence archives onto **previously nonexistent Docker Compose volumes**. This is an intermediate engineering test, not a second physical machine, off-host backup custody, actual air gap, PKI ceremony or field UAT. The source and target share the disposable GitHub-hosted runner's Docker daemon and TLS test hostname; source services are stopped before target ones start. Production acceptance issues remain OPEN.
+
+## Actual test sequence
+
+The existing `ephemeral-real-core-install` workflow still builds the real Django, Next.js, pgvector/Postgres, Redis, SeaweedFS and Nginx image set, signs a source-specific release with ephemeral test-only keys, imports images, boots eight real services over test TLS, and runs the official single-install destructive backup/restore test. **Only after that succeeds**, `scripts/ephemeral-replacement-core-dr.sh`:
+
+1. Requires four independently explicit opt-ins, GitHub-hosted execution, a pristine replacement path, exact Git SHA, protected signed bundle and matching backup name.
+2. Stages synthetic backups in a separate mode-0700 temporary custody directory, checks the original via the production `--restore-preflight`. These temporary bytes are not uploaded anywhere.
+3. Calls `docker compose down --volumes` on the source Compose project and asserts its Postgres/Redis/SeaweedFS volumes no longer exist. This is intentionally destructive **only** to disposable synthetic CI state.
+4. Invokes the canonical signed `offline-release-apply.sh install` with the original trust key but a different installation directory and a different Compose project. Confirms the source Git SHA and privately writable backup directory.
+5. Copies the backup to the new checkout and checks the same official restore preflight. Confirms target volumes never existed before restore.
+6. Runs official `CONFIRM_RESTORE=YES scripts/datacenterctl restore` against the fresh volumes, with `RESTORE_INITIALIZE_MISSING_BUCKET=YES` explicitly approved. This option is **off by default**: it permits creating only a genuinely missing configured S3 bucket, only for `restore --replace`, **after validating all object archive bytes and source-bucket identity**. Authentication and other S3 failures remain hard errors.
+7. Verifies the recovered synthetic SQL marker, exact S3 Evidence payload hash/metadata/key set, production-shaped HTTPS live/readiness, source SHA and signed-install verification. Then shuts down and deletes *target* Docker volumes, source archives, temporary private keys and runner-local custody.
+8. Publishes only a short PASS/FAIL summary with limitations, never uploaded backups, customer records, keys, dumps or environment files.
+
+The pre-restore check refuses a corrupt checksum catalog or unsafe backup paths before any SQL replacement. The archive command independently verifies every S3 object before delete. The explicit missing-bucket path must likewise reject corrupt ZIPs, wrong bucket names, missing authorization and inaccessible/forbidden targets.
+
+## Field acceptance still required
+
+Only an approved customer change window and a truly independent replacement host can demonstrate off-host recovery. At the customer, obtain a signed *production* release (actual security scan attestations and approved signing key), a provisioned dedicated restore host, customer-controlled TLS/PKI material and sealed/encrypted offsite backup media. Validate immutable source SHA/PostgreSQL compatibility, access permissions, checksum and independent archive custody; rehearse application login, tenant isolation, evidence download and CSRF; record independent operator-reviewed actual RPO/RTO and rollback result. Keep customer secrets/media out of GitHub and chats.
+
+A GitHub-hosted green workflow **must not** close #7, #8, #68 or #74, certify a disconnected network, prove security attestation, satisfy customer acceptance or trigger an RC/production release. Any failure or timeout requires diagnosis on the same PR, not bypassing checks.
