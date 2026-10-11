@@ -183,7 +183,7 @@ class DocumentLinkSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({"document": "Document must belong to tenant."})
         object_type = attrs.get("object_type", getattr(self.instance, "object_type", None))
         object_id = attrs.get("object_id", getattr(self.instance, "object_id", None))
-        if not supports_domain_object_type(object_type):
+        if not supports_domain_object_type(object_type, capability="document_link"):
             raise serializers.ValidationError({"object_type": "Unsupported document link target type."})
         if not object_id or resolve_domain_object(tenant, object_type, object_id) is None:
             raise serializers.ValidationError({"object_id": "Document target does not exist in this tenant."})
