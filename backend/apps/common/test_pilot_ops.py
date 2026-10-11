@@ -250,7 +250,9 @@ class DatacenterEncryptedCustodyContractTests(SimpleTestCase):
         self.assertIn("valid_backup(root, name)", transfer)
         self.assertIn("status.check_restore(staging, name)", transfer)
         self.assertIn("os.link(temp_name, output)", transfer)
-        self.assertIn("os.rename(selected, destination)", transfer)
+        self.assertIn("publish_backup_without_replace(selected, destination)", transfer)
+        self.assertIn("renameat2(", transfer)
+        self.assertIn("rename_noreplace = 1", transfer)
 
 
 class DatacenterRecoveryPreflightContractTests(SimpleTestCase):
