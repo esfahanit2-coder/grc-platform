@@ -412,3 +412,36 @@ class ControlledDocumentLifecycleTests(APITestCase):
             ).count(),
             1,
         )
+
+    def test_document_link_serializer_cloaks_cross_tenant_references(self):
+        from apps.risks.models import Risk
+        from .serializers import DocumentLinkSerializer
+
+        foreign_tenant = Tenant.objects.create(name="Other document-link tenant", code="other-doc-link")
+        foreign_unit = OrganizationUnit.objects.create(
+            tenant=foreign_tenant, unit_type="company", code="F", name="Foreign"
+        )
+        foreign_doc = Document.objects.create(
+            tenant=foreign_tenant, organization_unit=foreign_unit,
+            document_type="policy", code="F-1", title="Foreign doc", owner=self.user,
+        )
+        foreign_risk = Risk.objects.create(
+            tenant=foreign_tenant, organization_unit=foreign_unit,
+            code="FOREIGN-DOC-LINK", title="Foreign risk", owner=self.user,
+        )
+        own_risk = Risk.objects.create(
+            tenant=self.tenant, organization_unit=self.unit,
+            code="LOCAL-DOC-LINK", title="Own risk", owner=self.user,
+        )
+        def check(document_id, type_code, target_id):
+            serializer = DocumentLinkSerializer(
+                data={"document": str(document_id), "object_type": type_code,
+                      "object_id": str(target_id), "relation_type": "supports"},
+                context={"tenant": self.tenant},
+            )
+            return serializer.is_valid()
+
+        self.assertFalse(check(self.document.id, "risk", foreign_risk.id))
+        self.assertFalse(check(foreign_doc.id, "risk", own_risk.id))
+        self.assertFalse(check(self.document.id, "unknown", own_risk.id))
+        self.assertTrue(check(self.document.id, "risk", own_risk.id))
