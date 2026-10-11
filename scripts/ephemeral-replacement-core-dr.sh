@@ -70,6 +70,13 @@ cp -a "$CUSTODY/$NAME" "$TARGET/repository/backups/$NAME"
 (
   cd "$TARGET/repository"
   python scripts/datacenter-backup-status.py --restore-preflight "$NAME" >/dev/null
+  bash scripts/datacenterctl recovery-preflight "$NAME" | python -c '
+import json,sys
+result=json.load(sys.stdin)
+assert result["ready_for_operator_review"] is True
+assert all(check["ok"] for check in result["checks"].values())
+'
+  echo "Signed replacement checkout read-only operator preflight PASS."
 )
 echo '[REPL 4/7] Requiring clean, previously nonexistent target volumes.'
 for role in postgres_pilot_data redis_pilot_data objectstore_pilot_data; do

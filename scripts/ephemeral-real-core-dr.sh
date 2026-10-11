@@ -111,6 +111,40 @@ SQL
   echo "PostgreSQL verification PASS: $phase"
 }
 
+# Validate the real public operator CLI output without ever printing archived data or keys.
+assert_operator_preflight_pass() {
+  local report
+  report="$(bash scripts/datacenterctl recovery-preflight "$NAME")" || {
+    echo 'ERROR: operator recovery preflight rejected a valid signed backup' >&2
+    exit 4
+  }
+  printf '%s\n' "$report" | python -c '
+import json,sys
+value=json.load(sys.stdin)
+assert value["schema"]=="grc-datacenter-recovery-operator-preflight-v1"
+assert value["ready_for_operator_review"] is True
+assert all(row["ok"] is True for row in value["checks"].values())
+assert "backup_name" not in value and "secret" not in value
+'
+  echo 'Read-only recovery operator preflight PASS: valid archive, critical identity, exact source.'
+}
+
+assert_operator_preflight_denied() {
+  local key="$1" report
+  if report="$(bash scripts/datacenterctl recovery-preflight "$NAME")"; then
+    echo "ERROR: operator recovery preflight accepted a corrupted prerequisite: $key" >&2
+    exit 4
+  fi
+  printf '%s\n' "$report" | python -c '
+import json,sys
+value=json.load(sys.stdin)
+key=sys.argv[1]
+assert value["ready_for_operator_review"] is False
+assert value["checks"][key]["ok"] is False
+' "$key"
+  echo "Read-only recovery operator preflight correctly refused: $key"
+}
+
 echo '[DR 1/8] Seeding synthetic SQL rows and S3 Evidence on the signed installed stack.'
 s3_marker seed
 db_marker seed
@@ -118,6 +152,7 @@ echo '[DR 2/8] Calling the canonical datacenterctl backup with writers quiesced.
 bash scripts/datacenterctl backup "$NAME" >/dev/null
 test -s "$BACKUP/postgres.dump" && test -s "$BACKUP/objectstore.zip"
 python scripts/datacenter-backup-status.py --restore-preflight "$NAME" >/dev/null
+assert_operator_preflight_pass
 echo '[DR 3/8] Introducing post-backup mutations in running PostgreSQL and SeaweedFS.'
 db_marker mutate
 s3_marker mutate
@@ -135,6 +170,7 @@ assert len(indices)==1
 rows[indices[0]]="MFA_ENCRYPTION_KEY=ci-intentionally-wrong-recovery-identity" + chr(10)
 path.write_text("".join(rows), encoding="utf-8")
 PY
+assert_operator_preflight_denied critical_config_identity
 if CONFIRM_RESTORE=YES bash scripts/datacenterctl restore "$NAME" >/dev/null 2>&1; then
   echo 'ERROR: critical-key mismatch was accepted for destructive restore' >&2
   exit 4
@@ -149,6 +185,7 @@ chmod 600 "$ORIGINAL"
 cp "$BACKUP/objectstore.zip" "$ORIGINAL"
 # A checksum mismatch must stop the destructive recovery script before any service changes.
 printf '\nci-deliberately-tampered\n' >> "$BACKUP/objectstore.zip"
+assert_operator_preflight_denied backup_integrity
 if python scripts/datacenter-backup-status.py --restore-preflight "$NAME" >/dev/null 2>&1; then
   echo 'ERROR: mandatory corrupt archive preflight unexpectedly passed' >&2
   exit 4
@@ -163,6 +200,7 @@ s3_marker prove-denial
 cp "$ORIGINAL" "$BACKUP/objectstore.zip"
 rm -f "$ORIGINAL"
 python scripts/datacenter-backup-status.py --restore-preflight "$NAME" >/dev/null
+assert_operator_preflight_pass
 echo '[DR 5/8] Executing the actual destructive datacenterctl restore, including full stack restart.'
 CONFIRM_RESTORE=YES bash scripts/datacenterctl restore "$NAME" >/dev/null
 echo '[DR 6/8] Verifying pre-backup SQL/Evidence markers, bytes and metadata; later mutations absent.'
