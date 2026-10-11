@@ -337,6 +337,18 @@ CONFIRM_RESTORE=YES bash scripts/datacenterctl restore <backup-name>
 
 The restore path validates checksums/manifest/source compatibility and PostgreSQL major version, stops writers, restores PostgreSQL and object storage, applies the approved migration path, restarts the application and runs readiness.
 
+### One-command read-only recovery preflight
+
+From the **intended restoration checkout** with the protected candidate `.env` and backup restored to `backups/<backup-name>`, run:
+
+~~~bash
+bash scripts/datacenterctl recovery-preflight <backup-name>
+~~~
+
+This **does not start/stop Docker, open a network port, rotate credentials, write files, switch commits, or modify customer data**. It streams/checks the entire backup integrity catalog and every Evidence object, reads critical configuration values **only in memory** to compare them without printing keys or hashes, and checks the backup's exact source commit against the current Git checkout. The machine-readable, bounded JSON has no file names, secrets, backup names or archive object keys. Exit **0** means the three local preconditions passed; exit **4** means blocked. Missing or unsafe files fail closed. Use `--restore-preflight` on `backup-status` when only archive integrity is required, without `.env`.
+
+A green report is **not authorization to restore**. It is intentionally strict and does not approve `RESTORE_ALLOW_FORWARD_COMPATIBLE=YES`, `RESTORE_CONFIG=YES` or other operator exceptions. Those paths require explicit change control and review. It does not prove source-media authenticity, actual signed-bundle provenance, approved TLS/PKI, physical host isolation, encrypted backup custody, database compatibility beyond archive metadata, RPO/RTO or UAT. For a destructive operation continue the official confirmed `datacenterctl restore` and the real customer-run acceptance drill.
+
 ### Guard against incompatible recovery secrets
 
 The backed-up `config.env` is a **protected, secret-bearing part of the same recovery point** as the SQL dump and S3 archive. A replacement host may use new DNS names, TLS certificates, S3 access credentials and database passwords, but it must not silently regenerate the `DJANGO_SECRET_KEY`, `AUDIT_INTEGRITY_KEY` or `MFA_ENCRYPTION_KEY`. The target `S3_BUCKET` must match the backup's bucket identity. Otherwise, authenticated/signature-bearing or encrypted application records may be unusable even when PostgreSQL and the object objects appear healthy.

@@ -20,6 +20,7 @@ Commands:
   bootstrap <options...>       Create first tenant/admin; password is read securely from terminal.
   backup [name]                Release-consistent database + object-store backup.
   backup-status [options...]   Read-only backup freshness / checksum status; no .env needed.
+  recovery-preflight <backup>     Read-only archive, critical-key and exact-release checks; no Docker needed.
   upgrade <bundle> <key> [backup] Apply a verified signed release bundle through the offline-safe upgrade path.
   restore <backup>             Destructive restore; confirmation is enforced by pilot-restore.sh.
   rollback <backup>            Destructive release rollback; confirmation is enforced by pilot-rollback.sh.
@@ -172,6 +173,16 @@ fi
 # The probe neither starts services nor opens secret-bearing backup files for display.
 if [[ "$COMMAND" == "backup-status" ]]; then
   python scripts/datacenter-backup-status.py "$@"
+  exit $?
+fi
+
+# Safe even when all application services are down: no Compose, Docker or writer mutation.
+if [[ "$COMMAND" == "recovery-preflight" ]]; then
+  if [[ $# -ne 1 ]]; then
+    echo "Usage: scripts/datacenterctl recovery-preflight <backup-name>" >&2
+    exit 2
+  fi
+  python scripts/datacenter-recovery-preflight.py "$1"
   exit $?
 fi
 
