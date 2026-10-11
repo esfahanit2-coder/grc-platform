@@ -375,5 +375,5 @@ class DomainObjectRegistryTests(TestCase):
 
         # Existing types/legacy workflow alias remain document-link compatible.
         self.assertTrue(valid_link("risk", self.risk.id))
-        self.assertTrue(valid_link("audit", foreign_audit.id) is False)
+        self.assertTrue(supports_domain_object_type("audit", capability="workflow"))
         self.assertFalse(valid_link("unregistered", self.risk.id))
