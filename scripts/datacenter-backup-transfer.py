@@ -7,6 +7,7 @@ recipient encryption. The decryption identity must stay with the customer.
 from __future__ import annotations
 
 import argparse
+import ctypes
 import hashlib
 import importlib.util
 import io
@@ -113,6 +114,33 @@ def export_encrypted(root: Path, name: str, recipient: Path, output: Path) -> No
         Path(temp_name).unlink(missing_ok=True)
 
 
+
+def publish_backup_without_replace(source: Path, target: Path) -> None:
+    """Linux atomic publish that refuses an existing destination even in races.
+
+    os.rename() could replace an existing empty backup directory between
+    preflight's exists() check and publication. Fail closed if renameat2 is
+    unavailable rather than silently changing the non-overwrite contract.
+    """
+    library = ctypes.CDLL(None, use_errno=True)
+    renameat2 = getattr(library, "renameat2", None)
+    if renameat2 is None:
+        raise OSError("atomic no-replace directory move is unavailable")
+    renameat2.argtypes = (
+        ctypes.c_int, ctypes.c_char_p, ctypes.c_int,
+        ctypes.c_char_p, ctypes.c_uint,
+    )
+    renameat2.restype = ctypes.c_int
+    source_bytes = os.fsencode(source)
+    target_bytes = os.fsencode(target)
+    at_fdcwd = -100
+    rename_noreplace = 1
+    if renameat2(at_fdcwd, source_bytes, at_fdcwd, target_bytes, rename_noreplace) != 0:
+        error = ctypes.get_errno()
+        raise OSError(error, "atomic backup publication refused")
+
+
+
 def import_encrypted(root: Path, name: str, encrypted: Path, identity: Path) -> None:
     status = backup_status()
     if not status.NAME_RE.fullmatch(name):
@@ -177,7 +205,7 @@ def import_encrypted(root: Path, name: str, encrypted: Path, identity: Path) -> 
             raise ValueError("decrypted backup failed mandatory integrity validation")
         if destination.exists() or destination.is_symlink():
             raise ValueError("another backup already occupies the selected name")
-        os.rename(selected, destination)
+        publish_backup_without_replace(selected, destination)
 
 
 def synthetic_fixture(root: Path, name: str) -> None:
@@ -274,6 +302,20 @@ def self_test() -> None:
             raise AssertionError("tampered age envelope accepted")
         assert not (empty / "backups" / name).exists()
         assert not list((empty / "backups").glob(".grc-custody-stage-*"))
+        # Race-safe publication: even an existing EMPTY destination must not
+        # be overwritten, including if created after the initial exists() probe.
+        raced_from = sandbox / "raced-from"
+        raced_to = sandbox / "raced-to"
+        raced_from.mkdir()
+        raced_to.mkdir()
+        try:
+            publish_backup_without_replace(raced_from, raced_to)
+        except OSError:
+            pass
+        else:
+            raise AssertionError("existing empty backup directory was replaced")
+        assert raced_from.is_dir() and raced_to.is_dir()
+
 
         unsafe = sandbox / "unsafe.age"
         proc = subprocess.Popen(["age", "-R", str(recipient)], stdin=subprocess.PIPE, stdout=unsafe.open("wb"), stderr=subprocess.DEVNULL)
