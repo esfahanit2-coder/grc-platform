@@ -20,6 +20,8 @@ Commands:
   bootstrap <options...>       Create first tenant/admin; password is read securely from terminal.
   backup [name]                Release-consistent database + object-store backup.
   backup-status [options...]   Read-only backup freshness / checksum status; no .env needed.
+  custody-export <backup> <recipient-file> <output.age>   Encrypt validated backup to external media (requires age).
+  custody-import <backup> <input.age> <identity-file>    Decrypt/validate to an absent backup dir (requires age).
   recovery-preflight <backup>     Read-only archive, critical-key and exact-release checks; no Docker needed.
   upgrade <bundle> <key> [backup] Apply a verified signed release bundle through the offline-safe upgrade path.
   restore <backup>             Destructive restore; confirmation is enforced by pilot-restore.sh.
@@ -183,6 +185,21 @@ if [[ "$COMMAND" == "recovery-preflight" ]]; then
     exit 2
   fi
   python scripts/datacenter-recovery-preflight.py "$1"
+  exit $?
+fi
+
+# Explicit offline transport does not require the app to be running.
+# Never supply key values as command-line arguments; only custodian-managed paths.
+if [[ "$COMMAND" == "custody-export" || "$COMMAND" == "custody-import" ]]; then
+  if [[ $# -ne 3 ]]; then
+    echo "Usage: scripts/datacenterctl $COMMAND <backup-name> <key-file-or-input.age> <output.age-or-identity-file>" >&2
+    exit 2
+  fi
+  if [[ "$COMMAND" == "custody-export" ]]; then
+    python scripts/datacenter-backup-transfer.py export "$@"
+  else
+    python scripts/datacenter-backup-transfer.py import "$@"
+  fi
   exit $?
 fi
 

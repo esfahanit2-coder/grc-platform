@@ -1,0 +1,40 @@
+name: age-backup-custody-roundtrip
+
+on:
+  pull_request:
+    paths:
+      - "scripts/datacenter-backup-transfer.py"
+      - "scripts/datacenter-backup-status.py"
+      - "scripts/datacenterctl"
+      - ".github/workflows/age-backup-custody-roundtrip.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backup-custody-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  encrypted-custody:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install the audited platform age CLI from Ubuntu
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install --no-install-recommends -y age
+          age --version
+          age-keygen --version
+      - name: Real ephemeral encryption and authenticated decrypt roundtrip
+        run: |
+          python3 -m py_compile scripts/datacenter-backup-transfer.py
+          bash -n scripts/datacenterctl
+          python3 scripts/datacenter-backup-transfer.py self-test
+      - name: Never confuse self-test with customer encrypted-media custody
+        if: always()
+        run: |
+          echo 'The age fixture is synthetic and stays inside this GitHub runner.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'No customer recipient/key, external custody, separate physical host or RPO/RTO was validated.' >> "$GITHUB_STEP_SUMMARY"
