@@ -2,6 +2,7 @@
 
 Status: **execution runbook — real host evidence still required**  
 Parent: Issue #7  
+**Real two-host handoff:** Before generating acceptance evidence for Issue #7, use `docs/field/TWO_HOST_RECOVERY_AND_AI_PILOT.md` and its **blank** `docs/field/PILOT_EXECUTION_RECORD_TEMPLATE.md` for actual separate-host/custody measurements. GitHub runner synthetic results never satisfy these requirements.
 Security acceptance overlap: Issue #8
 
 This runbook turns the existing pilot operations procedures into a repeatable evidence package. It does **not** replace the actual clean-host deployment, destructive backup/restore drill, network controls, independent penetration test, or human security review.

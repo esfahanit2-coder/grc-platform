@@ -2,6 +2,8 @@
 
 This runbook is the repository-side implementation record for Issue #73 under the Datacenter-ready v1 program (#68).
 
+**External customer execution handoff:** `docs/field/TWO_HOST_RECOVERY_AND_AI_PILOT.md` and `docs/field/PILOT_EXECUTION_RECORD_TEMPLATE.md` define the independent-host, encrypted backup custody and measured RPO/RTO session for Issue #7. Neither document represents a completed drill.
+
 It defines the supported operator path for installing and operating GRC Platform in a customer datacenter without developer-only shortcuts. The clean-host execution, destructive restore drill and measured RPO/RTO remain external proof gates under Issue #7; repository CI must not be used as a substitute for those measurements.
 
 ## 1. Supported deployment contract

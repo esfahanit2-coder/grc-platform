@@ -37,6 +37,8 @@ Do not reuse evidence from an older SHA unless a named reviewer explicitly perfo
 
 ## 2. Reuse the existing real-evidence runbooks
 
+The consolidated field-session execution plan for clean-host recovery, encrypted media custody, real local AI and measured RPO/RTO is `docs/field/TWO_HOST_RECOVERY_AND_AI_PILOT.md`. Its blank record template must not be interpreted as proof.
+
 Do not create parallel proof processes.
 
 ### Clean host / recovery — Issue #7
