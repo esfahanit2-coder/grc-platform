@@ -115,8 +115,10 @@ START_ISO="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 echo "[1/8] Stopping application writers..."
 "${COMPOSE[@]}" stop gateway frontend worker beat backend >/dev/null 2>&1 || true
 
-echo "[2/8] Starting restore dependencies..."
-"${COMPOSE[@]}" up -d postgres redis objectstore >/dev/null
+echo "[2/8] Starting restore dependencies and waiting for PostgreSQL/Redis health..."
+# A completely empty replacement volume requires database initialization before psql/pg_restore.
+# Compose --wait blocks until healthy services (PostgreSQL/Redis) or started non-healthchecked services (S3).
+"${COMPOSE[@]}" up -d --wait postgres redis objectstore >/dev/null
 
 TARGET_PG_VERSION_NUM="$("${COMPOSE[@]}" exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atqc "SHOW server_version_num"' | tr -d '\r[:space:]')"
 if [[ ! "$TARGET_PG_VERSION_NUM" =~ ^[0-9]+$ ]]; then
