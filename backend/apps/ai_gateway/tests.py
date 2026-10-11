@@ -389,3 +389,49 @@ class AIGatewayScopeTests(APITestCase):
         self.assertEqual(interaction.error, "RuntimeError")
         self.assertNotIn("super-secret", interaction.error)
         self.assertNotIn("private-ai.example.invalid", interaction.error)
+
+    def test_suggestion_target_rejects_foreign_tenant_and_invalid_type(self):
+        from apps.ai_gateway.services import create_suggestion
+        from apps.risks.models import Risk
+
+        response = self.client.post(
+            "/api/v1/ai/assist/document-draft/",
+            {"title": "Target validation", "purpose": "safe reference"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        interaction = AIInteraction.objects.get(id=response.data["interaction"])
+        foreign_tenant = Tenant.objects.create(name="Foreign AI target", code="ai-target-foreign")
+        foreign_unit = OrganizationUnit.objects.create(
+            tenant=foreign_tenant, unit_type="company", code="F", name="Foreign"
+        )
+        foreign_risk = Risk.objects.create(
+            tenant=foreign_tenant, organization_unit=foreign_unit,
+            code="FOREIGN-AI-RISK", title="Foreign", owner=self.admin,
+        )
+        before = AISuggestion.objects.count()
+        for target_type, target_id in [
+            ("risk", foreign_risk.id),
+            ("unknown", foreign_risk.id),
+            ("risk", None),
+        ]:
+            with self.subTest(target_type=target_type, target_id=target_id):
+                with self.assertRaises(ValidationError):
+                    create_suggestion(
+                        interaction=interaction, suggestion_type="risk_analysis",
+                        proposed_value={"text": "unapproved"},
+                        object_type=target_type, object_id=target_id,
+                    )
+        self.assertEqual(AISuggestion.objects.count(), before)
+
+        own_control = Control.objects.create(
+            tenant=self.tenant, code="AI-TARGET", title="Own control",
+            created_by=self.admin,
+        )
+        accepted = create_suggestion(
+            interaction=interaction, suggestion_type="control_mapping",
+            proposed_value={"text": "pending human review"},
+            object_type="control", object_id=own_control.id,
+        )
+        self.assertEqual(accepted.status, AISuggestion.Status.PENDING)
+        self.assertEqual(accepted.tenant_id, self.tenant.id)
