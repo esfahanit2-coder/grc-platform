@@ -70,6 +70,32 @@ After the backup is complete, unquiesce/start the normal source application as a
 4. Deliver the approved original `DJANGO_SECRET_KEY`, `AUDIT_INTEGRITY_KEY` and `MFA_ENCRYPTION_KEY` using customer-controlled secret recovery. **Do not paste their values in tickets, GitHub, chat or screenshots.** The restored `S3_BUCKET` identity must be unchanged; source PostgreSQL/S3 access passwords and target TLS paths may be different after a reviewed target configuration migration.
 5. Record complete custody transitions until host B receives the material. If custody or integrity cannot be established, stop.
 
+### Optional authenticated, encrypted transport using customer-managed age keys
+
+The datacenter operator now has an **optional** streaming custody path. It is **not** a substitute for the customer's media encryption, access-control, approved recipient identity or chain of custody. The audited open-source `age` and `age-keygen` executables are **external optional prerequisites** and must be provisioned through the customer's approved offline package process; GRC never creates or stores the customer's decryption identity. The backup itself remains unencrypted in its existing protected source directory until the organization's retention/cleanup procedure disposes of it.
+
+With a **recipient PUBLIC key file** independently approved by the intended host-B custodian, on host A after the quiesced backup and preflight:
+
+```bash
+bash scripts/datacenterctl custody-export <approved-backup-name> \
+  /secure/approved-age-recipients.txt /mnt/encrypted-custody/backup-transfer.age
+```
+
+The command revalidates the complete backup (PostgreSQL/S3 archive and hashes), then streams only canonical files through the external **age authenticated recipient-encryption CLI** into a new encrypted `.age` file. It neither copies secret-bearing plaintext to a second TAR file nor replaces an existing custody artifact. The recipient list must be verified with the custodian **out of band**; age encryption does not itself attest who originated the ciphertext, or that the media crossed a real failure-domain boundary.
+
+Transfer this ciphertext using the approved external custody workflow; record envelope digest/size, custody handoffs and approved access controls **without** recording key values. On host B, after the signed installation has created a mode-0700 empty `backups/` directory, decrypt using a separate, customer-controlled **PRIVATE age identity file with mode 0600**, on an at-rest-encrypted destination filesystem:
+
+```bash
+cd <empty-install-root>/repository
+bash scripts/datacenterctl custody-import <approved-backup-name> \
+  /mnt/encrypted-custody/backup-transfer.age /secure/age-identity.txt
+bash scripts/datacenterctl recovery-preflight <approved-backup-name>
+```
+
+The importer streams decrypted TAR members into a restricted temporary directory, permits **only** known regular canonical backup files (no symlinks, traversal, duplicates or extra members), checks completed authenticated decryption, and runs the same full official restore-preflight **before** moving the backup into its final absent name. If it fails, the temporary extraction is removed; it never overwrites an existing backup. **Plaintext PostgreSQL/S3/config will exist in host B's restricted, approved, encrypted-at-rest backup folder after import.** Restrict this folder; clean up only under retention policy. The private age identity stays outside the repository, CI, GitHub, support bundles and chat. A successful local encrypted/decrypted roundtrip still does **not** prove customer-controlled custody, second-host isolation, acceptance RPO/RTO or authorized signing keys.
+
+The existing manual encrypted-media process is still supported. Do not skip the signed release verification, independent host storage/endpoints check, read-only `recovery-preflight`, approved destructive action or actual application markers if choosing `custody-export/import`.
+
 ## Stage 3 — install onto genuinely separate host B
 
 **Do not start the application on B yet.** Prepare a hardened B under the customer's OS policy with prerequisites in `docs/DATACENTER_OPERATIONS.md`, independent Docker volumes, customer TLS private key/certificate **outside backup custody**, offline signed source/images and an approved host-specific mode-0600 `.env` preserving the protected original cryptographic identities.
