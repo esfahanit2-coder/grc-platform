@@ -121,6 +121,28 @@ python scripts/datacenter-backup-status.py --restore-preflight "$NAME" >/dev/nul
 echo '[DR 3/8] Introducing post-backup mutations in running PostgreSQL and SeaweedFS.'
 db_marker mutate
 s3_marker mutate
+echo '[DR 4/8] Proving mismatched replacement keys are rejected BEFORE destructive restoration.'
+CI_ENV_COPY="$(mktemp "$INSTALL_REPO/../${NAME}-pre-key-test-XXXXXXXX.env")"
+cp .env "$CI_ENV_COPY"
+python - .env <<'PY'
+from pathlib import Path
+import sys
+path=Path(sys.argv[1])
+data=path.read_text(encoding="utf-8")
+rows=data.splitlines(keepends=True)
+indices=[index for index, row in enumerate(rows) if row.startswith("MFA_ENCRYPTION_KEY=")]
+assert len(indices)==1
+rows[indices[0]]="MFA_ENCRYPTION_KEY=ci-intentionally-wrong-recovery-identity\\n".replace("\\\\n","\\n")
+path.write_text("".join(rows), encoding="utf-8")
+PY
+if CONFIRM_RESTORE=YES bash scripts/datacenterctl restore "$NAME" >/dev/null 2>&1; then
+  echo 'ERROR: critical-key mismatch was accepted for destructive restore' >&2
+  exit 4
+fi
+cp "$CI_ENV_COPY" .env
+rm -f "$CI_ENV_COPY"
+db_marker prove-denial
+s3_marker prove-denial
 echo '[DR 4/8] Proving a corrupted backup is refused BEFORE database or Evidence deletion.'
 ORIGINAL="$(mktemp "$INSTALL_REPO/../${NAME}-original-objectstore-XXXXXXXX.zip")"
 chmod 600 "$ORIGINAL"
