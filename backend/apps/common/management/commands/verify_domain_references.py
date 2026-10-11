@@ -19,11 +19,11 @@ from apps.workflows.models import WorkflowInstance
 
 
 # Source, model, type field, target ID field, registry capability, parent field.
-# DocumentLink currently validates any registered type (no capability marker).
+# Use the same document_link capability as the public DocumentLink serializer.
 REFERENCE_SOURCES = (
     ("action_source", Action, "source_type", "source_id", "action_source", None),
     ("ai_target", AISuggestion, "object_type", "object_id", "ai_target", None),
-    ("document_link", DocumentLink, "object_type", "object_id", None, "document"),
+    ("document_link", DocumentLink, "object_type", "object_id", "document_link", "document"),
     ("evidence_link", EvidenceLink, "object_type", "object_id", "evidence", "evidence"),
     ("workflow", WorkflowInstance, "object_type", "object_id", "workflow", "definition"),
 )
