@@ -88,6 +88,18 @@ if [[ "$CURRENT_SOURCE_COMMIT" != "$BACKUP_SOURCE_COMMIT" ]]; then
   FORWARD_COMPATIBLE_RESTORE=1
 fi
 
+# Before touching the installed configuration, containers, PostgreSQL or Evidence,
+# reject a silently regenerated cryptographic identity on a replacement host.
+# RESTORE_CONFIG=YES explicitly restores the original backed-up secret identities.
+if [[ "${RESTORE_CONFIG:-NO}" != "YES" ]]; then
+  if [[ ! -f .env ]]; then
+    echo "ERROR: .env is absent. Either install the approved original config or set RESTORE_CONFIG=YES." >&2
+    exit 2
+  fi
+  python scripts/datacenter-restore-config-check.py \
+    --active .env --backup "$SRC/config.env" || exit 4
+fi
+
 if [[ "${RESTORE_CONFIG:-NO}" == "YES" ]]; then
   if [[ -f .env ]]; then
     install -m 600 .env ".env.pre-restore.$(date -u +%Y%m%dT%H%M%SZ)"
