@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import boto3
+from botocore.exceptions import ClientError
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 
@@ -64,20 +65,55 @@ class Command(BaseCommand):
             action="store_true",
             help="For restore only: delete existing objects before restoring the archive.",
         )
+        parser.add_argument(
+            "--initialize-missing-bucket", action="store_true",
+            help="Explicit replacement-host --replace recovery only, after archive validation.",
+        )
 
     def handle(self, *args, **options):
         path = Path(options["archive"])
         client = s3_client()
         bucket = settings.S3_BUCKET
+        init_bucket = options.get("initialize_missing_bucket", False)
+        if init_bucket and (options["operation"] != "restore" or not options["replace"]):
+            raise CommandError("Bucket initialization requires an explicitly approved --replace restore.")
         try:
             client.head_bucket(Bucket=bucket)
+        except ClientError as exc:
+            code = str(exc.response.get("Error", {}).get("Code", ""))
+            if init_bucket and code in {"404", "NotFound", "NoSuchBucket"}:
+                self._initialize_missing_bucket(client, bucket, path)
+            else:
+                raise CommandError("Cannot access the configured target S3 bucket.") from exc
         except Exception as exc:
-            raise CommandError(f"Cannot access object-storage bucket {bucket!r}: {exc}") from exc
+            raise CommandError("Cannot access the configured target S3 bucket.") from exc
 
         if options["operation"] == "export":
             self._export(client, bucket, path)
         else:
             self._restore(client, bucket, path, replace=options["replace"])
+
+    @classmethod
+    def _initialize_missing_bucket(cls, client, bucket, path):
+        """Never create a missing recovery bucket from corrupt or mismatched bytes."""
+        if not path.is_file() or path.is_symlink():
+            raise CommandError("Archive is missing or is not a regular file.")
+        try:
+            with zipfile.ZipFile(path, "r") as archive:
+                cls._validate_archive(archive)
+                manifest = json.loads(archive.read("manifest.json"))
+                if manifest.get("source_bucket") != bucket:
+                    raise CommandError("Archive source bucket differs from configured recovery bucket.")
+        except (zipfile.BadZipFile, EOFError, UnicodeError, RuntimeError, OSError, ValueError) as exc:
+            raise CommandError("Invalid archive; no target bucket was created.") from exc
+        parameters = {"Bucket": bucket}
+        region = settings.S3_REGION
+        if region and region != "us-east-1":
+            parameters["CreateBucketConfiguration"] = {"LocationConstraint": region}
+        try:
+            client.create_bucket(**parameters)
+        except Exception as exc:
+            raise CommandError("Approved replacement bucket initialization failed.") from exc
 
     def _export(self, client, bucket, path):
         path.parent.mkdir(parents=True, exist_ok=True)
