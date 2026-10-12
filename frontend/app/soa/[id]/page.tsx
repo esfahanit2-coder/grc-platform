@@ -33,6 +33,21 @@ type Readiness = {
   counts: { decisions: number; included: number; excluded: number; undecided: number; decisions_with_findings: number };
   findings: Finding[]; register_findings: string[]; blocking_external_prerequisites: string[];
 };
+type NumericDiff = {
+  comparison_type: "numeric_structure_only_non_attesting";
+  reference: string; formal_attestation_allowed: false;
+  source_rights_review: "not_verified";
+  comparison_summary: {
+    reference_numeric_ids: number; matched_numeric_identifiers: number;
+    missing_numeric_identifiers: number; unrecognized_annex_a_identifiers: number;
+    undecided_numeric_identifiers: number; additional_organizational_control_decisions: number;
+  };
+  missing_numeric_ids: string[];
+  unrecognized_annex_a_ids: string[];
+  undecided_numeric_ids: string[];
+  notice: string;
+};
+
 type EditForm = {
   control: string; reference_kind: Kind; source_identifier: string;
   decision: Choice; rationale: string; control_implementation: string; risk_treatment: string;
@@ -79,6 +94,9 @@ export default function SoADraftDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [register, setRegister] = useState<Register | null>(null);
   const [readiness, setReadiness] = useState<Readiness | null>(null);
+  const [numericDiff, setNumericDiff] = useState<NumericDiff | null>(null);
+  const [numericDiffLoading, setNumericDiffLoading] = useState(false);
+  const [numericDiffError, setNumericDiffError] = useState("");
   const [controls, setControls] = useState<Control[]>([]);
   const [implementations, setImplementations] = useState<Implementation[]>([]);
   const [treatments, setTreatments] = useState<Treatment[]>([]);
@@ -111,6 +129,23 @@ export default function SoADraftDetailPage() {
       setError(e instanceof Error ? e.message : "امکان دریافت پرونده وجود ندارد.");
       setRegister(null); setReadiness(null);
     } finally { setLoading(false); }
+  }
+
+  async function loadNumericDiff() {
+    setNumericDiffLoading(true);
+    setNumericDiffError("");
+    try {
+      const response = await apiFetch(
+        "/soa/registers/" + encodeURIComponent(id) +
+        "/reference-diff/?reference=iso-iec-27001-2022-annex-a-structure-only",
+      );
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(message(payload));
+      setNumericDiff(payload as NumericDiff);
+    } catch (e) {
+      setNumericDiffError(e instanceof Error ? e.message : "مقایسه شناسه‌های عددی ممکن نشد.");
+      setNumericDiff(null);
+    } finally { setNumericDiffLoading(false); }
   }
 
   async function loadOptions() {
@@ -214,6 +249,8 @@ export default function SoADraftDetailPage() {
       const result = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(message(result));
       setShowEditor(false); setEditingId(null); setForm(EMPTY);
+      // Numeric comparison is opt-in and may be stale after decisions change.
+      setNumericDiff(null);
       await load();
     } catch (e) {
       setSaveError(e instanceof Error ? e.message : "ذخیره تصمیم ناموفق بود.");
@@ -250,6 +287,39 @@ export default function SoADraftDetailPage() {
       <ul>{readiness.register_findings.map(code => <li key={code}>{issueLabels[code] ?? code}</li>)}</ul>
       <p><strong>اعتبار کامل فهرست کنترل‌های مرجع:</strong> بررسی نشده · <strong>ارزش شواهد:</strong> نیازمند بازبینی انسانی</p>
       <p><strong>گردش تأیید رسمی:</strong> موجود نیست.</p>
+    </section>}
+
+    {register && <section className="adminCard">
+      <h2>مقایسه اختیاری شناسه‌های عددی Annex A نسخه ۲۰۲۲</h2>
+      <p>این مقایسه فقط ساختار عددی ۹۳ شناسه مرجع را بررسی می‌کند؛ هویت چارچوب این پرونده، مجوز متن استاندارد، ضرورت انتخاب کنترل‌ها و انطباق سازمان را تأیید نمی‌کند. همه ۹۳ کنترل لزوماً برای این سازمان لازم نیستند.</p>
+      <button type="button" className="secondaryButton" onClick={() => void loadNumericDiff()} disabled={numericDiffLoading}>
+        {numericDiffLoading ? "در حال مقایسه…" : "مقایسه عددی شناسه‌های ثبت‌شده"}
+      </button>
+      {numericDiffError && <p role="alert" className="errorText">{numericDiffError}</p>}
+      {numericDiff && <div>
+        <p role="status"><strong>صرفاً مقایسه ساختاری؛ نه گواهی یا تأیید SoA.</strong></p>
+        <div className="formGrid">
+          <p>شناسه‌های مرجع: <strong>{numericDiff.comparison_summary.reference_numeric_ids}</strong></p>
+          <p>دارای شناسه عددی منطبق: <strong>{numericDiff.comparison_summary.matched_numeric_identifiers}</strong></p>
+          <p>شناسه‌های بدون تصمیم ثبت‌شده: <strong>{numericDiff.comparison_summary.missing_numeric_identifiers}</strong></p>
+          <p>شناسه‌های ناشناخته: <strong>{numericDiff.comparison_summary.unrecognized_annex_a_identifiers}</strong></p>
+          <p>شناسه‌های دارای تصمیم نامشخص: <strong>{numericDiff.comparison_summary.undecided_numeric_identifiers}</strong></p>
+          <p>تصمیم‌های کنترل افزوده سازمانی: <strong>{numericDiff.comparison_summary.additional_organizational_control_decisions}</strong></p>
+        </div>
+        {numericDiff.missing_numeric_ids.length > 0 && <details>
+          <summary>شناسه‌های عددی فاقد تصمیم ({numericDiff.missing_numeric_ids.length})</summary>
+          <p dir="ltr">{numericDiff.missing_numeric_ids.join(" · ")}</p>
+        </details>}
+        {numericDiff.unrecognized_annex_a_ids.length > 0 && <details>
+          <summary>شناسه‌های Annex A ناشناخته</summary>
+          <p dir="ltr">{numericDiff.unrecognized_annex_a_ids.join(" · ")}</p>
+        </details>}
+        {numericDiff.undecided_numeric_ids.length > 0 && <details>
+          <summary>شناسه‌های دارای تصمیم نامشخص</summary>
+          <p dir="ltr">{numericDiff.undecided_numeric_ids.join(" · ")}</p>
+        </details>}
+        <p><strong>حق استفاده از استاندارد:</strong> بررسی نشده · <strong>تأیید انسانی:</strong> انجام نشده</p>
+      </div>}
     </section>}
 
     {register && <section className="adminCard">
