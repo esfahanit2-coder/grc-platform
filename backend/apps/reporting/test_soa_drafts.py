@@ -226,6 +226,94 @@ class SoADraftControlRegisterTests(APITestCase):
         self.assertEqual(response.status_code, 400)
         self.assertEqual(SoAControlDecision.objects.count(), 0)
 
+    def test_numeric_reference_diff_requires_explicit_opt_in_and_never_approves(self):
+        from .soa_reference_diff import EXPECTED_IDS
+
+        self.assertEqual(len(EXPECTED_IDS), 93)
+        self.assertEqual(EXPECTED_IDS[0], "A.5.1")
+        self.assertIn("A.5.37", EXPECTED_IDS)
+        self.assertIn("A.6.8", EXPECTED_IDS)
+        self.assertIn("A.7.14", EXPECTED_IDS)
+        self.assertEqual(EXPECTED_IDS[-1], "A.8.34")
+        register = self.make_register()
+        self.auth(self.viewer)
+        url = f"/api/v1/soa/registers/{register['id']}/reference-diff/"
+        self.assertEqual(self.client.get(url).status_code, 400)
+        self.assertEqual(self.client.get(url + "?reference=unknown").status_code, 400)
+        response = self.client.get(url + "?reference=iso-iec-27001-2022-annex-a-structure-only")
+        self.assertEqual(response.status_code, 200, response.content)
+        data = response.json()
+        self.assertEqual(data["comparison_type"], "numeric_structure_only_non_attesting")
+        self.assertFalse(data["formal_attestation_allowed"])
+        self.assertFalse(data["is_formal_statement_of_applicability"])
+        self.assertEqual(data["framework_source_identity"], "not_verified")
+        self.assertEqual(data["source_rights_review"], "not_verified")
+        self.assertEqual(data["human_control_selection_review"], "not_performed")
+        self.assertEqual(data["comparison_summary"]["reference_numeric_ids"], 93)
+        self.assertEqual(data["comparison_summary"]["missing_numeric_identifiers"], 93)
+        self.assertIn("NOT 93 mandatory", data["notice"])
+        self.assertEqual(self.client.post(url, {}, format="json").status_code, 405)
+
+    def test_numeric_reference_diff_separates_selected_excluded_unknown_and_additional(self):
+        register = self.make_register()
+        selected = self.make_decision(register)
+        self.assertEqual(selected.status_code, 201, selected.content)
+        excluded = self.make_decision(
+            register, control=str(self.second_control.id),
+            source_identifier="A.6.1", decision="excluded",
+            rationale="Not selected after human scope review.",
+            control_implementation=None, risk_treatment=None,
+        )
+        self.assertEqual(excluded.status_code, 201, excluded.content)
+        wrong_control = Control.objects.create(
+            tenant=self.tenant, code="syn-ctrl-noncanonical",
+            title="Synthetic noncanonical ID", status=Control.Status.ACTIVE,
+        )
+        unknown = self.make_decision(
+            register, control=str(wrong_control.id),
+            source_identifier="A.5.99", decision="undecided",
+            rationale="", control_implementation=None, risk_treatment=None,
+        )
+        self.assertEqual(unknown.status_code, 201, unknown.content)
+        extra_control = Control.objects.create(
+            tenant=self.tenant, code="syn-ctrl-org-extra",
+            title="Synthetic additional control", status=Control.Status.ACTIVE,
+        )
+        additional = self.make_decision(
+            register, control=str(extra_control.id),
+            reference_kind="additional", source_identifier="ORG-LOCAL-01",
+            decision="undecided", rationale="",
+            control_implementation=None, risk_treatment=None,
+        )
+        self.assertEqual(additional.status_code, 201, additional.content)
+
+        self.auth(self.viewer)
+        url = f"/api/v1/soa/registers/{register['id']}/reference-diff/?reference=iso-iec-27001-2022-annex-a-structure-only"
+        data = self.client.get(url).json()
+        counts = data["comparison_summary"]
+        self.assertEqual(counts["matched_numeric_identifiers"], 2)
+        self.assertEqual(counts["missing_numeric_identifiers"], 91)
+        self.assertEqual(counts["unrecognized_annex_a_identifiers"], 1)
+        self.assertEqual(counts["additional_organizational_control_decisions"], 1)
+        self.assertEqual(data["unrecognized_annex_a_ids"], ["A.5.99"])
+        self.assertNotIn("A.5.1", data["missing_numeric_ids"])
+        self.assertNotIn("A.6.1", data["missing_numeric_ids"])
+        self.assertIn("A.6.2", data["missing_numeric_ids"])
+        self.assertNotIn("ORG-LOCAL-01", data["unrecognized_annex_a_ids"])
+        self.assertFalse(data["formal_attestation_allowed"])
+
+    def test_numeric_reference_diff_cloaks_other_unit_and_tenant(self):
+        good = self.make_register(self.hq)
+        hidden = self.make_register(self.ops)
+        suffix = "reference-diff/?reference=iso-iec-27001-2022-annex-a-structure-only"
+        self.auth(self.viewer)
+        self.assertEqual(self.client.get(f"/api/v1/soa/registers/{good['id']}/" + suffix).status_code, 200)
+        self.assertEqual(self.client.get(f"/api/v1/soa/registers/{hidden['id']}/" + suffix).status_code, 404)
+        self.auth(self.admin, tenant=self.foreign_tenant)
+        foreign = self.client.get(f"/api/v1/soa/registers/{good['id']}/" + suffix)
+        self.assertIn(foreign.status_code, (403, 404))
+        self.assertNotIn("Unapproved synthetic", foreign.content.decode())
+
     def test_empty_register_is_explicitly_flagged_and_never_approvable(self):
         register = self.make_register()
         self.auth(self.admin)
