@@ -226,6 +226,18 @@ class SoADraftControlRegisterTests(APITestCase):
         self.assertEqual(response.status_code, 400)
         self.assertEqual(SoAControlDecision.objects.count(), 0)
 
+    def test_empty_register_is_explicitly_flagged_and_never_approvable(self):
+        register = self.make_register()
+        self.auth(self.admin)
+        response = self.client.get(f"/api/v1/soa/registers/{register['id']}/readiness/")
+        self.assertEqual(response.status_code, 200, response.content)
+        payload = response.json()
+        self.assertEqual(payload["counts"]["decisions"], 0)
+        self.assertEqual(payload["findings"], [])
+        self.assertIn("empty_control_decision_register", payload["register_findings"])
+        self.assertIn("source_control_inventory_not_verified", payload["register_findings"])
+        self.assertFalse(payload["formal_attestation_allowed"])
+
     def test_readiness_is_read_only_and_never_issues_an_approved_soa(self):
         register = self.make_register()
         included = self.make_decision(register)
