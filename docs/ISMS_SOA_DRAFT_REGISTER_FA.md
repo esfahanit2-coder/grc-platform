@@ -18,7 +18,7 @@
 
 `SoARegister`: Tenant، واحد سازمانی، نسخه Framework قفل‌شده، عنوان، شماره بازنگری، ایجادکننده، وضعیت ثابت `draft`؛ قید یکتایی Tenant + واحد + نسخه + بازنگری.
 
-`SoAControlDecision`: Control، نوع مرجع (`annex_a` یا `additional`)، شناسه مرجع تأییدنشده، انتخاب (`undecided`، `included`، `excluded`)، توجیه کارشناس، پیوند اختیاری ControlImplementation و RiskTreatment و آخرین ویرایشگر. تکرار کنترل یا شناسه در یک دفتر مردود است. اتصال Implementation فقط به همان Control و واحد و Tenant مجاز است؛ Treatment فقط با ریسک متعلق به Tenant و واحد یکسان مجاز است. **پیوند به Treatment به‌تنهایی اثبات انتخاب یا اثربخشی کنترل نیست.**
+`SoAControlDecision`: Control، نوع مرجع (`annex_a` یا `additional`)، شناسه مرجع تأییدنشده، انتخاب (`undecided`، `included`، `excluded`)، توجیه کارشناس، پیوند اختیاری ControlImplementation و RiskTreatment و آخرین ویرایشگر. تکرار کنترل یا شناسه در یک دفتر مردود است. اتصال Implementation فقط به همان Control و واحد و Tenant مجاز است؛ Treatment فقط با ریسک متعلق به Tenant و واحد یکسان **و با رابطه موجود RiskControl به همان ControlImplementation** مجاز است؛ پیوند درمان بدون این رابطه رد می‌شود. **پیوند به Treatment به‌تنهایی اثبات انتخاب یا اثربخشی کنترل نیست.**
 
 توجیه برای هر تصمیم include/exclude اجباری است و یک کنترل مستثنی نباید به‌عنوان کنترل پیاده‌شده یا درمان‌شده در همان تصمیم ثبت شود. هیچ شناسه عددی کاربر، بدون تطبیق منبع انسانی، به‌عنوان Control Annex A معتبر یا دارای حق نشر تعبیر نمی‌شود.
 
