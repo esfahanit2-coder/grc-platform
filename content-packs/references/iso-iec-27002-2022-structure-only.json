@@ -1,0 +1,596 @@
+{
+  "_notice": "NUMERIC IDENTIFIERS AND ORIGINAL PDF PAGE LOCATORS ONLY. No ISO titles/control statements/purposes/guidance/attribute tables, no vendor source PDF. NOT AN IMPORTABLE OR ASSESSABLE CONTENT PACK.",
+  "schema": "grc.structural-index.v1",
+  "importable": false,
+  "assessable": false,
+  "framework": "ISO/IEC 27002:2022",
+  "publisher": "ISO/IEC",
+  "reference_number": "ISO/IEC 27002:2022(E)",
+  "edition": "Third edition, 2022-02; whether this copy contains 2022-03 corrected-version text is unverified",
+  "language": "en",
+  "source_pdf_page_count": 164,
+  "source_pdf_sha256": "175bb0a035c764ff15513cbbc01bb0ecd7b6e03b44b1cb4b707478ef705e209a",
+  "source_review": "2026-10-12: user-supplied original PDF bytes inspected locally; 93 numeric IDs and physical page locators independently enumerated; 164 pages including Annex A and Annex B; independent publisher authenticity and rights attestation are pending.",
+  "rights": {
+    "copyright": "ISO/IEC 2022",
+    "protected_standard_text_included": false,
+    "redistribution_of_standard_text_authorized": false
+  },
+  "notes": [
+    "Numeric one-to-one identifier alignment with ISO/IEC 27001:2022 Annex A is not an approved organization-specific mapping or an SoA.",
+    "ISO/IEC 27002 is guidance for controls; the ISO/IEC 27001 requirements drive management-system conformance claims.",
+    "Annex B contains 2013-to-2022 correspondence, which has not been copied or treated as a customer-approved crosswalk.",
+    "PDF page locations are physical, one-based; publication printed page numbers differ.",
+    "This 2022-02 copy is not claimed to be the separate 2022-03 corrected issue; 2013 file remains a distinct historical edition.",
+    "Licensing, tenant-only private content extraction and versioned import require formal approval."
+  ],
+  "control_identifiers": [
+    {
+      "source_identifier": "5.1",
+      "linkable_27001_2022_annex_a_identifier": "A.5.1",
+      "source_group": 5,
+      "pdf_page_1_based": 19
+    },
+    {
+      "source_identifier": "5.2",
+      "linkable_27001_2022_annex_a_identifier": "A.5.2",
+      "source_group": 5,
+      "pdf_page_1_based": 21
+    },
+    {
+      "source_identifier": "5.3",
+      "linkable_27001_2022_annex_a_identifier": "A.5.3",
+      "source_group": 5,
+      "pdf_page_1_based": 22
+    },
+    {
+      "source_identifier": "5.4",
+      "linkable_27001_2022_annex_a_identifier": "A.5.4",
+      "source_group": 5,
+      "pdf_page_1_based": 23
+    },
+    {
+      "source_identifier": "5.5",
+      "linkable_27001_2022_annex_a_identifier": "A.5.5",
+      "source_group": 5,
+      "pdf_page_1_based": 24
+    },
+    {
+      "source_identifier": "5.6",
+      "linkable_27001_2022_annex_a_identifier": "A.5.6",
+      "source_group": 5,
+      "pdf_page_1_based": 25
+    },
+    {
+      "source_identifier": "5.7",
+      "linkable_27001_2022_annex_a_identifier": "A.5.7",
+      "source_group": 5,
+      "pdf_page_1_based": 25
+    },
+    {
+      "source_identifier": "5.8",
+      "linkable_27001_2022_annex_a_identifier": "A.5.8",
+      "source_group": 5,
+      "pdf_page_1_based": 27
+    },
+    {
+      "source_identifier": "5.9",
+      "linkable_27001_2022_annex_a_identifier": "A.5.9",
+      "source_group": 5,
+      "pdf_page_1_based": 28
+    },
+    {
+      "source_identifier": "5.10",
+      "linkable_27001_2022_annex_a_identifier": "A.5.10",
+      "source_group": 5,
+      "pdf_page_1_based": 30
+    },
+    {
+      "source_identifier": "5.11",
+      "linkable_27001_2022_annex_a_identifier": "A.5.11",
+      "source_group": 5,
+      "pdf_page_1_based": 31
+    },
+    {
+      "source_identifier": "5.12",
+      "linkable_27001_2022_annex_a_identifier": "A.5.12",
+      "source_group": 5,
+      "pdf_page_1_based": 32
+    },
+    {
+      "source_identifier": "5.13",
+      "linkable_27001_2022_annex_a_identifier": "A.5.13",
+      "source_group": 5,
+      "pdf_page_1_based": 33
+    },
+    {
+      "source_identifier": "5.14",
+      "linkable_27001_2022_annex_a_identifier": "A.5.14",
+      "source_group": 5,
+      "pdf_page_1_based": 34
+    },
+    {
+      "source_identifier": "5.15",
+      "linkable_27001_2022_annex_a_identifier": "A.5.15",
+      "source_group": 5,
+      "pdf_page_1_based": 37
+    },
+    {
+      "source_identifier": "5.16",
+      "linkable_27001_2022_annex_a_identifier": "A.5.16",
+      "source_group": 5,
+      "pdf_page_1_based": 39
+    },
+    {
+      "source_identifier": "5.17",
+      "linkable_27001_2022_annex_a_identifier": "A.5.17",
+      "source_group": 5,
+      "pdf_page_1_based": 40
+    },
+    {
+      "source_identifier": "5.18",
+      "linkable_27001_2022_annex_a_identifier": "A.5.18",
+      "source_group": 5,
+      "pdf_page_1_based": 42
+    },
+    {
+      "source_identifier": "5.19",
+      "linkable_27001_2022_annex_a_identifier": "A.5.19",
+      "source_group": 5,
+      "pdf_page_1_based": 43
+    },
+    {
+      "source_identifier": "5.20",
+      "linkable_27001_2022_annex_a_identifier": "A.5.20",
+      "source_group": 5,
+      "pdf_page_1_based": 45
+    },
+    {
+      "source_identifier": "5.21",
+      "linkable_27001_2022_annex_a_identifier": "A.5.21",
+      "source_group": 5,
+      "pdf_page_1_based": 47
+    },
+    {
+      "source_identifier": "5.22",
+      "linkable_27001_2022_annex_a_identifier": "A.5.22",
+      "source_group": 5,
+      "pdf_page_1_based": 49
+    },
+    {
+      "source_identifier": "5.23",
+      "linkable_27001_2022_annex_a_identifier": "A.5.23",
+      "source_group": 5,
+      "pdf_page_1_based": 51
+    },
+    {
+      "source_identifier": "5.24",
+      "linkable_27001_2022_annex_a_identifier": "A.5.24",
+      "source_group": 5,
+      "pdf_page_1_based": 53
+    },
+    {
+      "source_identifier": "5.25",
+      "linkable_27001_2022_annex_a_identifier": "A.5.25",
+      "source_group": 5,
+      "pdf_page_1_based": 54
+    },
+    {
+      "source_identifier": "5.26",
+      "linkable_27001_2022_annex_a_identifier": "A.5.26",
+      "source_group": 5,
+      "pdf_page_1_based": 55
+    },
+    {
+      "source_identifier": "5.27",
+      "linkable_27001_2022_annex_a_identifier": "A.5.27",
+      "source_group": 5,
+      "pdf_page_1_based": 56
+    },
+    {
+      "source_identifier": "5.28",
+      "linkable_27001_2022_annex_a_identifier": "A.5.28",
+      "source_group": 5,
+      "pdf_page_1_based": 57
+    },
+    {
+      "source_identifier": "5.29",
+      "linkable_27001_2022_annex_a_identifier": "A.5.29",
+      "source_group": 5,
+      "pdf_page_1_based": 58
+    },
+    {
+      "source_identifier": "5.30",
+      "linkable_27001_2022_annex_a_identifier": "A.5.30",
+      "source_group": 5,
+      "pdf_page_1_based": 58
+    },
+    {
+      "source_identifier": "5.31",
+      "linkable_27001_2022_annex_a_identifier": "A.5.31",
+      "source_group": 5,
+      "pdf_page_1_based": 60
+    },
+    {
+      "source_identifier": "5.32",
+      "linkable_27001_2022_annex_a_identifier": "A.5.32",
+      "source_group": 5,
+      "pdf_page_1_based": 61
+    },
+    {
+      "source_identifier": "5.33",
+      "linkable_27001_2022_annex_a_identifier": "A.5.33",
+      "source_group": 5,
+      "pdf_page_1_based": 63
+    },
+    {
+      "source_identifier": "5.34",
+      "linkable_27001_2022_annex_a_identifier": "A.5.34",
+      "source_group": 5,
+      "pdf_page_1_based": 64
+    },
+    {
+      "source_identifier": "5.35",
+      "linkable_27001_2022_annex_a_identifier": "A.5.35",
+      "source_group": 5,
+      "pdf_page_1_based": 65
+    },
+    {
+      "source_identifier": "5.36",
+      "linkable_27001_2022_annex_a_identifier": "A.5.36",
+      "source_group": 5,
+      "pdf_page_1_based": 66
+    },
+    {
+      "source_identifier": "5.37",
+      "linkable_27001_2022_annex_a_identifier": "A.5.37",
+      "source_group": 5,
+      "pdf_page_1_based": 67
+    },
+    {
+      "source_identifier": "6.1",
+      "linkable_27001_2022_annex_a_identifier": "A.6.1",
+      "source_group": 6,
+      "pdf_page_1_based": 68
+    },
+    {
+      "source_identifier": "6.2",
+      "linkable_27001_2022_annex_a_identifier": "A.6.2",
+      "source_group": 6,
+      "pdf_page_1_based": 69
+    },
+    {
+      "source_identifier": "6.3",
+      "linkable_27001_2022_annex_a_identifier": "A.6.3",
+      "source_group": 6,
+      "pdf_page_1_based": 70
+    },
+    {
+      "source_identifier": "6.4",
+      "linkable_27001_2022_annex_a_identifier": "A.6.4",
+      "source_group": 6,
+      "pdf_page_1_based": 72
+    },
+    {
+      "source_identifier": "6.5",
+      "linkable_27001_2022_annex_a_identifier": "A.6.5",
+      "source_group": 6,
+      "pdf_page_1_based": 73
+    },
+    {
+      "source_identifier": "6.6",
+      "linkable_27001_2022_annex_a_identifier": "A.6.6",
+      "source_group": 6,
+      "pdf_page_1_based": 73
+    },
+    {
+      "source_identifier": "6.7",
+      "linkable_27001_2022_annex_a_identifier": "A.6.7",
+      "source_group": 6,
+      "pdf_page_1_based": 75
+    },
+    {
+      "source_identifier": "6.8",
+      "linkable_27001_2022_annex_a_identifier": "A.6.8",
+      "source_group": 6,
+      "pdf_page_1_based": 76
+    },
+    {
+      "source_identifier": "7.1",
+      "linkable_27001_2022_annex_a_identifier": "A.7.1",
+      "source_group": 7,
+      "pdf_page_1_based": 77
+    },
+    {
+      "source_identifier": "7.2",
+      "linkable_27001_2022_annex_a_identifier": "A.7.2",
+      "source_group": 7,
+      "pdf_page_1_based": 78
+    },
+    {
+      "source_identifier": "7.3",
+      "linkable_27001_2022_annex_a_identifier": "A.7.3",
+      "source_group": 7,
+      "pdf_page_1_based": 80
+    },
+    {
+      "source_identifier": "7.4",
+      "linkable_27001_2022_annex_a_identifier": "A.7.4",
+      "source_group": 7,
+      "pdf_page_1_based": 80
+    },
+    {
+      "source_identifier": "7.5",
+      "linkable_27001_2022_annex_a_identifier": "A.7.5",
+      "source_group": 7,
+      "pdf_page_1_based": 81
+    },
+    {
+      "source_identifier": "7.6",
+      "linkable_27001_2022_annex_a_identifier": "A.7.6",
+      "source_group": 7,
+      "pdf_page_1_based": 82
+    },
+    {
+      "source_identifier": "7.7",
+      "linkable_27001_2022_annex_a_identifier": "A.7.7",
+      "source_group": 7,
+      "pdf_page_1_based": 83
+    },
+    {
+      "source_identifier": "7.8",
+      "linkable_27001_2022_annex_a_identifier": "A.7.8",
+      "source_group": 7,
+      "pdf_page_1_based": 84
+    },
+    {
+      "source_identifier": "7.9",
+      "linkable_27001_2022_annex_a_identifier": "A.7.9",
+      "source_group": 7,
+      "pdf_page_1_based": 85
+    },
+    {
+      "source_identifier": "7.10",
+      "linkable_27001_2022_annex_a_identifier": "A.7.10",
+      "source_group": 7,
+      "pdf_page_1_based": 86
+    },
+    {
+      "source_identifier": "7.11",
+      "linkable_27001_2022_annex_a_identifier": "A.7.11",
+      "source_group": 7,
+      "pdf_page_1_based": 87
+    },
+    {
+      "source_identifier": "7.12",
+      "linkable_27001_2022_annex_a_identifier": "A.7.12",
+      "source_group": 7,
+      "pdf_page_1_based": 88
+    },
+    {
+      "source_identifier": "7.13",
+      "linkable_27001_2022_annex_a_identifier": "A.7.13",
+      "source_group": 7,
+      "pdf_page_1_based": 89
+    },
+    {
+      "source_identifier": "7.14",
+      "linkable_27001_2022_annex_a_identifier": "A.7.14",
+      "source_group": 7,
+      "pdf_page_1_based": 90
+    },
+    {
+      "source_identifier": "8.1",
+      "linkable_27001_2022_annex_a_identifier": "A.8.1",
+      "source_group": 8,
+      "pdf_page_1_based": 91
+    },
+    {
+      "source_identifier": "8.2",
+      "linkable_27001_2022_annex_a_identifier": "A.8.2",
+      "source_group": 8,
+      "pdf_page_1_based": 93
+    },
+    {
+      "source_identifier": "8.3",
+      "linkable_27001_2022_annex_a_identifier": "A.8.3",
+      "source_group": 8,
+      "pdf_page_1_based": 94
+    },
+    {
+      "source_identifier": "8.4",
+      "linkable_27001_2022_annex_a_identifier": "A.8.4",
+      "source_group": 8,
+      "pdf_page_1_based": 96
+    },
+    {
+      "source_identifier": "8.5",
+      "linkable_27001_2022_annex_a_identifier": "A.8.5",
+      "source_group": 8,
+      "pdf_page_1_based": 97
+    },
+    {
+      "source_identifier": "8.6",
+      "linkable_27001_2022_annex_a_identifier": "A.8.6",
+      "source_group": 8,
+      "pdf_page_1_based": 99
+    },
+    {
+      "source_identifier": "8.7",
+      "linkable_27001_2022_annex_a_identifier": "A.8.7",
+      "source_group": 8,
+      "pdf_page_1_based": 100
+    },
+    {
+      "source_identifier": "8.8",
+      "linkable_27001_2022_annex_a_identifier": "A.8.8",
+      "source_group": 8,
+      "pdf_page_1_based": 102
+    },
+    {
+      "source_identifier": "8.9",
+      "linkable_27001_2022_annex_a_identifier": "A.8.9",
+      "source_group": 8,
+      "pdf_page_1_based": 105
+    },
+    {
+      "source_identifier": "8.10",
+      "linkable_27001_2022_annex_a_identifier": "A.8.10",
+      "source_group": 8,
+      "pdf_page_1_based": 107
+    },
+    {
+      "source_identifier": "8.11",
+      "linkable_27001_2022_annex_a_identifier": "A.8.11",
+      "source_group": 8,
+      "pdf_page_1_based": 108
+    },
+    {
+      "source_identifier": "8.12",
+      "linkable_27001_2022_annex_a_identifier": "A.8.12",
+      "source_group": 8,
+      "pdf_page_1_based": 110
+    },
+    {
+      "source_identifier": "8.13",
+      "linkable_27001_2022_annex_a_identifier": "A.8.13",
+      "source_group": 8,
+      "pdf_page_1_based": 111
+    },
+    {
+      "source_identifier": "8.14",
+      "linkable_27001_2022_annex_a_identifier": "A.8.14",
+      "source_group": 8,
+      "pdf_page_1_based": 112
+    },
+    {
+      "source_identifier": "8.15",
+      "linkable_27001_2022_annex_a_identifier": "A.8.15",
+      "source_group": 8,
+      "pdf_page_1_based": 113
+    },
+    {
+      "source_identifier": "8.16",
+      "linkable_27001_2022_annex_a_identifier": "A.8.16",
+      "source_group": 8,
+      "pdf_page_1_based": 116
+    },
+    {
+      "source_identifier": "8.17",
+      "linkable_27001_2022_annex_a_identifier": "A.8.17",
+      "source_group": 8,
+      "pdf_page_1_based": 118
+    },
+    {
+      "source_identifier": "8.18",
+      "linkable_27001_2022_annex_a_identifier": "A.8.18",
+      "source_group": 8,
+      "pdf_page_1_based": 119
+    },
+    {
+      "source_identifier": "8.19",
+      "linkable_27001_2022_annex_a_identifier": "A.8.19",
+      "source_group": 8,
+      "pdf_page_1_based": 120
+    },
+    {
+      "source_identifier": "8.20",
+      "linkable_27001_2022_annex_a_identifier": "A.8.20",
+      "source_group": 8,
+      "pdf_page_1_based": 121
+    },
+    {
+      "source_identifier": "8.21",
+      "linkable_27001_2022_annex_a_identifier": "A.8.21",
+      "source_group": 8,
+      "pdf_page_1_based": 122
+    },
+    {
+      "source_identifier": "8.22",
+      "linkable_27001_2022_annex_a_identifier": "A.8.22",
+      "source_group": 8,
+      "pdf_page_1_based": 123
+    },
+    {
+      "source_identifier": "8.23",
+      "linkable_27001_2022_annex_a_identifier": "A.8.23",
+      "source_group": 8,
+      "pdf_page_1_based": 124
+    },
+    {
+      "source_identifier": "8.24",
+      "linkable_27001_2022_annex_a_identifier": "A.8.24",
+      "source_group": 8,
+      "pdf_page_1_based": 125
+    },
+    {
+      "source_identifier": "8.25",
+      "linkable_27001_2022_annex_a_identifier": "A.8.25",
+      "source_group": 8,
+      "pdf_page_1_based": 127
+    },
+    {
+      "source_identifier": "8.26",
+      "linkable_27001_2022_annex_a_identifier": "A.8.26",
+      "source_group": 8,
+      "pdf_page_1_based": 128
+    },
+    {
+      "source_identifier": "8.27",
+      "linkable_27001_2022_annex_a_identifier": "A.8.27",
+      "source_group": 8,
+      "pdf_page_1_based": 130
+    },
+    {
+      "source_identifier": "8.28",
+      "linkable_27001_2022_annex_a_identifier": "A.8.28",
+      "source_group": 8,
+      "pdf_page_1_based": 132
+    },
+    {
+      "source_identifier": "8.29",
+      "linkable_27001_2022_annex_a_identifier": "A.8.29",
+      "source_group": 8,
+      "pdf_page_1_based": 134
+    },
+    {
+      "source_identifier": "8.30",
+      "linkable_27001_2022_annex_a_identifier": "A.8.30",
+      "source_group": 8,
+      "pdf_page_1_based": 136
+    },
+    {
+      "source_identifier": "8.31",
+      "linkable_27001_2022_annex_a_identifier": "A.8.31",
+      "source_group": 8,
+      "pdf_page_1_based": 137
+    },
+    {
+      "source_identifier": "8.32",
+      "linkable_27001_2022_annex_a_identifier": "A.8.32",
+      "source_group": 8,
+      "pdf_page_1_based": 138
+    },
+    {
+      "source_identifier": "8.33",
+      "linkable_27001_2022_annex_a_identifier": "A.8.33",
+      "source_group": 8,
+      "pdf_page_1_based": 139
+    },
+    {
+      "source_identifier": "8.34",
+      "linkable_27001_2022_annex_a_identifier": "A.8.34",
+      "source_group": 8,
+      "pdf_page_1_based": 140
+    }
+  ],
+  "summary": {
+    "control_count": 93,
+    "by_group": {
+      "organizational": 37,
+      "people": 8,
+      "physical": 14,
+      "technological": 34
+    }
+  }
+}
