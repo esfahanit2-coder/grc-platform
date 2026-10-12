@@ -338,6 +338,9 @@ class SoADraftControlRegisterTests(APITestCase):
         reviewer = self.independent_reviewer()
         self.auth(self.admin)
         url = f"/api/v1/soa/registers/{register['id']}/review-requests/"
+        candidates = self.client.get(f"/api/v1/soa/registers/{register['id']}/reviewers/")
+        self.assertEqual(candidates.status_code, 200, candidates.content)
+        self.assertEqual([item["id"] for item in candidates.json()["results"]], [str(reviewer.pk)])
         response = self.client.post(url, {
             "reviewer": str(reviewer.pk), "note": "Review selection and evidence links.",
         }, format="json")
@@ -354,6 +357,9 @@ class SoADraftControlRegisterTests(APITestCase):
         self.assertEqual(listing.json()["results"][0]["snapshot_stale"], False)
 
         self.auth(reviewer)
+        reviewer_list = self.client.get(url)
+        self.assertEqual(reviewer_list.status_code, 200, reviewer_list.content)
+        self.assertTrue(reviewer_list.json()["results"][0]["can_respond"])
         result = self.client.post(
             f"{url}{request_id}/respond/",
             {"kind": "feedback_recorded", "note": "Reviewed draft for improvements; NOT ISO approval."},
@@ -394,6 +400,9 @@ class SoADraftControlRegisterTests(APITestCase):
             self.client.post(url, {"reviewer": str(foreign.pk)}, format="json").status_code, 400
         )
         self.auth(self.viewer)
+        self.assertEqual(
+            self.client.get(f"/api/v1/soa/registers/{register['id']}/reviewers/").status_code, 403
+        )
         self.assertEqual(
             self.client.post(url, {"reviewer": str(out_of_scope.pk)}, format="json").status_code, 403
         )
