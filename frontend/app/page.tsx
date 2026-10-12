@@ -15,6 +15,7 @@ const menuSections = [
       { label: "کنترل‌ها", href: "/controls", glyph: "◇" },
       { label: "ریسک", href: "/risks", glyph: "△" },
       { label: "انطباق و ارزیابی", href: "/assessments", glyph: "✓" },
+      { label: "پیش‌نویس کاربردپذیری SoA", href: "/soa", glyph: "▧" },
     ],
   },
   {
