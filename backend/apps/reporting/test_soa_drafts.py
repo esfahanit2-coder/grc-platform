@@ -4,6 +4,7 @@ from datetime import timedelta
 from django.utils import timezone
 
 from docx import Document as Docx
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.contrib.auth import get_user_model
 from rest_framework.test import APITestCase
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -19,7 +20,7 @@ from apps.tenancy.models import Tenant, TenantMembership
 from apps.evidence.models import Evidence, EvidenceLink
 from apps.assessments.models import Assessment
 
-from .models import SoAControlDecision, SoARegister
+from .models import SoAControlDecision, SoARegister, SoADraftReviewEvent
 
 
 class SoADraftControlRegisterTests(APITestCase):
@@ -314,6 +315,176 @@ class SoADraftControlRegisterTests(APITestCase):
         foreign = self.client.get(f"/api/v1/soa/registers/{good['id']}/" + suffix)
         self.assertIn(foreign.status_code, (403, 404))
         self.assertNotIn("Unapproved synthetic", foreign.content.decode())
+
+    def independent_reviewer(self, *, org=None):
+        actor = get_user_model().objects.create_user(
+            username=f"soa-independent-{get_user_model().objects.count()}",
+            password="StrongPassword123!",
+        )
+        TenantMembership.objects.create(
+            tenant=self.tenant, user=actor, role_code="reviewer",
+        )
+        roles = bootstrap_tenant_rbac(self.tenant)
+        UserRoleScope.objects.create(
+            user=actor, tenant=self.tenant,
+            role=roles["compliance_manager"], organization_unit=org or self.hq,
+        )
+        return actor
+
+    def test_review_request_is_independent_and_feedback_does_not_approve(self):
+        from apps.audit.models import AuditEvent
+
+        register = self.make_register()
+        reviewer = self.independent_reviewer()
+        self.auth(self.admin)
+        url = f"/api/v1/soa/registers/{register['id']}/review-requests/"
+        response = self.client.post(url, {
+            "reviewer": str(reviewer.pk), "note": "Review selection and evidence links.",
+        }, format="json")
+        self.assertEqual(response.status_code, 201, response.content)
+        request_id = response.json()["id"]
+        self.assertEqual(response.json()["kind"], "requested")
+        self.assertFalse(response.json()["formal_attestation_allowed"])
+        self.assertNotIn("draft_digest", response.json())
+
+        self.auth(self.viewer)
+        listing = self.client.get(url)
+        self.assertEqual(listing.status_code, 200, listing.content)
+        self.assertEqual(len(listing.json()["results"]), 1)
+        self.assertEqual(listing.json()["results"][0]["snapshot_stale"], False)
+
+        self.auth(reviewer)
+        result = self.client.post(
+            f"{url}{request_id}/respond/",
+            {"kind": "feedback_recorded", "note": "Reviewed draft for improvements; NOT ISO approval."},
+            format="json",
+        )
+        self.assertEqual(result.status_code, 201, result.content)
+        self.assertFalse(result.json()["formal_attestation_allowed"])
+        self.assertEqual(result.json()["kind"], "feedback_recorded")
+        replay = self.client.post(
+            f"{url}{request_id}/respond/",
+            {"kind": "changes_requested", "note": "Replay should be rejected."}, format="json",
+        )
+        self.assertEqual(replay.status_code, 409)
+        self.assertEqual(SoADraftReviewEvent.objects.filter(register_id=register["id"]).count(), 2)
+        self.assertEqual(SoARegister.objects.get(pk=register["id"]).status, "draft")
+        self.assertTrue(AuditEvent.objects.filter(tenant=self.tenant, action="soa.review.request").exists())
+        self.assertTrue(AuditEvent.objects.filter(tenant=self.tenant, action="soa.review.feedback").exists())
+
+    def test_review_request_rejects_self_and_unprivileged_reviewers(self):
+        register = self.make_register()
+        self.auth(self.admin)
+        url = f"/api/v1/soa/registers/{register['id']}/review-requests/"
+        self.assertEqual(
+            self.client.post(url, {"reviewer": str(self.admin.pk)}, format="json").status_code, 400
+        )
+        self.assertEqual(
+            self.client.post(url, {"reviewer": str(self.viewer.pk)}, format="json").status_code, 400
+        )
+        out_of_scope = self.independent_reviewer(org=self.ops)
+        self.assertEqual(
+            self.client.post(url, {"reviewer": str(out_of_scope.pk)}, format="json").status_code, 400
+        )
+        foreign = get_user_model().objects.create_user(
+            username="other-tenant-reviewer", password="StrongPassword123!",
+        )
+        TenantMembership.objects.create(tenant=self.foreign_tenant, user=foreign, role_code="admin")
+        self.assertEqual(
+            self.client.post(url, {"reviewer": str(foreign.pk)}, format="json").status_code, 400
+        )
+        self.auth(self.viewer)
+        self.assertEqual(
+            self.client.post(url, {"reviewer": str(out_of_scope.pk)}, format="json").status_code, 403
+        )
+        self.assertEqual(SoADraftReviewEvent.objects.count(), 0)
+
+    def test_review_stale_digest_blocks_response_and_new_round_supersedes(self):
+        register = self.make_register()
+        reviewer = self.independent_reviewer()
+        self.auth(self.admin)
+        url = f"/api/v1/soa/registers/{register['id']}/review-requests/"
+        sent = self.client.post(url, {"reviewer": str(reviewer.pk)}, format="json")
+        self.assertEqual(sent.status_code, 201, sent.content)
+        self.assertEqual(
+            self.client.post(url, {"reviewer": str(reviewer.pk)}, format="json").status_code, 409
+        )
+        new_decision = self.make_decision(register)
+        self.assertEqual(new_decision.status_code, 201, new_decision.content)
+
+        self.auth(reviewer)
+        stale_response = self.client.post(
+            f"{url}{sent.json()['id']}/respond/",
+            {"kind": "changes_requested", "note": "Old snapshot should be invalid."},
+            format="json",
+        )
+        self.assertEqual(stale_response.status_code, 409)
+        stale_list = self.client.get(url).json()
+        self.assertTrue(stale_list["results"][0]["snapshot_stale"])
+
+        self.auth(self.admin)
+        fresh = self.client.post(url, {"reviewer": str(reviewer.pk)}, format="json")
+        self.assertEqual(fresh.status_code, 201, fresh.content)
+        self.assertEqual(fresh.json()["round"], 2)
+        self.assertEqual(
+            list(SoADraftReviewEvent.objects.order_by("review_round", "created_at").values_list("kind", flat=True)),
+            ["requested", "superseded", "requested"],
+        )
+        self.auth(reviewer)
+        answered = self.client.post(
+            f"{url}{fresh.json()['id']}/respond/",
+            {"kind": "changes_requested", "note": "Please complete missing evidence."},
+            format="json",
+        )
+        self.assertEqual(answered.status_code, 201, answered.content)
+        self.assertEqual(SoARegister.objects.get(pk=register["id"]).status, "draft")
+
+    def test_review_cannot_be_called_approval_or_impersonate_reviewer(self):
+        register = self.make_register()
+        reviewer = self.independent_reviewer()
+        other = self.independent_reviewer()
+        self.auth(self.admin)
+        url = f"/api/v1/soa/registers/{register['id']}/review-requests/"
+        req = self.client.post(url, {"reviewer": str(reviewer.pk)}, format="json")
+        self.assertEqual(req.status_code, 201, req.content)
+        response_url = f"{url}{req.json()['id']}/respond/"
+        self.assertEqual(
+            self.client.post(response_url, {"kind": "approved", "note": "Attempt approval"}, format="json").status_code,
+            400,
+        )
+        self.assertEqual(
+            self.client.post(response_url, {"kind": "feedback_recorded", "note": "Self response"}, format="json").status_code,
+            400,
+        )
+        self.auth(other)
+        self.assertEqual(
+            self.client.post(response_url, {"kind": "feedback_recorded", "note": "Not selected"}, format="json").status_code,
+            400,
+        )
+        self.auth(reviewer)
+        self.assertEqual(
+            self.client.post(response_url, {"kind": "feedback_recorded", "note": ""}, format="json").status_code,
+            400,
+        )
+        self.assertEqual(SoADraftReviewEvent.objects.filter(is_response=True).count(), 0)
+
+    def test_review_events_are_append_only_in_models_and_api(self):
+        register = self.make_register()
+        reviewer = self.independent_reviewer()
+        self.auth(self.admin)
+        base = f"/api/v1/soa/registers/{register['id']}/review-requests/"
+        created = self.client.post(base, {"reviewer": str(reviewer.pk)}, format="json")
+        self.assertEqual(created.status_code, 201, created.content)
+        event = SoADraftReviewEvent.objects.get(pk=created.json()["id"])
+        event.note = "Attempted edit"
+        with self.assertRaises(DjangoValidationError):
+            event.save()
+        with self.assertRaises(DjangoValidationError):
+            event.delete()
+        self.assertEqual(self.client.patch(base + created.json()["id"] + "/", {
+            "kind": "feedback_recorded",
+        }, format="json").status_code, 404)
+        self.assertEqual(SoADraftReviewEvent.objects.get(pk=created.json()["id"]).note, "")
 
     def test_locked_framework_without_checksum_is_not_an_integrity_pass(self):
         register = self.make_register()
