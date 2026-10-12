@@ -12,6 +12,7 @@ from rest_framework.views import APIView
 from apps.audit.services import record_audit_event
 from apps.evidence.models import EvidenceLink
 from apps.frameworks.services import calculate_version_checksum
+from apps.risks.models import RiskControl
 from apps.identity.services import (
     has_tenant_permission, require_tenant_permission, require_whole_tenant_permission,
 )
@@ -22,29 +23,105 @@ from .soa_views import _register
 
 
 def draft_review_digest(register):
-    """Canonical local draft fingerprint, not a rights, signature or approval proof."""
+    """Internal draft dependency fingerprint, NOT source rights or SoA approval.
+
+    Depend on actual current GRC states, not only their referenced primary keys.
+    The returned digest is stored privately and never exposed in the API.
+    """
     framework = register.framework_version
     decisions = []
-    for d in register.control_decisions.filter(deleted_at__isnull=True).order_by("id"):
+    rows = register.control_decisions.filter(
+        deleted_at__isnull=True
+    ).select_related(
+        "control", "control_implementation", "risk_treatment__risk"
+    ).order_by("id")
+    for d in rows:
+        control = d.control
+        implementation = d.control_implementation
+        treatment = d.risk_treatment
+        risk = treatment.risk if treatment else None
+        links = []
+        if treatment and implementation:
+            links = list(RiskControl.objects.filter(
+                risk_id=treatment.risk_id,
+                control_implementation_id=implementation.pk,
+                deleted_at__isnull=True,
+            ).order_by("id").values_list(
+                "id", "relationship_type", "updated_at"
+            ))
         decisions.append({
-            "id": str(d.pk), "control_id": str(d.control_id),
-            "reference_kind": d.reference_kind, "identifier": d.source_identifier,
-            "decision": d.decision, "rationale": d.rationale,
-            "implementation": str(d.control_implementation_id or ""),
-            "treatment": str(d.risk_treatment_id or ""),
+            "id": str(d.pk),
+            "control_id": str(d.control_id),
+            "control": {
+                "status": control.status,
+                "tenant": str(control.tenant_id),
+                "code": control.code,
+                "title": control.title,
+                "deleted": bool(control.deleted_at),
+            },
+            "reference_kind": d.reference_kind,
+            "identifier": d.source_identifier,
+            "decision": d.decision,
+            "rationale": d.rationale,
             "last_editor": str(d.last_edited_by_id),
+            "implementation": {
+                "id": str(implementation.pk),
+                "tenant": str(implementation.tenant_id),
+                "unit": str(implementation.organization_unit_id),
+                "control": str(implementation.control_id),
+                "status": implementation.implementation_status,
+                "effectiveness": implementation.effectiveness,
+                "description": implementation.implementation_description,
+                "review_date": str(implementation.review_date),
+                "metadata": implementation.metadata,
+                "deleted": bool(implementation.deleted_at),
+            } if implementation else None,
+            "treatment": {
+                "id": str(treatment.pk),
+                "risk_id": str(treatment.risk_id),
+                "risk_tenant": str(risk.tenant_id),
+                "risk_unit": str(risk.organization_unit_id),
+                "risk_status": risk.status,
+                "status": treatment.status,
+                "approval": treatment.approval_status,
+                "description": treatment.description,
+                "strategy": treatment.strategy,
+                "accepted_at": str(treatment.accepted_at),
+                "deleted": bool(treatment.deleted_at or risk.deleted_at),
+            } if treatment else None,
+            "risk_control_links": links,
         })
+    decision_ids = [d["id"] for d in decisions]
     evidence_links = [
         {
-            "id": str(link.pk), "object_id": str(link.object_id),
+            "id": str(link.pk),
+            "object_id": str(link.object_id),
             "evidence_id": str(link.evidence_id),
-            "relation": link.relation_type, "evidence_modified": str(link.evidence.updated_at),
+            "relation": link.relation_type,
+            "link_modified": str(link.updated_at),
+            "tenant": str(link.evidence.tenant_id),
+            "unit": str(link.evidence.organization_unit_id),
+            "title": link.evidence.title,
+            "source": link.evidence.source,
+            "evidence_type": link.evidence.evidence_type,
+            "classification": link.evidence.classification,
+            "evidence_modified": str(link.evidence.updated_at),
+            "content_digest": hashlib.sha256(
+                link.evidence.text_content.encode("utf-8")
+            ).hexdigest(),
+            "description_digest": hashlib.sha256(
+                link.evidence.description.encode("utf-8")
+            ).hexdigest(),
+            "recorded_file_sha256": link.evidence.sha256,
+            "storage_key": link.evidence.storage_key,
+            "url": link.evidence.url,
             "valid_until": str(link.evidence.valid_until),
+            "collected_at": str(link.evidence.collected_at),
         }
         for link in EvidenceLink.objects.filter(
             tenant_id=register.tenant_id,
             object_type="soa_decision",
-            object_id__in=[d["id"] for d in decisions],
+            object_id__in=decision_ids,
             deleted_at__isnull=True,
             evidence__deleted_at__isnull=True,
         ).select_related("evidence").order_by("id")
@@ -58,9 +135,10 @@ def draft_review_digest(register):
         "framework_current_checksum": calculate_version_checksum(framework),
         "decisions": decisions, "evidence_links": evidence_links,
     }
-    canonical = json.dumps(payload, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+    canonical = json.dumps(
+        payload, sort_keys=True, ensure_ascii=False, separators=(",", ":"), default=str
+    )
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
-
 
 def _validate_reviewer(register, candidate):
     if candidate.id == register.created_by_id:
