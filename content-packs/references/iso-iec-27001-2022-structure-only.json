@@ -9,9 +9,9 @@
   "language": "en",
   "reference_number": "ISO/IEC 27001:2022(E)",
   "source_pdf_page_count": 26,
-  "source_pdf_sha256": null,
-  "source_hash_status": "not_computable_from_indexed_library_text; must_verify_against_original_pdf_before_private_import",
-  "source_review": "verified numeric structure against customer-supplied indexed PDF on 2026-10-12; exact source byte provenance/authorization pending human review",
+  "source_pdf_sha256": "843a6728009540947b2c5531f94b4cf1fb698d5bf3b51b324c8801e3e01c5b78",
+  "source_hash_status": "sha256_verified_from_byte-identical_user_uploaded_original_PDF_copies_2026-10-12",
+  "source_review": "44 numeric structure nodes and 93 Annex A IDs reviewed against uploaded ISO/IEC 27001:2022(E) PDF; original byte SHA-256 now independently verified; content extraction authorization, source use/redistribution rights and customer-scoped import remain pending.",
   "rights": {
     "copyright": "ISO/IEC 2022",
     "protected_standard_text_included": false,
