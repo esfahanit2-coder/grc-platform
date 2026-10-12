@@ -6,7 +6,7 @@ from apps.common.models import UUIDTimeStampedModel
 from apps.controls.models import Control, ControlImplementation
 from apps.frameworks.models import FrameworkVersion
 from apps.organizations.models import OrganizationUnit
-from apps.risks.models import RiskTreatment
+from apps.risks.models import RiskControl, RiskTreatment
 from apps.tenancy.models import Tenant
 
 
@@ -113,6 +113,14 @@ class SoAControlDecision(UUIDTimeStampedModel):
                     treatment.risk.tenant_id != scope.tenant_id or
                     treatment.risk.organization_unit_id != scope.organization_unit_id):
                 raise ValidationError({"risk_treatment": "Risk treatment must match tenant and organizational scope."})
+            if not self.control_implementation_id or not RiskControl.objects.filter(
+                risk=treatment.risk,
+                control_implementation_id=self.control_implementation_id,
+                deleted_at__isnull=True,
+            ).exists():
+                raise ValidationError({
+                    "risk_treatment": "Risk treatment must have an existing risk-control link to this implementation."
+                })
 
     def save(self, *args, **kwargs):
         self.full_clean()
