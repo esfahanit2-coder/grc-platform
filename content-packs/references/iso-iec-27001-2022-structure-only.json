@@ -1,0 +1,957 @@
+{
+  "_notice": "UNLICENSED-FOR-REDISTRIBUTION STRUCTURE-ONLY REFERENCE. Numeric identifiers and PDF page locators only. No ISO/IEC requirement wording, Annex A control titles or guidance is included. NOT AN IMPORTABLE CONTENT PACK.",
+  "schema": "grc.structural-index.v1",
+  "importable": false,
+  "assessable": false,
+  "framework": "ISO/IEC 27001:2022",
+  "publisher": "ISO/IEC",
+  "edition": "Third edition 2022-10",
+  "language": "en",
+  "reference_number": "ISO/IEC 27001:2022(E)",
+  "source_pdf_page_count": 26,
+  "source_pdf_sha256": null,
+  "source_hash_status": "not_computable_from_indexed_library_text; must_verify_against_original_pdf_before_private_import",
+  "source_review": "verified numeric structure against customer-supplied indexed PDF on 2026-10-12; exact source byte provenance/authorization pending human review",
+  "rights": {
+    "copyright": "ISO/IEC 2022",
+    "protected_standard_text_included": false,
+    "redistribution_of_standard_text_authorized": false
+  },
+  "notes": [
+    "Main normative management system requirements are under clauses 4-10; sections 1-3 are context/reference material.",
+    "Annex A identifiers are scoped by annex; internal_code A.5.1 avoids collision with clause 5.1.",
+    "Annex A reference controls are not individually assumed universally mandatory.",
+    "Amendment 1:2024 and ISO/IEC 27002:2022 were not incorporated or verified from this base source.",
+    "Titles, requirement text, control descriptions, actual legal rights and ISO page references must be checked privately before importing.",
+    "pdf_page_1_based is the physical one-based PDF page, not the printed page number."
+  ],
+  "clause_identifiers": [
+    {
+      "code": "1",
+      "parent_code": null,
+      "pdf_page_1_based": 7,
+      "kind": "reference_or_context_section"
+    },
+    {
+      "code": "2",
+      "parent_code": null,
+      "pdf_page_1_based": 7,
+      "kind": "reference_or_context_section"
+    },
+    {
+      "code": "3",
+      "parent_code": null,
+      "pdf_page_1_based": 7,
+      "kind": "reference_or_context_section"
+    },
+    {
+      "code": "4",
+      "parent_code": null,
+      "pdf_page_1_based": 7,
+      "kind": "management_system_requirement_section"
+    },
+    {
+      "code": "4.1",
+      "parent_code": "4",
+      "pdf_page_1_based": 7,
+      "kind": "management_system_requirement_section"
+    },
+    {
+      "code": "4.2",
+      "parent_code": "4",
+      "pdf_page_1_based": 7,
+      "kind": "management_system_requirement_section"
+    },
+    {
+      "code": "4.3",
+      "parent_code": "4",
+      "pdf_page_1_based": 8,
+      "kind": "management_system_requirement_section"
+    },
+    {
+      "code": "4.4",
+      "parent_code": "4",
+      "pdf_page_1_based": 8,
+      "kind": "management_system_requirement_section"
+    },
+    {
+      "code": "5",
+      "parent_code": null,
+      "pdf_page_1_based": 8,
+      "kind": "management_system_requirement_section"
+    },
+    {
+      "code": "5.1",
+      "parent_code": "5",
+      "pdf_page_1_based": 8,
+      "kind": "management_system_requirement_section"
+    },
+    {
+      "code": "5.2",
+      "parent_code": "5",
+      "pdf_page_1_based": 9,
+      "kind": "management_system_requirement_section"
+    },
+    {
+      "code": "5.3",
+      "parent_code": "5",
+      "pdf_page_1_based": 9,
+      "kind": "management_system_requirement_section"
+    },
+    {
+      "code": "6",
+      "parent_code": null,
+      "pdf_page_1_based": 9,
+      "kind": "management_system_requirement_section"
+    },
+    {
+      "code": "6.1",
+      "parent_code": "6",
+      "pdf_page_1_based": 9,
+      "kind": "management_system_requirement_section"
+    },
+    {
+      "code": "6.1.1",
+      "parent_code": "6.1",
+      "pdf_page_1_based": 9,
+      "kind": "management_system_requirement_section"
+    },
+    {
+      "code": "6.1.2",
+      "parent_code": "6.1",
+      "pdf_page_1_based": 10,
+      "kind": "management_system_requirement_section"
+    },
+    {
+      "code": "6.1.3",
+      "parent_code": "6.1",
+      "pdf_page_1_based": 10,
+      "kind": "management_system_requirement_section"
+    },
+    {
+      "code": "6.2",
+      "parent_code": "6",
+      "pdf_page_1_based": 11,
+      "kind": "management_system_requirement_section"
+    },
+    {
+      "code": "6.3",
+      "parent_code": "6",
+      "pdf_page_1_based": 11,
+      "kind": "management_system_requirement_section"
+    },
+    {
+      "code": "7",
+      "parent_code": null,
+      "pdf_page_1_based": 12,
+      "kind": "management_system_requirement_section"
+    },
+    {
+      "code": "7.1",
+      "parent_code": "7",
+      "pdf_page_1_based": 12,
+      "kind": "management_system_requirement_section"
+    },
+    {
+      "code": "7.2",
+      "parent_code": "7",
+      "pdf_page_1_based": 12,
+      "kind": "management_system_requirement_section"
+    },
+    {
+      "code": "7.3",
+      "parent_code": "7",
+      "pdf_page_1_based": 12,
+      "kind": "management_system_requirement_section"
+    },
+    {
+      "code": "7.4",
+      "parent_code": "7",
+      "pdf_page_1_based": 12,
+      "kind": "management_system_requirement_section"
+    },
+    {
+      "code": "7.5",
+      "parent_code": "7",
+      "pdf_page_1_based": 12,
+      "kind": "management_system_requirement_section"
+    },
+    {
+      "code": "7.5.1",
+      "parent_code": "7.5",
+      "pdf_page_1_based": 12,
+      "kind": "management_system_requirement_section"
+    },
+    {
+      "code": "7.5.2",
+      "parent_code": "7.5",
+      "pdf_page_1_based": 13,
+      "kind": "management_system_requirement_section"
+    },
+    {
+      "code": "7.5.3",
+      "parent_code": "7.5",
+      "pdf_page_1_based": 13,
+      "kind": "management_system_requirement_section"
+    },
+    {
+      "code": "8",
+      "parent_code": null,
+      "pdf_page_1_based": 13,
+      "kind": "management_system_requirement_section"
+    },
+    {
+      "code": "8.1",
+      "parent_code": "8",
+      "pdf_page_1_based": 13,
+      "kind": "management_system_requirement_section"
+    },
+    {
+      "code": "8.2",
+      "parent_code": "8",
+      "pdf_page_1_based": 14,
+      "kind": "management_system_requirement_section"
+    },
+    {
+      "code": "8.3",
+      "parent_code": "8",
+      "pdf_page_1_based": 14,
+      "kind": "management_system_requirement_section"
+    },
+    {
+      "code": "9",
+      "parent_code": null,
+      "pdf_page_1_based": 14,
+      "kind": "management_system_requirement_section"
+    },
+    {
+      "code": "9.1",
+      "parent_code": "9",
+      "pdf_page_1_based": 14,
+      "kind": "management_system_requirement_section"
+    },
+    {
+      "code": "9.2",
+      "parent_code": "9",
+      "pdf_page_1_based": 14,
+      "kind": "management_system_requirement_section"
+    },
+    {
+      "code": "9.2.1",
+      "parent_code": "9.2",
+      "pdf_page_1_based": 14,
+      "kind": "management_system_requirement_section"
+    },
+    {
+      "code": "9.2.2",
+      "parent_code": "9.2",
+      "pdf_page_1_based": 15,
+      "kind": "management_system_requirement_section"
+    },
+    {
+      "code": "9.3",
+      "parent_code": "9",
+      "pdf_page_1_based": 15,
+      "kind": "management_system_requirement_section"
+    },
+    {
+      "code": "9.3.1",
+      "parent_code": "9.3",
+      "pdf_page_1_based": 15,
+      "kind": "management_system_requirement_section"
+    },
+    {
+      "code": "9.3.2",
+      "parent_code": "9.3",
+      "pdf_page_1_based": 15,
+      "kind": "management_system_requirement_section"
+    },
+    {
+      "code": "9.3.3",
+      "parent_code": "9.3",
+      "pdf_page_1_based": 15,
+      "kind": "management_system_requirement_section"
+    },
+    {
+      "code": "10",
+      "parent_code": null,
+      "pdf_page_1_based": 16,
+      "kind": "management_system_requirement_section"
+    },
+    {
+      "code": "10.1",
+      "parent_code": "10",
+      "pdf_page_1_based": 16,
+      "kind": "management_system_requirement_section"
+    },
+    {
+      "code": "10.2",
+      "parent_code": "10",
+      "pdf_page_1_based": 16,
+      "kind": "management_system_requirement_section"
+    }
+  ],
+  "annex_a_control_identifiers": [
+    {
+      "internal_code": "A.5.1",
+      "source_identifier": "5.1",
+      "source_group": 5,
+      "source_table": "A.1",
+      "pdf_page_1_based": 17
+    },
+    {
+      "internal_code": "A.5.2",
+      "source_identifier": "5.2",
+      "source_group": 5,
+      "source_table": "A.1",
+      "pdf_page_1_based": 17
+    },
+    {
+      "internal_code": "A.5.3",
+      "source_identifier": "5.3",
+      "source_group": 5,
+      "source_table": "A.1",
+      "pdf_page_1_based": 17
+    },
+    {
+      "internal_code": "A.5.4",
+      "source_identifier": "5.4",
+      "source_group": 5,
+      "source_table": "A.1",
+      "pdf_page_1_based": 17
+    },
+    {
+      "internal_code": "A.5.5",
+      "source_identifier": "5.5",
+      "source_group": 5,
+      "source_table": "A.1",
+      "pdf_page_1_based": 17
+    },
+    {
+      "internal_code": "A.5.6",
+      "source_identifier": "5.6",
+      "source_group": 5,
+      "source_table": "A.1",
+      "pdf_page_1_based": 17
+    },
+    {
+      "internal_code": "A.5.7",
+      "source_identifier": "5.7",
+      "source_group": 5,
+      "source_table": "A.1",
+      "pdf_page_1_based": 17
+    },
+    {
+      "internal_code": "A.5.8",
+      "source_identifier": "5.8",
+      "source_group": 5,
+      "source_table": "A.1",
+      "pdf_page_1_based": 17
+    },
+    {
+      "internal_code": "A.5.9",
+      "source_identifier": "5.9",
+      "source_group": 5,
+      "source_table": "A.1",
+      "pdf_page_1_based": 17
+    },
+    {
+      "internal_code": "A.5.10",
+      "source_identifier": "5.10",
+      "source_group": 5,
+      "source_table": "A.1",
+      "pdf_page_1_based": 17
+    },
+    {
+      "internal_code": "A.5.11",
+      "source_identifier": "5.11",
+      "source_group": 5,
+      "source_table": "A.1",
+      "pdf_page_1_based": 17
+    },
+    {
+      "internal_code": "A.5.12",
+      "source_identifier": "5.12",
+      "source_group": 5,
+      "source_table": "A.1",
+      "pdf_page_1_based": 18
+    },
+    {
+      "internal_code": "A.5.13",
+      "source_identifier": "5.13",
+      "source_group": 5,
+      "source_table": "A.1",
+      "pdf_page_1_based": 18
+    },
+    {
+      "internal_code": "A.5.14",
+      "source_identifier": "5.14",
+      "source_group": 5,
+      "source_table": "A.1",
+      "pdf_page_1_based": 18
+    },
+    {
+      "internal_code": "A.5.15",
+      "source_identifier": "5.15",
+      "source_group": 5,
+      "source_table": "A.1",
+      "pdf_page_1_based": 18
+    },
+    {
+      "internal_code": "A.5.16",
+      "source_identifier": "5.16",
+      "source_group": 5,
+      "source_table": "A.1",
+      "pdf_page_1_based": 18
+    },
+    {
+      "internal_code": "A.5.17",
+      "source_identifier": "5.17",
+      "source_group": 5,
+      "source_table": "A.1",
+      "pdf_page_1_based": 18
+    },
+    {
+      "internal_code": "A.5.18",
+      "source_identifier": "5.18",
+      "source_group": 5,
+      "source_table": "A.1",
+      "pdf_page_1_based": 18
+    },
+    {
+      "internal_code": "A.5.19",
+      "source_identifier": "5.19",
+      "source_group": 5,
+      "source_table": "A.1",
+      "pdf_page_1_based": 18
+    },
+    {
+      "internal_code": "A.5.20",
+      "source_identifier": "5.20",
+      "source_group": 5,
+      "source_table": "A.1",
+      "pdf_page_1_based": 18
+    },
+    {
+      "internal_code": "A.5.21",
+      "source_identifier": "5.21",
+      "source_group": 5,
+      "source_table": "A.1",
+      "pdf_page_1_based": 18
+    },
+    {
+      "internal_code": "A.5.22",
+      "source_identifier": "5.22",
+      "source_group": 5,
+      "source_table": "A.1",
+      "pdf_page_1_based": 18
+    },
+    {
+      "internal_code": "A.5.23",
+      "source_identifier": "5.23",
+      "source_group": 5,
+      "source_table": "A.1",
+      "pdf_page_1_based": 18
+    },
+    {
+      "internal_code": "A.5.24",
+      "source_identifier": "5.24",
+      "source_group": 5,
+      "source_table": "A.1",
+      "pdf_page_1_based": 18
+    },
+    {
+      "internal_code": "A.5.25",
+      "source_identifier": "5.25",
+      "source_group": 5,
+      "source_table": "A.1",
+      "pdf_page_1_based": 19
+    },
+    {
+      "internal_code": "A.5.26",
+      "source_identifier": "5.26",
+      "source_group": 5,
+      "source_table": "A.1",
+      "pdf_page_1_based": 19
+    },
+    {
+      "internal_code": "A.5.27",
+      "source_identifier": "5.27",
+      "source_group": 5,
+      "source_table": "A.1",
+      "pdf_page_1_based": 19
+    },
+    {
+      "internal_code": "A.5.28",
+      "source_identifier": "5.28",
+      "source_group": 5,
+      "source_table": "A.1",
+      "pdf_page_1_based": 19
+    },
+    {
+      "internal_code": "A.5.29",
+      "source_identifier": "5.29",
+      "source_group": 5,
+      "source_table": "A.1",
+      "pdf_page_1_based": 19
+    },
+    {
+      "internal_code": "A.5.30",
+      "source_identifier": "5.30",
+      "source_group": 5,
+      "source_table": "A.1",
+      "pdf_page_1_based": 19
+    },
+    {
+      "internal_code": "A.5.31",
+      "source_identifier": "5.31",
+      "source_group": 5,
+      "source_table": "A.1",
+      "pdf_page_1_based": 19
+    },
+    {
+      "internal_code": "A.5.32",
+      "source_identifier": "5.32",
+      "source_group": 5,
+      "source_table": "A.1",
+      "pdf_page_1_based": 19
+    },
+    {
+      "internal_code": "A.5.33",
+      "source_identifier": "5.33",
+      "source_group": 5,
+      "source_table": "A.1",
+      "pdf_page_1_based": 19
+    },
+    {
+      "internal_code": "A.5.34",
+      "source_identifier": "5.34",
+      "source_group": 5,
+      "source_table": "A.1",
+      "pdf_page_1_based": 19
+    },
+    {
+      "internal_code": "A.5.35",
+      "source_identifier": "5.35",
+      "source_group": 5,
+      "source_table": "A.1",
+      "pdf_page_1_based": 19
+    },
+    {
+      "internal_code": "A.5.36",
+      "source_identifier": "5.36",
+      "source_group": 5,
+      "source_table": "A.1",
+      "pdf_page_1_based": 19
+    },
+    {
+      "internal_code": "A.5.37",
+      "source_identifier": "5.37",
+      "source_group": 5,
+      "source_table": "A.1",
+      "pdf_page_1_based": 19
+    },
+    {
+      "internal_code": "A.6.1",
+      "source_identifier": "6.1",
+      "source_group": 6,
+      "source_table": "A.2",
+      "pdf_page_1_based": 20
+    },
+    {
+      "internal_code": "A.6.2",
+      "source_identifier": "6.2",
+      "source_group": 6,
+      "source_table": "A.2",
+      "pdf_page_1_based": 20
+    },
+    {
+      "internal_code": "A.6.3",
+      "source_identifier": "6.3",
+      "source_group": 6,
+      "source_table": "A.2",
+      "pdf_page_1_based": 20
+    },
+    {
+      "internal_code": "A.6.4",
+      "source_identifier": "6.4",
+      "source_group": 6,
+      "source_table": "A.2",
+      "pdf_page_1_based": 20
+    },
+    {
+      "internal_code": "A.6.5",
+      "source_identifier": "6.5",
+      "source_group": 6,
+      "source_table": "A.2",
+      "pdf_page_1_based": 20
+    },
+    {
+      "internal_code": "A.6.6",
+      "source_identifier": "6.6",
+      "source_group": 6,
+      "source_table": "A.2",
+      "pdf_page_1_based": 20
+    },
+    {
+      "internal_code": "A.6.7",
+      "source_identifier": "6.7",
+      "source_group": 6,
+      "source_table": "A.2",
+      "pdf_page_1_based": 20
+    },
+    {
+      "internal_code": "A.6.8",
+      "source_identifier": "6.8",
+      "source_group": 6,
+      "source_table": "A.2",
+      "pdf_page_1_based": 20
+    },
+    {
+      "internal_code": "A.7.1",
+      "source_identifier": "7.1",
+      "source_group": 7,
+      "source_table": "A.3",
+      "pdf_page_1_based": 20
+    },
+    {
+      "internal_code": "A.7.2",
+      "source_identifier": "7.2",
+      "source_group": 7,
+      "source_table": "A.3",
+      "pdf_page_1_based": 20
+    },
+    {
+      "internal_code": "A.7.3",
+      "source_identifier": "7.3",
+      "source_group": 7,
+      "source_table": "A.3",
+      "pdf_page_1_based": 20
+    },
+    {
+      "internal_code": "A.7.4",
+      "source_identifier": "7.4",
+      "source_group": 7,
+      "source_table": "A.3",
+      "pdf_page_1_based": 20
+    },
+    {
+      "internal_code": "A.7.5",
+      "source_identifier": "7.5",
+      "source_group": 7,
+      "source_table": "A.3",
+      "pdf_page_1_based": 21
+    },
+    {
+      "internal_code": "A.7.6",
+      "source_identifier": "7.6",
+      "source_group": 7,
+      "source_table": "A.3",
+      "pdf_page_1_based": 21
+    },
+    {
+      "internal_code": "A.7.7",
+      "source_identifier": "7.7",
+      "source_group": 7,
+      "source_table": "A.3",
+      "pdf_page_1_based": 21
+    },
+    {
+      "internal_code": "A.7.8",
+      "source_identifier": "7.8",
+      "source_group": 7,
+      "source_table": "A.3",
+      "pdf_page_1_based": 21
+    },
+    {
+      "internal_code": "A.7.9",
+      "source_identifier": "7.9",
+      "source_group": 7,
+      "source_table": "A.3",
+      "pdf_page_1_based": 21
+    },
+    {
+      "internal_code": "A.7.10",
+      "source_identifier": "7.10",
+      "source_group": 7,
+      "source_table": "A.3",
+      "pdf_page_1_based": 21
+    },
+    {
+      "internal_code": "A.7.11",
+      "source_identifier": "7.11",
+      "source_group": 7,
+      "source_table": "A.3",
+      "pdf_page_1_based": 21
+    },
+    {
+      "internal_code": "A.7.12",
+      "source_identifier": "7.12",
+      "source_group": 7,
+      "source_table": "A.3",
+      "pdf_page_1_based": 21
+    },
+    {
+      "internal_code": "A.7.13",
+      "source_identifier": "7.13",
+      "source_group": 7,
+      "source_table": "A.3",
+      "pdf_page_1_based": 21
+    },
+    {
+      "internal_code": "A.7.14",
+      "source_identifier": "7.14",
+      "source_group": 7,
+      "source_table": "A.3",
+      "pdf_page_1_based": 21
+    },
+    {
+      "internal_code": "A.8.1",
+      "source_identifier": "8.1",
+      "source_group": 8,
+      "source_table": "A.4",
+      "pdf_page_1_based": 21
+    },
+    {
+      "internal_code": "A.8.2",
+      "source_identifier": "8.2",
+      "source_group": 8,
+      "source_table": "A.4",
+      "pdf_page_1_based": 21
+    },
+    {
+      "internal_code": "A.8.3",
+      "source_identifier": "8.3",
+      "source_group": 8,
+      "source_table": "A.4",
+      "pdf_page_1_based": 21
+    },
+    {
+      "internal_code": "A.8.4",
+      "source_identifier": "8.4",
+      "source_group": 8,
+      "source_table": "A.4",
+      "pdf_page_1_based": 21
+    },
+    {
+      "internal_code": "A.8.5",
+      "source_identifier": "8.5",
+      "source_group": 8,
+      "source_table": "A.4",
+      "pdf_page_1_based": 22
+    },
+    {
+      "internal_code": "A.8.6",
+      "source_identifier": "8.6",
+      "source_group": 8,
+      "source_table": "A.4",
+      "pdf_page_1_based": 22
+    },
+    {
+      "internal_code": "A.8.7",
+      "source_identifier": "8.7",
+      "source_group": 8,
+      "source_table": "A.4",
+      "pdf_page_1_based": 22
+    },
+    {
+      "internal_code": "A.8.8",
+      "source_identifier": "8.8",
+      "source_group": 8,
+      "source_table": "A.4",
+      "pdf_page_1_based": 22
+    },
+    {
+      "internal_code": "A.8.9",
+      "source_identifier": "8.9",
+      "source_group": 8,
+      "source_table": "A.4",
+      "pdf_page_1_based": 22
+    },
+    {
+      "internal_code": "A.8.10",
+      "source_identifier": "8.10",
+      "source_group": 8,
+      "source_table": "A.4",
+      "pdf_page_1_based": 22
+    },
+    {
+      "internal_code": "A.8.11",
+      "source_identifier": "8.11",
+      "source_group": 8,
+      "source_table": "A.4",
+      "pdf_page_1_based": 22
+    },
+    {
+      "internal_code": "A.8.12",
+      "source_identifier": "8.12",
+      "source_group": 8,
+      "source_table": "A.4",
+      "pdf_page_1_based": 22
+    },
+    {
+      "internal_code": "A.8.13",
+      "source_identifier": "8.13",
+      "source_group": 8,
+      "source_table": "A.4",
+      "pdf_page_1_based": 22
+    },
+    {
+      "internal_code": "A.8.14",
+      "source_identifier": "8.14",
+      "source_group": 8,
+      "source_table": "A.4",
+      "pdf_page_1_based": 22
+    },
+    {
+      "internal_code": "A.8.15",
+      "source_identifier": "8.15",
+      "source_group": 8,
+      "source_table": "A.4",
+      "pdf_page_1_based": 22
+    },
+    {
+      "internal_code": "A.8.16",
+      "source_identifier": "8.16",
+      "source_group": 8,
+      "source_table": "A.4",
+      "pdf_page_1_based": 22
+    },
+    {
+      "internal_code": "A.8.17",
+      "source_identifier": "8.17",
+      "source_group": 8,
+      "source_table": "A.4",
+      "pdf_page_1_based": 22
+    },
+    {
+      "internal_code": "A.8.18",
+      "source_identifier": "8.18",
+      "source_group": 8,
+      "source_table": "A.4",
+      "pdf_page_1_based": 23
+    },
+    {
+      "internal_code": "A.8.19",
+      "source_identifier": "8.19",
+      "source_group": 8,
+      "source_table": "A.4",
+      "pdf_page_1_based": 23
+    },
+    {
+      "internal_code": "A.8.20",
+      "source_identifier": "8.20",
+      "source_group": 8,
+      "source_table": "A.4",
+      "pdf_page_1_based": 23
+    },
+    {
+      "internal_code": "A.8.21",
+      "source_identifier": "8.21",
+      "source_group": 8,
+      "source_table": "A.4",
+      "pdf_page_1_based": 23
+    },
+    {
+      "internal_code": "A.8.22",
+      "source_identifier": "8.22",
+      "source_group": 8,
+      "source_table": "A.4",
+      "pdf_page_1_based": 23
+    },
+    {
+      "internal_code": "A.8.23",
+      "source_identifier": "8.23",
+      "source_group": 8,
+      "source_table": "A.4",
+      "pdf_page_1_based": 23
+    },
+    {
+      "internal_code": "A.8.24",
+      "source_identifier": "8.24",
+      "source_group": 8,
+      "source_table": "A.4",
+      "pdf_page_1_based": 23
+    },
+    {
+      "internal_code": "A.8.25",
+      "source_identifier": "8.25",
+      "source_group": 8,
+      "source_table": "A.4",
+      "pdf_page_1_based": 23
+    },
+    {
+      "internal_code": "A.8.26",
+      "source_identifier": "8.26",
+      "source_group": 8,
+      "source_table": "A.4",
+      "pdf_page_1_based": 23
+    },
+    {
+      "internal_code": "A.8.27",
+      "source_identifier": "8.27",
+      "source_group": 8,
+      "source_table": "A.4",
+      "pdf_page_1_based": 23
+    },
+    {
+      "internal_code": "A.8.28",
+      "source_identifier": "8.28",
+      "source_group": 8,
+      "source_table": "A.4",
+      "pdf_page_1_based": 23
+    },
+    {
+      "internal_code": "A.8.29",
+      "source_identifier": "8.29",
+      "source_group": 8,
+      "source_table": "A.4",
+      "pdf_page_1_based": 23
+    },
+    {
+      "internal_code": "A.8.30",
+      "source_identifier": "8.30",
+      "source_group": 8,
+      "source_table": "A.4",
+      "pdf_page_1_based": 23
+    },
+    {
+      "internal_code": "A.8.31",
+      "source_identifier": "8.31",
+      "source_group": 8,
+      "source_table": "A.4",
+      "pdf_page_1_based": 23
+    },
+    {
+      "internal_code": "A.8.32",
+      "source_identifier": "8.32",
+      "source_group": 8,
+      "source_table": "A.4",
+      "pdf_page_1_based": 23
+    },
+    {
+      "internal_code": "A.8.33",
+      "source_identifier": "8.33",
+      "source_group": 8,
+      "source_table": "A.4",
+      "pdf_page_1_based": 23
+    },
+    {
+      "internal_code": "A.8.34",
+      "source_identifier": "8.34",
+      "source_group": 8,
+      "source_table": "A.4",
+      "pdf_page_1_based": 24
+    }
+  ],
+  "summary": {
+    "main_structure_count": 44,
+    "annex_control_count": 93,
+    "annex_by_group": {
+      "organizational": 37,
+      "people": 8,
+      "physical": 14,
+      "technological": 34
+    }
+  }
+}
