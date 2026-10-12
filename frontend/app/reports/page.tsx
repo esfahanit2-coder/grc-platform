@@ -5,10 +5,10 @@ import { useEffect, useMemo, useState } from "react";
 import { apiFetch } from "../../lib/api";
 
 type CatalogItem = {title:string; formats:string[]; filters:string[]};
-type Preview = {title:string; subtitle?:string; columns:string[]; rows:any[][]; summary?:Record<string,unknown>};
+type Preview = {title:string; subtitle?:string; notice?:string; is_formal_statement_of_applicability?:boolean; columns:string[]; rows:unknown[][]; summary?:Record<string,unknown>};
 
 const labels:Record<string,string>={
-  soa:"بیانیه کاربردپذیری (SoA)",
+  soa:"کاربرگ پیش‌نویس کاربردپذیری (تأییدنشده)",
   rtp:"برنامه برخورد با ریسک (RTP)",
   audit:"گزارش ممیزی",
   findings:"دفتر یافته‌ها",
@@ -65,7 +65,7 @@ export default function ReportsPage(){
   return <main className="adminPage" dir="rtl">
     <Link href="/">بازگشت به داشبورد</Link>
     <header className="pageHeader">
-      <div><h1>مرکز گزارش‌ها</h1><p>پیش‌نمایش و خروجی رسمی داده‌های GRC با کنترل دسترسی سازمانی</p></div>
+      <div><h1>مرکز گزارش‌ها</h1><p>پیش‌نمایش و خروجی داده‌های GRC با کنترل دسترسی سازمانی؛ بعضی گزارش‌ها صرفاً پیش‌نویس‌اند.</p><Link href="/soa">دفتر پیش‌نویس تصمیم‌های SoA</Link></div>
     </header>
 
     <section className="adminCard">
@@ -96,6 +96,8 @@ export default function ReportsPage(){
       {!preview&&!loading&&<div className="emptyState">گزارش و فیلترها را انتخاب کنید و «پیش‌نمایش» را بزنید.</div>}
       {preview&&<>
         <h2>{preview.title}</h2>{preview.subtitle&&<p>{preview.subtitle}</p>}
+        {preview.notice&&<p role="status"><strong>{preview.notice}</strong></p>}
+        {type==="soa"&&<p role="status"><strong>توجه:</strong> این خروجی صرفاً کاربرگ پیش‌نویس است و SoA رسمی یا تأییدشده نیست.</p>}
         <div className="tableWrap"><table><thead><tr>{preview.columns.map(c=><th key={c}>{c}</th>)}</tr></thead>
         <tbody>{preview.rows.length?preview.rows.map((row,i)=><tr key={i}>{row.map((v,j)=><td key={j}>{String(v??"")}</td>)}</tr>):<tr><td colSpan={preview.columns.length}>داده‌ای مطابق فیلترها یافت نشد.</td></tr>}</tbody></table></div>
       </>}
