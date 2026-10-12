@@ -39,6 +39,7 @@ REQUIRED_UAT_JOURNEYS = (
     "controlled_document_approval",
     "workflow_assignment_transition",
     "reporting_preview_export",
+    "soa_draft_independent_review",
     "work_center",
     "administration_scope_and_audit",
     "customer_import_export",
@@ -299,6 +300,20 @@ def self_test() -> None:
     complete = evaluate(pilot, attestations, sha)
     assert complete["promotion_ready"] is True
     assert complete["blockers"] == []
+
+    missing_soa_uat = json.loads(json.dumps(attestations))
+    del missing_soa_uat["uat_journeys"]["soa_draft_independent_review"]
+    blocked_soa = evaluate(pilot, missing_soa_uat, sha)
+    assert blocked_soa["promotion_ready"] is False
+    assert "uat:soa_draft_independent_review" in blocked_soa["blockers"]
+    assert blocked_soa["checks"]["uat:soa_draft_independent_review"]["status"] == BLOCKED
+    assert blocked_soa["sanitized_attestations"]["uat_journeys"]["soa_draft_independent_review"]["status"] == BLOCKED
+
+    falsely_approved_soa = json.loads(json.dumps(attestations))
+    falsely_approved_soa["uat_journeys"]["soa_draft_independent_review"]["status"] = FAIL
+    rejected_soa = evaluate(pilot, falsely_approved_soa, sha)
+    assert rejected_soa["promotion_ready"] is False
+    assert "uat:soa_draft_independent_review" in rejected_soa["blockers"]
 
     wrong_release = evaluate(pilot, {**attestations, "release_sha": "b" * 40}, sha)
     assert wrong_release["promotion_ready"] is False
