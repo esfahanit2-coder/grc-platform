@@ -29,7 +29,8 @@ type Finding = { decision_id: string; source_identifier: string; reference_kind:
 type Readiness = {
   register_id: string; formal_attestation_allowed: false; is_formal_statement_of_applicability: false;
   status: string; approval_workflow: string; source_control_inventory_coverage: string;
-  evidence_sufficiency: string;
+  locked_framework_content_integrity: "unlocked" | "checksum_missing" | "checksum_mismatch" | "checksum_unverifiable" | "internal_checksum_matches";
+  integrity_scope: string; evidence_sufficiency: string;
   counts: { decisions: number; included: number; excluded: number; undecided: number; decisions_with_findings: number };
   findings: Finding[]; register_findings: string[]; blocking_external_prerequisites: string[];
 };
@@ -76,6 +77,10 @@ const issueLabels: Record<string, string> = {
   source_control_inventory_not_verified: "فهرست کامل کنترل‌های مرجع راستی‌آزمایی نشده",
   rights_and_content_review_not_verified: "حقوق استفاده و اعتبار محتوای مرجع بررسی نشده",
   human_approval_snapshot_not_available: "تصویب انسانی و نسخه قفل‌شده SoA موجود نیست",
+  framework_content_unlocked: "قفل نسخه چارچوب برداشته شده؛ اعتبار داخلی نسخه برقرار نیست",
+  framework_content_checksum_missing: "نسخه قفل شده اما Checksum داخلی ثبت نشده است",
+  framework_content_checksum_mismatch: "Checksum محتوای چارچوب با نسخه قفل‌شده تطبیق ندارد؛ نیازمند بررسی",
+  framework_content_checksum_unverifiable: "بازمحاسبه Checksum داخلی چارچوب ممکن نشد",
 };
 
 function list<T>(payload: T[] | { results?: T[] }): T[] {
@@ -283,6 +288,17 @@ export default function SoADraftDetailPage() {
         <p>بدون تصمیم: <strong>{readiness.counts.undecided}</strong></p>
         <p>دارای نقص: <strong>{readiness.counts.decisions_with_findings}</strong></p>
       </div>
+      <p><strong>یکپارچگی داخلی محتوای نسخه قفل‌شده:</strong> {
+        readiness.locked_framework_content_integrity === "internal_checksum_matches" ?
+          "Checksum داخلی با محتوای نسخه مطابقت دارد (صرفاً یکپارچگی داخلی، نه اصالت استاندارد)" :
+        readiness.locked_framework_content_integrity === "checksum_missing" ?
+          "Checksum داخلی ثبت نشده" :
+        readiness.locked_framework_content_integrity === "checksum_mismatch" ?
+          "هشدار: محتوای نسخه با Checksum قفل‌شده متفاوت است" :
+        readiness.locked_framework_content_integrity === "unlocked" ?
+          "نسخه قفل نیست" : "بازمحاسبه یکپارچگی ممکن نشد"
+      }</p>
+      <p>این کنترل نه اصالت PDF استاندارد و نه حق قانونی استفاده از آن را تأیید می‌کند.</p>
       <h3>موانع عمومی که همچنان باز هستند</h3>
       <ul>{readiness.register_findings.map(code => <li key={code}>{issueLabels[code] ?? code}</li>)}</ul>
       <p><strong>اعتبار کامل فهرست کنترل‌های مرجع:</strong> بررسی نشده · <strong>ارزش شواهد:</strong> نیازمند بازبینی انسانی</p>
