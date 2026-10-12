@@ -33,6 +33,7 @@ class Migration(migrations.Migration):
                 ("actor", models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, related_name="soa_review_events", to=settings.AUTH_USER_MODEL)),
                 ("assigned_reviewer", models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, related_name="assigned_soa_review_events", to=settings.AUTH_USER_MODEL)),
             ],
+            options={"ordering": ["review_round", "created_at", "id"]},
         ),
         migrations.AddConstraint(
             model_name="soadraftreviewevent",
