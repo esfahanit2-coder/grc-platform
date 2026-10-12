@@ -104,6 +104,39 @@ def _parse_reviewer(value):
     return int(identifier)
 
 
+class SoAReviewCandidatesView(APIView):
+    def get(self, request, pk):
+        _, register = _register(request, pk, for_write=True)
+        excluded_editor_ids = set(register.control_decisions.filter(
+            deleted_at__isnull=True
+        ).values_list("last_edited_by_id", flat=True))
+        results = []
+        members = list(TenantMembership.objects.filter(
+            tenant_id=register.tenant_id, is_active=True, user__is_active=True,
+        ).select_related("user").order_by("user__username")[:501])
+        for membership in members[:500]:
+            candidate = membership.user
+            if candidate.pk == register.created_by_id or candidate.pk == request.user.pk:
+                continue
+            if candidate.pk in excluded_editor_ids:
+                continue
+            if has_tenant_permission(
+                candidate, register.tenant, "assessment.review", register.organization_unit
+            ) and has_tenant_permission(
+                candidate, register.tenant, "report.view", register.organization_unit
+            ):
+                results.append({
+                    "id": str(candidate.pk),
+                    "display": candidate.get_full_name() or candidate.get_username(),
+                })
+        return Response({
+            "results": results,
+            "truncated": len(members) > 500,
+            "status": "draft_review_only_not_approved",
+            "formal_attestation_allowed": False,
+        })
+
+
 class SoAReviewEventsView(APIView):
     def get(self, request, pk):
         _, register = _register(request, pk)
@@ -111,8 +144,27 @@ class SoAReviewEventsView(APIView):
             "review_round", "created_at", "id"
         )[:300])
         digest = draft_review_digest(register)
+        closed_rounds = {e.review_round for e in events if e.is_response}
+        results = []
+        for event in events:
+            row = _serialize(event, digest)
+            row["can_respond"] = bool(
+                event.kind == SoADraftReviewEvent.Kind.REQUESTED
+                and event.review_round not in closed_rounds
+                and event.assigned_reviewer_id == request.user.pk
+                and event.actor_id != request.user.pk
+                and register.created_by_id != request.user.pk
+                and digest == event.draft_digest
+                and not register.control_decisions.filter(
+                    deleted_at__isnull=True, last_edited_by=request.user
+                ).exists()
+                and has_tenant_permission(
+                    request.user, register.tenant, "assessment.review", register.organization_unit
+                )
+            )
+            results.append(row)
         return Response({
-            "results": [_serialize(e, digest) for e in events],
+            "results": results,
             "truncated": len(events) == 300,
             "status": "draft_review_only_not_approved",
             "formal_attestation_allowed": False,
