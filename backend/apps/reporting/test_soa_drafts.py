@@ -1,4 +1,7 @@
 from io import BytesIO
+from datetime import timedelta
+
+from django.utils import timezone
 
 from docx import Document as Docx
 from django.contrib.auth import get_user_model
@@ -12,6 +15,7 @@ from apps.identity.services import bootstrap_tenant_rbac
 from apps.organizations.models import OrganizationUnit
 from apps.risks.models import Risk, RiskControl, RiskTreatment
 from apps.tenancy.models import Tenant, TenantMembership
+from apps.evidence.models import Evidence, EvidenceLink
 from apps.assessments.models import Assessment
 
 from .models import SoAControlDecision, SoARegister
@@ -221,6 +225,96 @@ class SoADraftControlRegisterTests(APITestCase):
         response = self.make_decision(register, risk_treatment=str(unrelated_treatment.id))
         self.assertEqual(response.status_code, 400)
         self.assertEqual(SoAControlDecision.objects.count(), 0)
+
+    def test_empty_register_is_explicitly_flagged_and_never_approvable(self):
+        register = self.make_register()
+        self.auth(self.admin)
+        response = self.client.get(f"/api/v1/soa/registers/{register['id']}/readiness/")
+        self.assertEqual(response.status_code, 200, response.content)
+        payload = response.json()
+        self.assertEqual(payload["counts"]["decisions"], 0)
+        self.assertEqual(payload["findings"], [])
+        self.assertIn("empty_control_decision_register", payload["register_findings"])
+        self.assertIn("source_control_inventory_not_verified", payload["register_findings"])
+        self.assertFalse(payload["formal_attestation_allowed"])
+
+    def test_readiness_is_read_only_and_never_issues_an_approved_soa(self):
+        register = self.make_register()
+        included = self.make_decision(register)
+        self.assertEqual(included.status_code, 201, included.content)
+        url = f"/api/v1/soa/registers/{register['id']}/readiness/"
+        self.auth(self.viewer)
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200, response.content)
+        payload = response.json()
+        self.assertFalse(payload["formal_attestation_allowed"])
+        self.assertFalse(payload["is_formal_statement_of_applicability"])
+        self.assertEqual(payload["approval_workflow"], "not_available")
+        self.assertEqual(payload["source_control_inventory_coverage"], "not_verified")
+        self.assertEqual(payload["counts"]["included"], 1)
+        self.assertEqual(payload["counts"]["decisions_with_findings"], 1)
+        codes = payload["findings"][0]["codes"]
+        self.assertIn("no_current_scoped_evidence_link", codes)
+        self.assertIn("risk_treatment_not_approved", codes)
+        self.assertGreaterEqual(len(payload["blocking_external_prerequisites"]), 3)
+        self.assertEqual(SoARegister.objects.get(pk=register["id"]).status, "draft")
+        self.assertEqual(self.client.post(url, {}, format="json").status_code, 405)
+
+    def test_readiness_does_not_treat_expired_or_foreign_unit_evidence_as_scoped(self):
+        register = self.make_register()
+        included = self.make_decision(register)
+        self.assertEqual(included.status_code, 201, included.content)
+        decision_id = included.json()["id"]
+        today = timezone.now()
+        expired = Evidence.objects.create(
+            tenant=self.tenant, organization_unit=self.hq, title="Expired synthetic evidence",
+            owner=self.admin, valid_until=today - timedelta(days=1),
+        )
+        foreign_unit = Evidence.objects.create(
+            tenant=self.tenant, organization_unit=self.ops, title="Wrong unit evidence",
+            owner=self.admin, valid_until=today + timedelta(days=1),
+        )
+        for evidence in (expired, foreign_unit):
+            EvidenceLink.objects.create(
+                tenant=self.tenant, evidence=evidence, object_type="soa_decision",
+                object_id=decision_id, relation_type="supports",
+            )
+        self.auth(self.admin)
+        url = f"/api/v1/soa/registers/{register['id']}/readiness/"
+        wrong = self.client.get(url)
+        self.assertEqual(wrong.status_code, 200, wrong.content)
+        self.assertIn("no_current_scoped_evidence_link", wrong.json()["findings"][0]["codes"])
+
+        valid = Evidence.objects.create(
+            tenant=self.tenant, organization_unit=self.hq, title="Current synthetic evidence",
+            owner=self.admin, valid_until=today + timedelta(days=1),
+        )
+        EvidenceLink.objects.create(
+            tenant=self.tenant, evidence=valid, object_type="soa_decision",
+            object_id=decision_id, relation_type="supports",
+        )
+        correct = self.client.get(url)
+        self.assertEqual(correct.status_code, 200, correct.content)
+        codes = correct.json()["findings"][0]["codes"]
+        self.assertNotIn("no_current_scoped_evidence_link", codes)
+        self.assertIn("risk_treatment_not_approved", codes)
+        self.assertEqual(correct.json()["evidence_sufficiency"], "requires_human_review")
+        self.assertFalse(correct.json()["formal_attestation_allowed"])
+
+    def test_readiness_does_not_leak_unassigned_scope_or_another_tenant(self):
+        good = self.make_register(self.hq)
+        forbidden = self.make_register(self.ops)
+        self.auth(self.viewer)
+        self.assertEqual(
+            self.client.get(f"/api/v1/soa/registers/{good['id']}/readiness/").status_code, 200
+        )
+        self.assertEqual(
+            self.client.get(f"/api/v1/soa/registers/{forbidden['id']}/readiness/").status_code, 404
+        )
+        self.auth(self.admin, tenant=self.foreign_tenant)
+        foreign = self.client.get(f"/api/v1/soa/registers/{good['id']}/readiness/")
+        self.assertIn(foreign.status_code, (403, 404))
+        self.assertNotIn("Unapproved synthetic SoA decisions", foreign.content.decode())
 
     def test_legacy_word_export_is_draft_and_never_leaks_foreign_control_mapping(self):
         requirement = Requirement.objects.create(
