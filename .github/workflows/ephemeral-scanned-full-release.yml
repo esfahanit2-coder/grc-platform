@@ -10,6 +10,13 @@ on:
       - "scripts/offline-release-build.sh"
       - "scripts/offline-release-ci-test.sh"
       - "scripts/release-evidence-provenance.py"
+  # Verify the exact merged main source independently of the PR preview.
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/ephemeral-scanned-full-release.yml"
+      - "scripts/scanned-offline-release-prepare.sh"
+      - "scripts/offline-release-build.sh"
   workflow_dispatch:
 
 permissions:
