@@ -86,13 +86,17 @@ jobs:
           manifest=json.loads((Path(stage)/"release-manifest.json").read_text())
           images=json.loads((Path(stage)/"metadata/images.json").read_text())
           bundle=Path(archive)
+          digest=hashlib.sha256()
+          with bundle.open("rb") as reader:
+            for chunk in iter(lambda:reader.read(1024*1024),b""):
+              digest.update(chunk)
           summary={
             "schema":"grc-ephemeral-scanned-release-observation-v1",
             "source_commit":sha,
             "release_version":manifest.get("release_version"),
             "image_roles":sorted(row["role"] for row in images["images"]),
             "application_image_ids":{row["role"]:row["image_id"] for row in images["images"] if row["role"] in ("backend","frontend")},
-            "bundle_sha256":hashlib.sha256(bundle.read_bytes()).hexdigest(),
+            "bundle_sha256":digest.hexdigest(),
             "bundle_bytes":bundle.stat().st_size,
             "synthetic_disposable_signing_key":True,
             "customer_release_approved":False,
@@ -108,7 +112,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: grc-ephemeral-scanned-release-summary
-          path: /home/runner/work/_temp/grc-test-only-summary.json
+          path: ${{ runner.temp }}/grc-test-only-summary.json
           if-no-files-found: error
           retention-days: 7
       - name: Report strict approval boundary
