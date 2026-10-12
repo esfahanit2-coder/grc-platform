@@ -59,6 +59,9 @@ jobs:
           scanners: secret
           format: json
           output: /tmp/grc-disposable-trivy-preflight.json
+          # Trivy Action's default .cache/trivy is INSIDE the source checkout,
+          # which would violate the release builder's required clean-Git invariant.
+          cache-dir: ${{ runner.temp }}/trivy-cache
           exit-code: "1"
           skip-dirs: .git,.next,node_modules
       - name: Assemble real seven-image candidate from freshly scanned application images
