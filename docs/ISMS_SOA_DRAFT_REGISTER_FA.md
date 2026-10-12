@@ -12,6 +12,8 @@
 - `POST /api/v1/soa/registers/{uuid}/decisions/` — ثبت تصمیم برای Control قابل مشاهده همان Tenant.
 - `PATCH /api/v1/soa/registers/{uuid}/decisions/{uuid}/` — فقط تغییر تصمیم، توجیه، اتصال پیاده‌سازی و درمان ریسک؛ کد مرجع و شناسه Control تغییرناپذیرند.
 
+دو نوع موجودیت `soa_register` و `soa_decision` در `Domain Object Registry` مرکزی اضافه شده‌اند؛ اولی تنها امکان ارتباط با سند را دارد و دومی امکان ارجاع شواهد و سند را، با کنترل Tenant و `register.organization_unit`. این ثبت **منشأ خودکار اثبات انطباق ایجاد نمی‌کند**؛ ارزیابی ارزش شواهد و تأیید مستقل در B2 لازم است.
+
 خواندن به `report.view` و محدودیت سازمانی موجود وابسته است؛ نوشتن فعلاً محافظه‌کارانه به مجوز **whole-tenant `report.generate`** نیاز دارد. هیچ endpoint برای `approved`، صدور گواهی یا SoA نهایی وجود ندارد. API قدیمی `type=soa` مستقل باقی می‌ماند و برچسب Draft آن همچنان معتبر است.
 
 ## مدل اطلاعات مرحله B1
