@@ -1,0 +1,59 @@
+{
+  "_template_notice": "METADATA-ONLY / NOT IMPORTABLE. Requires legally authorized customer source, locally extracted clauses, verified rights, private preflight and human review. Never commit a populated restricted copy.",
+  "framework": {
+    "code": "iso-iec-27001-2022-customer",
+    "name": "ISO/IEC 27001:2022 (customer-provided content)",
+    "publisher": "ISO/IEC",
+    "framework_type": "standard",
+    "license_type": "customer_provided",
+    "license_metadata": {
+      "content_class": "CUSTOMER_PROVIDED",
+      "source_name": "ISO/IEC 27001:2022",
+      "source_version": "2022",
+      "rights_basis": "<record actual allowed software use; possession of PDF alone is insufficient>",
+      "authorization_reference": "<private contract or explicit rights review reference>",
+      "provenance_note": "<source custodian, date, custodian approval, tenant authorization>",
+      "redistribution_allowed": false,
+      "tenant_restricted": true,
+      "license_review_status": "pending_human_review",
+      "note": "Do not bundle copied ISO wording into public repository, product installers or other tenants."
+    },
+    "description": "Restricted standard content owned/authorized by the customer. Customer-only deployment; no manufacturer certification claims."
+  },
+  "version": {
+    "version_code": "2022",
+    "title": "ISO/IEC 27001:2022 — customer-supplied source",
+    "metadata": {
+      "source_documents": [
+        {
+          "document_id": "iso27001-2022",
+          "reference": "ISO/IEC 27001:2022",
+          "edition": "2022",
+          "publisher": "ISO/IEC",
+          "language": "<actual PDF language>",
+          "sha256": "<SHA-256 of actual local source PDF>",
+          "amendment_status": "base_text_only"
+        }
+      ],
+      "amendments_policy": "If Amd 1:2024 is authorized, add it as a separately hashed source document and document which edition/consolidated-state this pack represents. Never modify locked historical versions.",
+      "scoring_model": {
+        "type": "weighted_assessment",
+        "default_weight": 1
+      },
+      "applicability_model": {
+        "type": "assessment_scope",
+        "not_applicable_requires_rationale": true
+      },
+      "report_hooks": [
+        "rtp",
+        "soa",
+        "assessment_report",
+        "audit_report"
+      ],
+      "mapping_policy": "Cross-framework/control mapping requires recorded rationale, source scope and explicit human approval.",
+      "content_review_status": "pending",
+      "source_reference": "customer-private-iso-27001-2022"
+    }
+  },
+  "requirements": []
+}
