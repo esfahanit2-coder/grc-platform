@@ -378,6 +378,104 @@ class SoADraftControlRegisterTests(APITestCase):
         self.assertTrue(AuditEvent.objects.filter(tenant=self.tenant, action="soa.review.request").exists())
         self.assertTrue(AuditEvent.objects.filter(tenant=self.tenant, action="soa.review.feedback").exists())
 
+
+    def test_implementation_change_invalidates_human_review_even_without_timestamp(self):
+        register = self.make_register()
+        decision = self.make_decision(register)
+        self.assertEqual(decision.status_code, 201, decision.content)
+        reviewer = self.independent_reviewer()
+        self.auth(self.admin)
+        url = f"/api/v1/soa/registers/{register['id']}/review-requests/"
+        sent = self.client.post(url, {"reviewer": str(reviewer.pk)}, format="json")
+        self.assertEqual(sent.status_code, 201, sent.content)
+        ControlImplementation.objects.filter(pk=self.implementation.pk).update(
+            implementation_status=ControlImplementation.ImplementationStatus.IMPLEMENTED,
+            effectiveness=ControlImplementation.Effectiveness.EFFECTIVE,
+        )
+        self.auth(reviewer)
+        stale = self.client.get(url)
+        self.assertEqual(stale.status_code, 200, stale.content)
+        self.assertTrue(stale.json()["results"][0]["snapshot_stale"])
+        self.assertFalse(stale.json()["results"][0]["can_respond"])
+        blocked = self.client.post(
+            url + sent.json()["id"] + "/respond/",
+            {"kind": "feedback_recorded", "note": "Control implementation changed."},
+            format="json",
+        )
+        self.assertEqual(blocked.status_code, 409, blocked.content)
+        self.auth(self.admin)
+        new_round = self.client.post(url, {"reviewer": str(reviewer.pk)}, format="json")
+        self.assertEqual(new_round.status_code, 201, new_round.content)
+        self.assertEqual(new_round.json()["round"], 2)
+        self.assertEqual(SoARegister.objects.get(pk=register["id"]).status, "draft")
+
+    def test_treatment_approval_and_risk_control_relation_change_invalidate_review(self):
+        register = self.make_register()
+        decision = self.make_decision(register)
+        self.assertEqual(decision.status_code, 201, decision.content)
+        reviewer = self.independent_reviewer()
+        self.auth(self.admin)
+        url = f"/api/v1/soa/registers/{register['id']}/review-requests/"
+        original = self.client.post(url, {"reviewer": str(reviewer.pk)}, format="json")
+        self.assertEqual(original.status_code, 201, original.content)
+        RiskTreatment.objects.filter(pk=self.treatment.pk).update(
+            approval_status=RiskTreatment.ApprovalStatus.APPROVED,
+        )
+        self.auth(reviewer)
+        self.assertEqual(self.client.post(
+            url + original.json()["id"] + "/respond/",
+            {"kind": "changes_requested", "note": "Treatment state changed."},
+            format="json",
+        ).status_code, 409)
+        self.auth(self.admin)
+        replacement = self.client.post(url, {"reviewer": str(reviewer.pk)}, format="json")
+        self.assertEqual(replacement.status_code, 201, replacement.content)
+        RiskControl.objects.filter(
+            risk=self.risk, control_implementation=self.implementation,
+        ).update(relationship_type=RiskControl.RelationshipType.COMPENSATING)
+        self.auth(reviewer)
+        self.assertEqual(self.client.post(
+            url + replacement.json()["id"] + "/respond/",
+            {"kind": "changes_requested", "note": "Risk-control relation changed."},
+            format="json",
+        ).status_code, 409)
+        self.assertFalse(self.client.get(url).json()["results"][-1]["can_respond"])
+        self.assertEqual(SoARegister.objects.get(pk=register["id"]).status, "draft")
+
+    def test_evidence_text_change_without_timestamp_invalidates_draft_review(self):
+        register = self.make_register()
+        decision = self.make_decision(register)
+        self.assertEqual(decision.status_code, 201, decision.content)
+        evidence = Evidence.objects.create(
+            tenant=self.tenant, organization_unit=self.hq,
+            title="Synthetic linked evidence", owner=self.admin,
+            evidence_type=Evidence.EvidenceType.TEXT, text_content="Original synthetic evidence",
+        )
+        EvidenceLink.objects.create(
+            tenant=self.tenant, evidence=evidence, object_type="soa_decision",
+            object_id=decision.json()["id"], relation_type=EvidenceLink.RelationType.SUPPORTS,
+        )
+        reviewer = self.independent_reviewer()
+        self.auth(self.admin)
+        url = f"/api/v1/soa/registers/{register['id']}/review-requests/"
+        original = self.client.post(url, {"reviewer": str(reviewer.pk)}, format="json")
+        self.assertEqual(original.status_code, 201, original.content)
+        Evidence.objects.filter(pk=evidence.pk).update(
+            text_content="Synthetic altered evidence payload",
+        )
+        self.auth(reviewer)
+        history = self.client.get(url)
+        self.assertEqual(history.status_code, 200, history.content)
+        self.assertTrue(history.json()["results"][0]["snapshot_stale"])
+        self.assertNotIn("Synthetic altered evidence payload", history.content.decode())
+        blocked = self.client.post(
+            url + original.json()["id"] + "/respond/",
+            {"kind": "feedback_recorded", "note": "Old evidence no longer matches."},
+            format="json",
+        )
+        self.assertEqual(blocked.status_code, 409, blocked.content)
+        self.assertEqual(SoARegister.objects.get(pk=register["id"]).status, "draft")
+
     def test_review_request_rejects_self_and_unprivileged_reviewers(self):
         register = self.make_register()
         self.auth(self.admin)
