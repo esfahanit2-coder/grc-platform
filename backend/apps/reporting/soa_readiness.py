@@ -126,6 +126,13 @@ def build_draft_readiness(register):
             "decisions_with_findings": len(findings),
         },
         "findings": findings,
+        "register_findings": (
+            (["empty_control_decision_register"] if not decisions else []) + [
+                "source_control_inventory_not_verified",
+                "rights_and_content_review_not_verified",
+                "human_approval_snapshot_not_available",
+            ]
+        ),
         "blocking_external_prerequisites": [
             "Verify approved and licensed source inventory (including any organization-specific necessary controls)",
             "Review inclusion/exclusion rationale and current implementation evidence",
