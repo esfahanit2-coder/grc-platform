@@ -1,0 +1,129 @@
+name: 72h-ephemeral-install-rehearsal
+
+# Emergency, synthetic-only evaluation in temporary GitHub-hosted Linux VMs.
+# No customer credentials, licensed standards, release signing keys or private
+# Evidence should ever be passed to this workflow.
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/72h-ephemeral-install-rehearsal.yml"
+      - "docs/field/72H_GRC_INSTALL_DELIVERY_FA.md"
+      - "scripts/ephemeral-real-core-install.sh"
+      - "scripts/ephemeral-real-core-dr.sh"
+      - "scripts/ephemeral-replacement-core-dr.sh"
+      - "scripts/ephemeral-offline-install.sh"
+      - "scripts/ephemeral-dr-integration.sh"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: 72h-rehearsal-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  real-signed-core:
+    name: real signed core / disposable DB and S3
+    runs-on: ubuntu-24.04
+    timeout-minutes: 115
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - name: Validate isolated runner resources and scripts
+        run: |
+          docker version
+          docker compose version
+          bash -n scripts/ephemeral-real-core-install.sh scripts/ephemeral-real-core-dr.sh scripts/ephemeral-replacement-core-dr.sh
+          df -h .
+          free -m
+          test "$(df -Pk . | awk 'END {print $4}')" -gt 9000000
+      - name: Build, sign, install and recover actual core with synthetic data
+        timeout-minutes: 110
+        env:
+          GRC_CORE_INSTALL_EPHEMERAL_ONLY: "YES"
+          GRC_CORE_DR_EPHEMERAL_ONLY: "YES"
+          GRC_CORE_REPLACEMENT_EPHEMERAL_ONLY: "YES"
+        run: bash scripts/ephemeral-real-core-install.sh
+      - name: Mark boundary
+        if: always()
+        run: |
+          echo '### Disposable actual-core smoke only' >> "$GITHUB_STEP_SUMMARY"
+          echo 'No dedicated host, customer UAT, approved release key, licensed content, or real RPO/RTO validated.' >> "$GITHUB_STEP_SUMMARY"
+
+  signed-offline-package:
+    name: offline signed bundle / disposable image loader
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - name: Validate scripts and container daemon
+        run: |
+          docker info
+          bash -n scripts/ephemeral-offline-install.sh
+      - name: Exercise signature verification and strict local image loading
+        timeout-minutes: 25
+        env:
+          GRC_OFFLINE_EPHEMERAL_ONLY: "YES"
+        run: bash scripts/ephemeral-offline-install.sh
+      - name: Mark boundary
+        if: always()
+        run: |
+          echo '### Synthetic signed offline installer' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Disposable CI signing key and images; no actual distributable customer release or persistent datacenter installation.' >> "$GITHUB_STEP_SUMMARY"
+
+  synthetic-db-objectstore-recovery:
+    name: synthetic PostgreSQL and S3 recovery
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - name: Verify local resource and shell contract
+        run: |
+          docker compose version
+          bash -n scripts/ephemeral-dr-integration.sh
+          test "$(df -Pk . | awk 'END {print $4}')" -gt 6000000
+      - name: Rehearse disposable PostgreSQL/S3 data recovery
+        timeout-minutes: 40
+        env:
+          GRC_DR_EPHEMERAL_ONLY: "YES"
+        run: bash scripts/ephemeral-dr-integration.sh
+      - name: Mark boundary
+        if: always()
+        run: |
+          echo '### Synthetic data recovery only' >> "$GITHUB_STEP_SUMMARY"
+          echo 'This does not measure RPO/RTO or prove replacement onto two independent customer-controlled hosts.' >> "$GITHUB_STEP_SUMMARY"
+
+  encrypted-custody-smoke:
+    name: age backup custody / synthetic roundtrip
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install age and inspect local prerequisites
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install --no-install-recommends -y age
+          age --version
+          python3 -m py_compile scripts/datacenter-backup-transfer.py
+      - name: Validate disposable age recipient roundtrip
+        run: python3 scripts/datacenter-backup-transfer.py self-test
+      - name: Mark boundary
+        if: always()
+        run: |
+          echo '### Synthetic encryption custody only' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Not approval of external recipient identity, customer encrypted media, recovery keys, or offsite backup custody.' >> "$GITHUB_STEP_SUMMARY"
