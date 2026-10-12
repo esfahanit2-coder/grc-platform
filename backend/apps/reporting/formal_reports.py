@@ -17,9 +17,11 @@ from apps.risks.models import RiskTreatment
 
 REPORT_CATALOG = {
     "soa": {
-        "title": "بیانیه کاربردپذیری (SoA)",
+        "title": "کاربرگ پیش‌نویس کاربردپذیری (نه SoA تأییدشده)",
         "formats": ["pdf", "docx", "xlsx", "csv"],
         "filters": ["organization_unit", "assessment"],
+        "report_kind": "assessment_applicability_worksheet",
+        "is_formal_statement_of_applicability": False,
     },
     "rtp": {
         "title": "برنامه برخورد با ریسک (RTP)",
@@ -134,6 +136,10 @@ def build_soa(tenant, filters):
     if not assessment:
         raise ValidationError({"assessment": "Assessment not found in your report scope."})
 
+    # This legacy report contains assessment-item snapshots, not approved
+    # control-level inclusion/exclusion decisions. It must not be represented
+    # as an ISO/IEC 27001 Statement of Applicability.
+    notice = "DRAFT / NOT AN APPROVED SoA — assessment applicability worksheet only"
     rows = []
     items = AssessmentItem.objects.filter(
         assessment=assessment, deleted_at__isnull=True
@@ -147,13 +153,28 @@ def build_soa(tenant, filters):
             "" if item.score is None else str(item.score),
             item.assessor_comment,
             item.reviewer_comment,
+            "DRAFT — not approved",
         ])
     return {
-        "title": f"SoA — {assessment.title}",
+        "title": f"Draft SoA preparation worksheet (NOT APPROVED) — {assessment.title}",
         "subtitle": f"{assessment.framework_version.framework.name} / {assessment.framework_version.version_code}",
-        "columns": ["Requirement", "Title", "Applicability", "Status", "Score", "Assessor comment", "Reviewer comment"],
+        "notice": notice,
+        "report_kind": "assessment_applicability_worksheet",
+        "is_formal_statement_of_applicability": False,
+        "columns": ["Requirement", "Title", "Applicability", "Status", "Score", "Assessor comment", "Reviewer comment", "Attestation: DRAFT, NOT APPROVED"],
         "rows": rows,
-        "summary": {"assessment_id": str(assessment.id), "row_count": len(rows)},
+        "summary": {
+            "assessment_id": str(assessment.id),
+            "row_count": len(rows),
+            "report_status": "draft_unapproved",
+            "is_formal_statement_of_applicability": False,
+            "pending_prerequisites": [
+                "tenant-scoped necessary-control register and source provenance",
+                "per-control inclusion or exclusion rationale and implementation state",
+                "risk treatment and evidence links with scope validation",
+                "human reviewer approval and immutable SoA version",
+            ],
+        },
     }
 
 
@@ -301,6 +322,7 @@ def table_html(report):
     return f"""<!doctype html><html dir="rtl"><meta charset="utf-8"><body>
 <h1>{esc(report["title"])}</h1>
 <p>{esc(str(report.get("subtitle") or ""))}</p>
+<p><strong>{esc(str(report.get("notice") or ""))}</strong></p>
 <table><thead><tr>{headers}</tr></thead><tbody>{body}</tbody></table>
 </body></html>"""
 
@@ -332,6 +354,8 @@ def export_docx(report):
     doc.add_heading(report["title"], level=1)
     if report.get("subtitle"):
         doc.add_paragraph(str(report["subtitle"]))
+    if report.get("notice"):
+        doc.add_paragraph(str(report["notice"]))
     table = doc.add_table(rows=1, cols=len(report["columns"]))
     for index, value in enumerate(report["columns"]):
         table.rows[0].cells[index].text = str(value)
