@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { apiFetch } from "../../../lib/api";
+import DraftSoAReviews from "./draft-reviews";
 
 type Choice = "undecided" | "included" | "excluded";
 type Kind = "annex_a" | "additional";
@@ -304,6 +305,8 @@ export default function SoADraftDetailPage() {
       <p><strong>اعتبار کامل فهرست کنترل‌های مرجع:</strong> بررسی نشده · <strong>ارزش شواهد:</strong> نیازمند بازبینی انسانی</p>
       <p><strong>گردش تأیید رسمی:</strong> موجود نیست.</p>
     </section>}
+
+    {register && <DraftSoAReviews registerId={register.id} />}
 
     {register && <section className="adminCard">
       <h2>مقایسه اختیاری شناسه‌های عددی Annex A نسخه ۲۰۲۲</h2>

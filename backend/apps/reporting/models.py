@@ -125,3 +125,75 @@ class SoAControlDecision(UUIDTimeStampedModel):
     def save(self, *args, **kwargs):
         self.full_clean()
         return super().save(*args, **kwargs)
+
+
+class SoADraftReviewEvent(UUIDTimeStampedModel):
+    """Append-only human feedback for a draft; never an approval or signature."""
+
+    class Kind(models.TextChoices):
+        REQUESTED = "requested", "Review requested"
+        CHANGES_REQUESTED = "changes_requested", "Changes requested"
+        FEEDBACK_RECORDED = "feedback_recorded", "Review feedback recorded (not approval)"
+        SUPERSEDED = "superseded", "Draft changed, prior request superseded"
+
+    register = models.ForeignKey(SoARegister, on_delete=models.PROTECT, related_name="review_events")
+    review_round = models.PositiveIntegerField()
+    kind = models.CharField(max_length=24, choices=Kind.choices)
+    is_response = models.BooleanField(default=False)
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="soa_review_events"
+    )
+    assigned_reviewer = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="assigned_soa_review_events"
+    )
+    note = models.TextField(blank=True)
+    draft_digest = models.CharField(max_length=64)
+
+    class Meta:
+        ordering = ["review_round", "created_at", "id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["register", "review_round"],
+                condition=models.Q(is_response=False, deleted_at__isnull=True),
+                name="uq_soa_review_round_request",
+            ),
+            models.UniqueConstraint(
+                fields=["register", "review_round"],
+                condition=models.Q(is_response=True, deleted_at__isnull=True),
+                name="uq_soa_review_round_response",
+            ),
+        ]
+        indexes = [models.Index(fields=["register", "review_round"], name="soa_review_round_idx")]
+
+    def clean(self):
+        if self.review_round < 1:
+            raise ValidationError({"review_round": "Review round must be positive."})
+        if self.kind == self.Kind.REQUESTED and self.is_response:
+            raise ValidationError({"is_response": "A review request is not a response."})
+        if self.kind != self.Kind.REQUESTED and not self.is_response:
+            raise ValidationError({"is_response": "Only a review request can open a round."})
+        if self.register_id and self.register.status != SoARegister.Status.DRAFT:
+            raise ValidationError({"register": "Draft review records cannot change SoA approval state."})
+        if self.register_id and self.actor_id and not self.actor.tenant_memberships.filter(
+            tenant_id=self.register.tenant_id, is_active=True
+        ).exists():
+            raise ValidationError({"actor": "Actor must be an active member of this tenant."})
+        if self.register_id and self.assigned_reviewer_id and not self.assigned_reviewer.tenant_memberships.filter(
+            tenant_id=self.register.tenant_id, is_active=True
+        ).exists():
+            raise ValidationError({"assigned_reviewer": "Reviewer must be an active member of the tenant."})
+        if self.actor_id and self.assigned_reviewer_id and self.kind == self.Kind.REQUESTED and self.actor_id == self.assigned_reviewer_id:
+            raise ValidationError({"assigned_reviewer": "Requester cannot review own draft."})
+        if self.kind in (self.Kind.FEEDBACK_RECORDED, self.Kind.CHANGES_REQUESTED) and not self.note.strip():
+            raise ValidationError({"note": "Human feedback requires a written comment."})
+        if len(self.draft_digest) != 64 or any(ch not in "0123456789abcdef" for ch in self.draft_digest):
+            raise ValidationError({"draft_digest": "A valid internal digest is required."})
+
+    def save(self, *args, **kwargs):
+        if not self._state.adding or type(self).objects.filter(pk=self.pk).exists():
+            raise ValidationError("SoA draft review history is append-only. Never edit an event.")
+        self.full_clean()
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError("SoA draft review events must not be deleted.")
