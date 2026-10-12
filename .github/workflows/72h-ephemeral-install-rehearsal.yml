@@ -13,6 +13,17 @@ on:
       - "scripts/ephemeral-replacement-core-dr.sh"
       - "scripts/ephemeral-offline-install.sh"
       - "scripts/ephemeral-dr-integration.sh"
+  # Verify the exact merged main commit independently of PR-merge preview refs.
+  # Bound the cost: run only if the rehearsal workflow or its tested scripts change.
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/72h-ephemeral-install-rehearsal.yml"
+      - "scripts/ephemeral-real-core-install.sh"
+      - "scripts/ephemeral-real-core-dr.sh"
+      - "scripts/ephemeral-replacement-core-dr.sh"
+      - "scripts/ephemeral-offline-install.sh"
+      - "scripts/ephemeral-dr-integration.sh"
   workflow_dispatch:
 
 permissions:

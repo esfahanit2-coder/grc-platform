@@ -186,6 +186,45 @@ assert not report.get('missing_images'), 'Missing signed image'
 print('Full signed core runtime checks PASSED (synthetic operator keys).')
 PY
 
+
+echo '[GRC UAT-SMOKE] Bootstrapping synthetic tenant and admin through the installed operator CLI.'
+(
+  cd "$INSTALL/repository"
+  # Runtime-generated test-only credential. Never print, save or transfer it.
+  bootstrap_password="$(openssl rand -hex 24)"
+  printf '%s\n%s\n' "$bootstrap_password" "$bootstrap_password" |
+    bash scripts/datacenterctl bootstrap \
+      --tenant-code "ci-installed-${GITHUB_RUN_ID}" \
+      --tenant-name "Ephemeral Installed GRC Core" \
+      --admin-username "ci-installed-admin" \
+      --admin-email "ci-installed-admin@example.invalid" >/dev/null
+  unset bootstrap_password
+)
+echo '[GRC UAT-SMOKE] Executing golden risk-control-evidence-action-audit-report journey in installed backend image.'
+(
+  cd "$INSTALL/repository"
+  # Django's test runner creates/destroys an isolated test database. This does not
+  # seed the customer/pilot database. Disable redirect only for this test process,
+  # because its in-process DRF client intentionally uses HTTP testserver.
+  docker compose --env-file .env \
+    -f docker-compose.pilot.yml -f docker-compose.pilot.tls.yml \
+    exec -T -e SECURE_SSL_REDIRECT=0 backend \
+    python manage.py test apps.common.tests.GoldenPilotScenarioTests --noinput --verbosity 1
+)
+echo '[GRC UAT-SMOKE] Rechecking the live installed core after isolated golden tests.'
+(
+  cd "$INSTALL/repository"
+  bash scripts/datacenterctl verify >/dev/null
+)
+if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
+  {
+    echo '### Installed backend GRC journey: PASS (CI-only isolated synthetic test)'
+    echo '- Canonical datacenterctl bootstrap created a synthetic tenant/admin with a runtime-only generated credential.'
+    echo '- The preloaded signed backend image ran GoldenPilotScenarioTests in an isolated Django test database: internal pilot framework import, risk, treatments, controls, evidence, audit, action, RTP/SoA draft export, and cross-tenant / scoped RBAC denial.'
+    echo '- Full installed core verified again afterwards. This is NOT real browser UAT or a customer-issued SoA approval.'
+  } >> "$GITHUB_STEP_SUMMARY"
+fi
+
 if [[ "${GRC_CORE_DR_EPHEMERAL_ONLY:-NO}" == "YES" ]]; then
   echo '[DR] Running real full-stack synthetic recovery on the installed signed commit.'
   bash "$INSTALL/repository/scripts/ephemeral-real-core-dr.sh" "$INSTALL/repository" "$SHA"
