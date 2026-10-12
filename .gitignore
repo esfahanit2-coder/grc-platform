@@ -31,3 +31,8 @@ backups/
 
 # Generated
 artifacts/
+
+# Customer-provided standards and protected content must stay out of this public repository
+content-packs/private/
+content-packs/*.private.json
+customer-*-private.json

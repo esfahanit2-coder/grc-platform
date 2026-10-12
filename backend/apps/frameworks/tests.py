@@ -100,6 +100,21 @@ class FrameworkEngineTests(APITestCase):
         self.assertEqual(child.parent.code, "1")
         self.assertEqual(child.translations.get(language="fa").title, "تعریف مسئولیت‌ها")
 
+    def test_empty_customer_source_template_is_not_importable(self):
+        template = Path(__file__).resolve().parents[3] / "content-packs" / "templates" / "iso-iec-27001-2022.customer-provided.json.example"
+        raw = template.read_bytes()
+        for dry_run in ("true", "false"):
+            upload = SimpleUploadedFile("customer-source.json", raw, content_type="application/json")
+            response = self.client.post(
+                f"/api/v1/frameworks/import/?dry_run={dry_run}",
+                {"file": upload}, format="multipart", **self.headers,
+            )
+            self.assertEqual(response.status_code, 400)
+            self.assertTrue(any(row.get("field") == "requirements" for row in response.json()["errors"]))
+        self.assertFalse(
+            Framework.objects.filter(tenant=self.tenant, code="iso-iec-27001-2022-customer").exists()
+        )
+
     def test_repository_pilot_pack_imports_with_provenance_and_locks(self):
         pack_path = Path(__file__).resolve().parents[3] / "content-packs" / "examples" / "pilot-isms-security-baseline.json"
         raw = pack_path.read_bytes()
