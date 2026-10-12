@@ -27,6 +27,7 @@ No chat transcript is considered canonical after the decision has been consolida
 | `USER_JOURNEYS_EN.md` | English primary user journeys and acceptance intent |
 | `USER_JOURNEYS_FA.md` | Persian primary user journeys and acceptance intent |
 | `COMPETITIVE_LANDSCAPE.md` | Competitor references and the product lessons retained from earlier research |
+| `STRATEGY_AND_RELEASE_EXECUTION_2026_FA.md` | Current 2026 strategic decisions, source-graded market comparison, two-track release/domain plan, owners, acceptance evidence, and ISO 9001:2026 rights constraints (#105) |
 | `DECISION_LOG.md` | Stable product/architecture decisions that must not be casually reversed |
 | `AI_AUTOMATION_DIRECTION.md` | Detailed AI/RAG/automation authority, safety and evaluation direction |
 | `CONNECTOR_STRATEGY.md` | Connector contract, security boundaries, evidence model and provider direction |
