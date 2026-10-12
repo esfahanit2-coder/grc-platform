@@ -3,7 +3,10 @@
 
 This fixture intentionally contains no proprietary standard wording.
 """
+import argparse
+import hashlib
 import json
+import re
 from pathlib import Path
 
 
@@ -11,12 +14,23 @@ ROOT = Path(__file__).resolve().parents[1]
 INDEX = ROOT / "content-packs/references/iso-iec-27001-2022-structure-only.json"
 
 
-def check():
+def check(source_pdf=None):
     source = json.loads(INDEX.read_text(encoding="utf-8"))
     assert source["importable"] is False
     assert source["assessable"] is False
     assert source["rights"]["protected_standard_text_included"] is False
-    assert source["source_pdf_sha256"] is None, "No hash may be claimed without PDF byte access"
+    expected_digest = "843a6728009540947b2c5531f94b4cf1fb698d5bf3b51b324c8801e3e01c5b78"
+    assert re.fullmatch(r"[0-9a-f]{64}", source["source_pdf_sha256"])
+    assert source["source_pdf_sha256"] == expected_digest, "Pinned source SHA-256 changed"
+    assert source["source_hash_status"].startswith("sha256_verified_")
+    if source_pdf is not None:
+        digest = hashlib.sha256()
+        with Path(source_pdf).open("rb") as original:
+            assert original.read(5) == b"%PDF-", "Invalid PDF header"
+            original.seek(0)
+            for block in iter(lambda: original.read(1024 * 1024), b""):
+                digest.update(block)
+        assert digest.hexdigest() == expected_digest, "PDF source bytes differ from recorded source"
     assert source["reference_number"] == "ISO/IEC 27001:2022(E)"
     assert source["source_pdf_page_count"] == 26
 
@@ -57,4 +71,7 @@ def check():
 
 
 if __name__ == "__main__":
-    check()
+    parser = argparse.ArgumentParser(description="Validate source-free ISO 27001 index and optional locally supplied original PDF bytes.")
+    parser.add_argument("--source-pdf", type=Path, help="Private PDF path, never committed to public repository")
+    args = parser.parse_args()
+    check(source_pdf=args.source_pdf)
