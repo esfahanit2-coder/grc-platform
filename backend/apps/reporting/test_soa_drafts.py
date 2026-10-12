@@ -1,14 +1,18 @@
+from io import BytesIO
+
+from docx import Document as Docx
 from django.contrib.auth import get_user_model
 from rest_framework.test import APITestCase
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from apps.controls.models import Control, ControlImplementation
-from apps.frameworks.models import Framework, FrameworkVersion
+from apps.controls.models import Control, ControlImplementation, ControlRequirement
+from apps.frameworks.models import Framework, FrameworkVersion, Requirement
 from apps.identity.models import UserRoleScope
 from apps.identity.services import bootstrap_tenant_rbac
 from apps.organizations.models import OrganizationUnit
 from apps.risks.models import Risk, RiskControl, RiskTreatment
 from apps.tenancy.models import Tenant, TenantMembership
+from apps.assessments.models import Assessment
 
 from .models import SoAControlDecision, SoARegister
 
@@ -217,6 +221,47 @@ class SoADraftControlRegisterTests(APITestCase):
         response = self.make_decision(register, risk_treatment=str(unrelated_treatment.id))
         self.assertEqual(response.status_code, 400)
         self.assertEqual(SoAControlDecision.objects.count(), 0)
+
+    def test_legacy_word_export_is_draft_and_never_leaks_foreign_control_mapping(self):
+        requirement = Requirement.objects.create(
+            framework_version=self.version, code="SYN-1", title="Tenant-only synthetic requirement"
+        )
+        ControlRequirement.objects.create(
+            tenant=self.tenant, requirement=requirement, control=self.control,
+            mapping_type=ControlRequirement.MappingType.RELATED,
+        )
+        # Deliberately corrupted legacy mapping to the same framework version
+        # from a foreign tenant; filtering by version alone would leak it.
+        ControlRequirement.objects.create(
+            tenant=self.foreign_tenant, requirement=requirement,
+            control=self.foreign_control,
+            mapping_type=ControlRequirement.MappingType.RELATED,
+        )
+        assessment = Assessment.objects.create(
+            tenant=self.tenant, organization_unit=self.hq, framework_version=self.version,
+            title="Synthetic assessment", owner=self.admin,
+        )
+        self.auth(self.admin)
+        response = self.client.get(f"/api/v1/reports/soa/{assessment.id}/")
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertIn("soa-draft", response["Content-Disposition"])
+        doc = Docx(BytesIO(response.content))
+        paragraph_text = " ".join(p.text for p in doc.paragraphs)
+        self.assertIn("NOT APPROVED", paragraph_text)
+        self.assertIn("NOT AN APPROVED SoA", paragraph_text)
+        self.assertEqual(len(doc.tables), 1)
+        self.assertEqual(len(doc.tables[0].rows), 2)
+        values = " ".join(cell.text for row in doc.tables[0].rows for cell in row.cells)
+        self.assertIn("Undetermined", values)
+        self.assertIn("Not verified", values)
+        self.assertIn(self.control.code, values)
+        self.assertNotIn(self.foreign_control.code, values)
+        self.assertNotIn(self.foreign_control.title, values)
+        self.auth(self.viewer)
+        self.assertEqual(
+            self.client.get(f"/api/v1/reports/soa/{assessment.id}/").status_code,
+            403,
+        )
 
     def test_patch_can_update_decision_but_cannot_rebind_source_or_control(self):
         register = self.make_register()
