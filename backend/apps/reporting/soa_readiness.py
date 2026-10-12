@@ -10,10 +10,35 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.evidence.models import EvidenceLink
+from apps.frameworks.services import calculate_version_checksum
 from apps.risks.models import RiskControl, RiskTreatment
 
 from .models import SoAControlDecision
 from .soa_views import _register
+
+
+
+def locked_framework_content_integrity(version):
+    """Internal *loaded requirement* integrity, not rights or original PDF provenance."""
+    if not version.is_locked:
+        return "unlocked"
+    if not version.checksum:
+        return "checksum_missing"
+    try:
+        observed = calculate_version_checksum(version)
+    except (TypeError, ValueError, OverflowError):
+        # Unexpected unhashable/invalid local source metadata is a hard finding,
+        # never an approval. Do not return source content or error details.
+        return "checksum_unverifiable"
+    return "internal_checksum_matches" if observed == version.checksum else "checksum_mismatch"
+
+
+INTEGRITY_FINDINGS = {
+    "unlocked": "framework_content_unlocked",
+    "checksum_missing": "framework_content_checksum_missing",
+    "checksum_mismatch": "framework_content_checksum_mismatch",
+    "checksum_unverifiable": "framework_content_checksum_unverifiable",
+}
 
 
 def build_draft_readiness(register):
@@ -55,6 +80,7 @@ def build_draft_readiness(register):
         ).values_list("risk_id", "control_implementation_id")
     }
 
+    internal_integrity = locked_framework_content_integrity(register.framework_version)
     findings = []
     totals = Counter({"included": 0, "excluded": 0, "undecided": 0})
     for decision in decisions:
@@ -114,6 +140,8 @@ def build_draft_readiness(register):
         "is_formal_statement_of_applicability": False,
         "formal_attestation_allowed": False,
         "source_version_locked": bool(register.framework_version.is_locked),
+        "locked_framework_content_integrity": internal_integrity,
+        "integrity_scope": "internal_framework_requirement_content_only_not_pdf_or_licensing",
         "source_rights_review": "not_verified_by_this_endpoint",
         "source_control_inventory_coverage": "not_verified",
         "approval_workflow": "not_available",
@@ -127,7 +155,8 @@ def build_draft_readiness(register):
         },
         "findings": findings,
         "register_findings": (
-            (["empty_control_decision_register"] if not decisions else []) + [
+            (["empty_control_decision_register"] if not decisions else []) +
+            ([INTEGRITY_FINDINGS[internal_integrity]] if internal_integrity in INTEGRITY_FINDINGS else []) + [
                 "source_control_inventory_not_verified",
                 "rights_and_content_review_not_verified",
                 "human_approval_snapshot_not_available",
