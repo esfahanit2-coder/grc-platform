@@ -134,6 +134,21 @@ Record PASS or FAIL, reviewer, timestamp and retained evidence reference for:
 13. backup/restore/upgrade/support operator journey;
 14. SMTP assignment/approval/retry/revoked-recipient handling when in scope;
 15. live executive dashboard including intentional empty states where applicable.
+16. **SoA draft independent review** (not an approved SoA): tenant-scoped register creation, human decision rationales, evidence/risk treatment relationships, non-attesting numeric-ID comparison and readiness flags, independent reviewer request/feedback, stale-review 409, no Approve/Sign/Publish action, and negative Tenant B access checks.
+
+### SoA draft UAT — mandatory non-attestation scenario (#143/#151/#153/#155)
+
+Run this case using real UI/API-supported customer/operator paths on the **exact installed candidate**, with named human tester and independent reviewer. Tests on a disposable PostgreSQL runner alone are not equivalent to UAT.
+
+- In Tenant A, select an authorized, tenant-owned, locked framework version and organization unit. Verify the internal checksum indicator separately from license/rights evidence. Tenant B and users outside this organization unit must be denied and must not see another tenant's names, control decisions or evidence.
+- Record one `included` control with a human rationale, one justified `excluded` control and one organizational `additional` control. Verify that numeric-only Annex A comparison reports missing or undecided identifiers but never implies that all 93 controls must be selected.
+- Examine implementation status/effectiveness, the actual RiskControl linkage to treatment, evidence scope, expiry and source-rights/readiness blockers. A missing or out-of-scope evidence record must not become a positive compliance claim.
+- Request a review by an active, independently authorized scoped reviewer. Verify that the preparer, control editor, unauthorized reviewer and cross-tenant operator cannot impersonate or provide feedback. Record human feedback or requested changes and inspect the history in the application.
+- After the review request, legitimately change implementation state, risk treatment approval, RiskControl relationship and linked evidence through supported operational paths; the prior review must become stale and its response be blocked, with a new review round required. Where approved UI functionality cannot exercise a negative case, record the gap instead of using Django shell or raw SQL to fabricate PASS.
+- Check `/reports` and the draft SoA view/export: they must explicitly say **DRAFT / NOT APPROVED**, `formal_attestation_allowed=false`; no SoA Approve/Sign/Publish/certification action may be available.
+- Retain a redacted exact-release UAT reference, screenshots and audit-event evidence under access-controlled customer/operator evidence storage. Never commit customer data, restricted ISO text, authentication material or UAT sign-off into public GitHub.
+
+Add a distinct `uat_journeys.soa_draft_independent_review` attestation. The acceptance aggregator `scripts/final-release-acceptance.py` must fail closed when it is missing, incomplete or FAIL. A PASS attests only successful execution of this **draft-only journey** by a real reviewer; it never authorizes formal SoA approval.
 
 Use `docs/FINAL_RELEASE_ATTESTATIONS.example.json` as the template. Keep the populated copy under ignored runtime/restricted evidence storage; do not commit customer sign-off details or sensitive evidence into Git.
 

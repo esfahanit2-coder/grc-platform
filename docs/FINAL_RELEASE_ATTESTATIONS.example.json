@@ -113,8 +113,15 @@
       "status": "REPLACE_WITH_PASS_OR_FAIL",
       "reviewer": "REPLACE_WITH_UAT_REVIEWER",
       "observed_at": "REPLACE_WITH_UTC_TIMESTAMP",
-      "note": "Formal reporting preview/export for applicable SoA/RTP/Audit/Findings/Actions/Executive outputs succeeds.",
+      "note": "Official outputs are limited to truly authorized report types. Legacy SoA preview/export is explicitly DRAFT / NOT APPROVED and never presented as formal approved SoA; RTP/Audit/Findings/Actions/Executive exports are checked according to their own approval status.",
       "evidence_refs": ["REPLACE_WITH_UAT_CASE_REFERENCE"]
+    },
+    "soa_draft_independent_review": {
+      "status": "REPLACE_WITH_PASS_OR_FAIL",
+      "reviewer": "REPLACE_WITH_UAT_REVIEWER",
+      "observed_at": "REPLACE_WITH_UTC_TIMESTAMP",
+      "note": "On exact candidate and real customer operator UI: same-tenant locked-framework DRAFT register, reasoned included/excluded/additional control decisions, numeric-only ID comparison, readiness blocker visibility, independent scoped reviewer request/feedback, self-review denial, 409 stale response after actual control/risktreatment/evidence changes, audit history and no approved/signed SoA action. Verify Tenant B cannot access Tenant A data; licensed standard text must stay private. This is NOT ISO approval.",
+      "evidence_refs": ["REPLACE_WITH_REDACTED_SOA_DRAFT_UAT_REFERENCE"]
     },
     "work_center": {
       "status": "REPLACE_WITH_PASS_OR_FAIL",
