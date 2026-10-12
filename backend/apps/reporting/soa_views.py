@@ -201,6 +201,11 @@ class SoADecisionCreateView(APIView):
     @transaction.atomic
     def post(self, request, pk):
         tenant, register = _register(request, pk, for_write=True)
+        # Serialize all draft decision changes with review request/response
+        # transactions, which lock this same register row.
+        register = SoARegister.objects.select_for_update().select_related(
+            "framework_version", "framework_version__framework", "organization_unit"
+        ).get(pk=register.pk, tenant=tenant, deleted_at__isnull=True)
         row = SoAControlDecision(register=register, last_edited_by=request.user)
         _apply_decision_changes(row, request.data, tenant, request.user, create=True)
         record_audit_event(request.user, tenant, "soa.draft.decision.create", "soa_decision",
@@ -213,6 +218,11 @@ class SoADecisionDetailView(APIView):
     @transaction.atomic
     def patch(self, request, pk, decision_id):
         tenant, register = _register(request, pk, for_write=True)
+        # Serialize all draft decision changes with review request/response
+        # transactions, which lock this same register row.
+        register = SoARegister.objects.select_for_update().select_related(
+            "framework_version", "framework_version__framework", "organization_unit"
+        ).get(pk=register.pk, tenant=tenant, deleted_at__isnull=True)
         row = register.control_decisions.filter(pk=decision_id, deleted_at__isnull=True).select_related(
             "control", "control_implementation", "risk_treatment__risk"
         ).first()
