@@ -28,6 +28,7 @@ from apps.internal_audits.models import AuditEngagement, Workpaper
 from apps.objectives.models import Objective
 from apps.organizations.models import OrganizationUnit
 from apps.risks.models import Risk, RiskTreatment
+from apps.reporting.models import SoARegister, SoAControlDecision
 from apps.tenancy.models import Tenant, TenantMembership
 
 
@@ -89,6 +90,18 @@ class AllDomainReferenceTypesContractTests(TestCase):
             requirement_code_snapshot=requirement.code,
             requirement_title_snapshot=requirement.title,
         )
+        # The new draft register is allowed only against a locked local version.
+        # Build other fixture references first, then lock source before SoA.
+        version.is_locked = True
+        version.save(update_fields=["is_locked"])
+        soa = SoARegister.objects.create(
+            tenant=tenant, organization_unit=unit, framework_version=version,
+            title="Synthetic draft control decisions", created_by=self.user,
+        )
+        soa_decision = SoAControlDecision.objects.create(
+            register=soa, control=control, reference_kind="annex_a",
+            source_identifier="A.5.1", last_edited_by=self.user,
+        )
         engagement = AuditEngagement.objects.create(
             tenant=tenant, organization_unit=unit,
             title="Audit engagement", lead_auditor=self.user,
@@ -133,6 +146,8 @@ class AllDomainReferenceTypesContractTests(TestCase):
             "control_implementation": impl,
             "finding": finding,
             "risk_treatment": treatment,
+            "soa_register": soa,
+            "soa_decision": soa_decision,
             "control": control,
             "action": action,
             "requirement": requirement,
