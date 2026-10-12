@@ -54,6 +54,18 @@ _SPECS = (
         "finding", "findings", "Finding", "tenant", "organization_unit",
         ("organization_unit",), capabilities=frozenset({"evidence", "workflow", "action_source", "document_link"}),
     ),
+    # Draft SoA is a scoped, non-attested domain record. These capabilities
+    # permit traceable evidence/document references, never approval by itself.
+    DomainObjectSpec(
+        "soa_register", "reporting", "SoARegister", "tenant",
+        "organization_unit", ("organization_unit",),
+        capabilities=frozenset({"document_link"}),
+    ),
+    DomainObjectSpec(
+        "soa_decision", "reporting", "SoAControlDecision", "register__tenant",
+        "register__organization_unit", ("register__organization_unit",),
+        capabilities=frozenset({"evidence", "document_link"}),
+    ),
     DomainObjectSpec(
         "risk_treatment", "risks", "RiskTreatment", "risk__tenant",
         "risk__organization_unit", ("risk__organization_unit",),
