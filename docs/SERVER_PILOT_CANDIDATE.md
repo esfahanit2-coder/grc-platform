@@ -98,6 +98,36 @@ The Release Gate uploads two artifact sets named with that exact main SHA:
 
 Both artifact sets contain `release-evidence-provenance.json`, which binds the evidence to the exact source commit/tree and the backend/frontend Docker image IDs that were scanned. Download/extract those artifact sets outside the Git checkout. The offline builder refuses a dirty checkout, a different HEAD, stale evidence, or rebuilt app images whose IDs do not match the scanned images.
 
+### P0: exact scanned-image reuse on one controlled release builder (#161)
+
+**Important distinction:** `release-security-reports-<sha>` and `release-sbom-<sha>` produced on a GitHub-hosted runner identify the **Docker image IDs actually scanned on that runner**. A later `docker build --pull` on a different computer is not guaranteed to produce the same IDs (even at the same Git SHA). Do not assert that source-SHA matching alone proves image-byte identity.
+
+**Preferred controlled-builder procedure (requires a real operator and has not yet been independently accepted):**
+
+1. On the **same trusted release-build workstation**, checkout the exact accepted main SHA cleanly; build backend/frontend and scan **those exact image IDs** using the same fail-closed Bandit, Trivy secrets/image and CycloneDX SBOM policies as `.github/workflows/release-gate.yml`. Keep raw security reports under authorized custody, not in the public repo.
+2. Generate both evidence folders with `release-evidence-provenance.json` linked to the exact Git source commit/tree and **the actual scanned image IDs**; keep all evidence external to the clean Git checkout. Two provenance files must agree.
+3. If the scanned images are named `grc-backend:ci` and `grc-frontend:ci`, **tag** (do not build) them for this candidate; Docker tagging preserves each image ID:
+
+```bash
+SOURCE_SHA="<exact-validated-main-sha>"
+VERSION="v0.9.0-pilot-${SOURCE_SHA:0:12}"
+test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+test -z "$(git status --porcelain --untracked-files=all)"
+docker image inspect grc-backend:ci grc-frontend:ci >/dev/null
+docker tag grc-backend:ci "grc-backend:$VERSION"
+docker tag grc-frontend:ci "grc-frontend:$VERSION"
+export OFFLINE_RELEASE_USE_PREBUILT=YES
+export OFFLINE_RELEASE_SBOM_DIR=/approved/same-builder/sbom
+export OFFLINE_RELEASE_SECURITY_DIR=/approved/same-builder/security
+bash scripts/offline-release-build.sh "$VERSION" "$SOURCE_SHA"
+```
+
+The builder then **refuses absent prebuilt images** and checks both provenance files against the exact source/tree + application image IDs before exporting, preserving the existing manifest/tamper protections. It still pulls pinned external runtime images, including the **optional Ollama runtime image** (no model weights), so disk/network capacity must be observed; `AI_ENABLED` is disabled by default at runtime.
+
+The default build mode remains available for a separate build whose image identities independently happen to match approved scan evidence, but it MUST NOT silently accept mismatches. **Do not use CI-generated synthetic signing keys** for commercial distribution; use an offline controlled signing key and independently trusted public key.
+
+**Status boundary:** This is a reproducibility **procedure and fail-closed code path**, not evidence that an approved real signed production bundle has been produced. Record the actual builder, exact image IDs, scan results, bundle SHA-256, trusted fingerprint and operator verification before closing #161.
+
 Then:
 
 ```bash
