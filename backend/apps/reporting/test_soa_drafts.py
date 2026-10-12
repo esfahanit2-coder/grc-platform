@@ -7,7 +7,7 @@ from apps.frameworks.models import Framework, FrameworkVersion
 from apps.identity.models import UserRoleScope
 from apps.identity.services import bootstrap_tenant_rbac
 from apps.organizations.models import OrganizationUnit
-from apps.risks.models import Risk, RiskTreatment
+from apps.risks.models import Risk, RiskControl, RiskTreatment
 from apps.tenancy.models import Tenant, TenantMembership
 
 from .models import SoAControlDecision, SoARegister
@@ -61,6 +61,10 @@ class SoADraftControlRegisterTests(APITestCase):
         )
         self.treatment = RiskTreatment.objects.create(
             risk=self.risk, strategy=RiskTreatment.Strategy.REDUCE, owner=self.admin
+        )
+        RiskControl.objects.create(
+            risk=self.risk, control_implementation=self.implementation,
+            relationship_type=RiskControl.RelationshipType.TREATMENT,
         )
         self.foreign_tenant = Tenant.objects.create(name="SoA Tenant Two", code="soa-tenant-two")
         self.foreign_unit = OrganizationUnit.objects.create(
@@ -200,6 +204,19 @@ class SoADraftControlRegisterTests(APITestCase):
         )
         self.assertEqual(foreign_scope.status_code, 400)
         self.assertEqual(SoAControlDecision.objects.count(), 1)
+
+    def test_same_scope_treatment_without_risk_control_link_is_rejected(self):
+        register = self.make_register()
+        unrelated_risk = Risk.objects.create(
+            tenant=self.tenant, organization_unit=self.hq, code="SYN-R-UNLINKED",
+            title="Same unit but no matching RiskControl", owner=self.admin
+        )
+        unrelated_treatment = RiskTreatment.objects.create(
+            risk=unrelated_risk, strategy=RiskTreatment.Strategy.REDUCE, owner=self.admin
+        )
+        response = self.make_decision(register, risk_treatment=str(unrelated_treatment.id))
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(SoAControlDecision.objects.count(), 0)
 
     def test_patch_can_update_decision_but_cannot_rebind_source_or_control(self):
         register = self.make_register()
