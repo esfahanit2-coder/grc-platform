@@ -55,6 +55,9 @@ jobs:
       - run: python manage.py makemigrations --check --dry-run
       - run: python manage.py migrate
       - run: python manage.py test
+      - name: Validate restricted-content preflight contract (synthetic source only)
+        working-directory: .
+        run: python scripts/restricted-content-preflight.py --self-test
       - run: python manage.py test apps.common.tests.GoldenPilotScenarioTests apps.connectors.tests.ConnectorEvidenceTests
       - run: python -m compileall .
       - run: cd .. && python scripts/static-check.py --skip-typescript
