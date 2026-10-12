@@ -86,6 +86,7 @@ export default function SoADraftDetailPage() {
   const [loading, setLoading] = useState(true);
   const [loadingOptions, setLoadingOptions] = useState(false);
   const [optionsError, setOptionsError] = useState("");
+  const [optionsNotice, setOptionsNotice] = useState("");
   const [error, setError] = useState("");
   const [saveError, setSaveError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -113,7 +114,7 @@ export default function SoADraftDetailPage() {
   }
 
   async function loadOptions() {
-    setLoadingOptions(true); setOptionsError("");
+    setLoadingOptions(true); setOptionsError(""); setOptionsNotice("");
     try {
       const [a, b, c, d] = await Promise.all([
         apiFetch("/controls/?page_size=200"),
@@ -121,13 +122,16 @@ export default function SoADraftDetailPage() {
         apiFetch("/risk-treatments/?page_size=200"),
         apiFetch("/risk-controls/?page_size=200"),
       ]);
-      if (!a.ok || !b.ok || !c.ok || !d.ok) {
-        throw new Error("دسترسی به فهرست کنترل‌ها، پیاده‌سازی‌ها یا درمان ریسک کافی نیست؛ ذخیره بدون بررسی ارجاع انجام نمی‌شود.");
+      if (!a.ok) {
+        throw new Error("فهرست کنترل‌های مجاز قابل دریافت نیست و بدون تعیین کنترل نمی‌توان تصمیم جدید ثبت کرد.");
       }
       setControls(list<Control>(await a.json()));
-      setImplementations(list<Implementation>(await b.json()));
-      setTreatments(list<Treatment>(await c.json()));
-      setRiskLinks(list<RiskControl>(await d.json()));
+      setImplementations(b.ok ? list<Implementation>(await b.json()) : []);
+      setTreatments(c.ok ? list<Treatment>(await c.json()) : []);
+      setRiskLinks(d.ok ? list<RiskControl>(await d.json()) : []);
+      if (!b.ok || !c.ok || !d.ok) {
+        setOptionsNotice("برخی داده‌های اختیاری پیاده‌سازی و ریسک در دسترس نیستند. ثبت تصمیم بدون این پیوندها ممکن است؛ مجوزها را از مدیر بخواهید.");
+      }
     } catch (e) {
       setOptionsError(e instanceof Error ? e.message : "داده‌های مرجع در دسترس نیستند.");
       setControls([]); setImplementations([]); setTreatments([]); setRiskLinks([]);
@@ -271,6 +275,7 @@ export default function SoADraftDetailPage() {
       <p>کنترل انتخاب‌شده و شناسه مرجع پس از ایجاد تغییرناپذیرند. در صورت نیاز به اصلاح منبع، به مدیر سامانه اطلاع دهید.</p>
       {loadingOptions && <p>دریافت کنترل‌ها و ارتباط‌های ریسک…</p>}
       {optionsError && <p className="errorText" role="alert">{optionsError}</p>}
+      {optionsNotice && <p role="status">{optionsNotice}</p>}
       <form className="settingsForm" onSubmit={save}>
         <label>کنترل *
           <select required disabled={Boolean(editingId)} value={form.control} onChange={e => {
