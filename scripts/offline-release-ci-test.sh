@@ -68,4 +68,36 @@ if bash scripts/offline-release-verify.sh "$STAGE" "$TMP/public.pem" >/dev/null 
   exit 1
 fi
 
-echo "offline release signature/checksum/tamper self-test passed"
+# The opt-in prebuilt release path must refuse missing scanned image identities;
+# NEVER silently fall back to docker build or accept stale evidence.
+mkdir -p "$TMP/mock-bin" "$TMP/mock-evidence"
+for name in \
+  sbom-backend.cdx.json sbom-frontend.cdx.json \
+  release-evidence-provenance.json \
+  bandit-results.json trivy-secret-results.json \
+  trivy-backend-results.json trivy-frontend-results.json; do
+  printf '{}\n' > "$TMP/mock-evidence/$name"
+done
+cat > "$TMP/mock-bin/docker" <<'SH'
+#!/usr/bin/env bash
+case "${1:-} ${2:-}" in
+  "image inspect") exit 1 ;;
+  *) echo "ERROR: forbidden Docker fallback in prebuilt negative test" >&2; exit 91 ;;
+esac
+SH
+chmod 700 "$TMP/mock-bin/docker"
+if PATH="$TMP/mock-bin:$PATH" OFFLINE_RELEASE_USE_PREBUILT=YES \
+  OFFLINE_RELEASE_OUTPUT_ROOT="$TMP/negative-prebuilt" \
+  OFFLINE_RELEASE_SBOM_DIR="$TMP/mock-evidence" \
+  OFFLINE_RELEASE_SECURITY_DIR="$TMP/mock-evidence" \
+  bash scripts/offline-release-build.sh v-ci-missing-scanned "$SOURCE_SHA" \
+    > "$TMP/missing-scanned.log" 2>&1; then
+  echo "ERROR: missing prebuilt images unexpectedly permitted an offline candidate." >&2
+  exit 1
+fi
+grep -q "missing prebuilt scanned image" "$TMP/missing-scanned.log" || {
+  echo "ERROR: prebuilt test failed for the wrong reason." >&2
+  exit 1
+}
+
+echo "offline release signature/checksum/tamper and fail-closed prebuilt self-tests passed"

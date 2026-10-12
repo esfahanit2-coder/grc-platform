@@ -76,9 +76,27 @@ EXTERNAL_IMAGES=(
   "nginx:1.28.0-alpine"
 )
 
-echo "[1/8] Building release application images..."
-docker build --pull -t "$BACKEND_IMAGE" backend
-docker build --pull -t "$FRONTEND_IMAGE" frontend
+# A clean, trusted builder may reuse the *identical already-scanned image IDs*.
+# Rebuilding even from the same source can change package/base-layer bytes and
+# invalidate the immutable security/SBOM provenance binding below.
+PREBUILT_MODE="${OFFLINE_RELEASE_USE_PREBUILT:-NO}"
+if [[ "$PREBUILT_MODE" != "YES" && "$PREBUILT_MODE" != "NO" ]]; then
+  echo "ERROR: OFFLINE_RELEASE_USE_PREBUILT must be YES or NO." >&2
+  exit 2
+fi
+if [[ "$PREBUILT_MODE" == "YES" ]]; then
+  echo "[1/8] Reusing exact already-scanned application images (no rebuild)..."
+  for image in "$BACKEND_IMAGE" "$FRONTEND_IMAGE"; do
+    if ! docker image inspect "$image" >/dev/null 2>&1; then
+      echo "ERROR: missing prebuilt scanned image: $image" >&2
+      exit 3
+    fi
+  done
+else
+  echo "[1/8] Building release application images..."
+  docker build --pull -t "$BACKEND_IMAGE" backend
+  docker build --pull -t "$FRONTEND_IMAGE" frontend
+fi
 
 BACKEND_IMAGE_ID="$(docker image inspect --format '{{.Id}}' "$BACKEND_IMAGE")"
 FRONTEND_IMAGE_ID="$(docker image inspect --format '{{.Id}}' "$FRONTEND_IMAGE")"
