@@ -1,5 +1,11 @@
 from datetime import timedelta
 from decimal import Decimal
+from io import BytesIO
+
+from docx import Document
+from openpyxl import load_workbook
+
+from apps.reporting.formal_reports import table_html
 
 from django.contrib.auth import get_user_model
 from django.utils import timezone
@@ -78,6 +84,70 @@ class FormalReportingCenterTests(APITestCase):
         self.assertEqual(ok.status_code,200)
         denied=self.client.get(f"/api/v1/reports/preview/?type=soa&assessment={self.foreign_assessment.id}")
         self.assertEqual(denied.status_code,400)
+
+    def test_soa_draft_is_not_a_formal_attestation(self):
+        self.auth(self.viewer)
+        catalog=self.client.get("/api/v1/reports/catalog/")
+        self.assertEqual(catalog.status_code, 200)
+        self.assertFalse(catalog.json()["reports"]["soa"]["is_formal_statement_of_applicability"])
+        preview=self.client.get(f"/api/v1/reports/preview/?type=soa&assessment={self.assessment.id}")
+        self.assertEqual(preview.status_code, 200)
+        payload=preview.json()
+        self.assertEqual(payload["report_kind"], "assessment_applicability_worksheet")
+        self.assertFalse(payload["is_formal_statement_of_applicability"])
+        self.assertEqual(payload["summary"]["report_status"], "draft_unapproved")
+        self.assertFalse(payload["summary"]["is_formal_statement_of_applicability"])
+        self.assertIn("NOT APPROVED", payload["title"])
+        self.assertIn("NOT AN APPROVED SoA", payload["notice"])
+        self.assertIn("DRAFT", payload["columns"][-1])
+        self.assertEqual(payload["rows"][0][-1], "DRAFT — not approved")
+        self.assertGreaterEqual(len(payload["summary"]["pending_prerequisites"]), 3)
+
+    def test_soa_csv_xlsx_docx_and_html_exports_carry_draft_warning(self):
+        self.auth(self.admin)
+        url=f"/api/v1/reports/export/?type=soa&assessment={self.assessment.id}"
+        csv_response=self.client.get(url+"&format=csv")
+        self.assertEqual(csv_response.status_code, 200)
+        csv_content=csv_response.content.decode("utf-8-sig")
+        self.assertIn("Attestation: DRAFT, NOT APPROVED", csv_content)
+        self.assertIn("DRAFT — not approved", csv_content)
+
+        xlsx_response=self.client.get(url+"&format=xlsx")
+        self.assertEqual(xlsx_response.status_code, 200)
+        workbook=load_workbook(BytesIO(xlsx_response.content), read_only=True)
+        try:
+            sheet=workbook.active
+            self.assertEqual(sheet.cell(row=1, column=8).value, "Attestation: DRAFT, NOT APPROVED")
+            self.assertEqual(sheet.cell(row=2, column=8).value, "DRAFT — not approved")
+        finally:
+            workbook.close()
+
+        docx_response=self.client.get(url+"&format=docx")
+        self.assertEqual(docx_response.status_code, 200)
+        document=Document(BytesIO(docx_response.content))
+        text=" ".join(p.text for p in document.paragraphs)
+        self.assertIn("NOT APPROVED", text)
+        self.assertIn("NOT AN APPROVED SoA", text)
+
+        # PDF export uses the same HTML builder; assert the explicit notice is present.
+        self.assertIn("NOT APPROVED", table_html({
+            "title": "Draft (NOT APPROVED)",
+            "notice": "DRAFT / NOT AN APPROVED SoA",
+            "columns": ["Control"], "rows": [["A.5.1"]],
+        }))
+
+    def test_soa_blocks_foreign_tenant_assessment_even_for_tenant_admin(self):
+        foreign_tenant=Tenant.objects.create(name="Other Org", code="other-org-report")
+        foreign_framework=Framework.objects.create(tenant=foreign_tenant, code="unrelated", name="Unrelated")
+        foreign_version=FrameworkVersion.objects.create(framework=foreign_framework, version_code="1")
+        foreign_assessment=Assessment.objects.create(
+            tenant=foreign_tenant, framework_version=foreign_version,
+            title="Do not disclose", owner=self.admin,
+        )
+        self.auth(self.admin)
+        response=self.client.get(f"/api/v1/reports/preview/?type=soa&assessment={foreign_assessment.id}")
+        self.assertEqual(response.status_code, 400)
+        self.assertNotIn("Do not disclose", str(response.content))
 
     def test_invalid_date_range_rejected(self):
         self.auth(self.admin)
