@@ -10,6 +10,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 from apps.controls.models import Control, ControlImplementation, ControlRequirement
 from apps.frameworks.models import Framework, FrameworkVersion, Requirement
+from apps.frameworks.services import calculate_version_checksum, lock_framework_version
 from apps.identity.models import UserRoleScope
 from apps.identity.services import bootstrap_tenant_rbac
 from apps.organizations.models import OrganizationUnit
@@ -313,6 +314,101 @@ class SoADraftControlRegisterTests(APITestCase):
         foreign = self.client.get(f"/api/v1/soa/registers/{good['id']}/" + suffix)
         self.assertIn(foreign.status_code, (403, 404))
         self.assertNotIn("Unapproved synthetic", foreign.content.decode())
+
+    def test_locked_framework_without_checksum_is_not_an_integrity_pass(self):
+        register = self.make_register()
+        self.auth(self.viewer)
+        response = self.client.get(f"/api/v1/soa/registers/{register['id']}/readiness/")
+        self.assertEqual(response.status_code, 200, response.content)
+        report = response.json()
+        self.assertTrue(report["source_version_locked"])
+        self.assertEqual(report["locked_framework_content_integrity"], "checksum_missing")
+        self.assertIn("framework_content_checksum_missing", report["register_findings"])
+        self.assertFalse(report["formal_attestation_allowed"])
+        self.assertEqual(report["source_rights_review"], "not_verified_by_this_endpoint")
+
+    def test_genuine_locked_content_checksum_matches_but_never_attests_source(self):
+        Requirement.objects.create(
+            framework_version=self.version, code="SYN-INTEGRITY-01",
+            title="Synthetic internal reference title",
+        )
+        self.version.is_locked = False
+        self.version.save(update_fields=["is_locked"])
+        lock_framework_version(self.version, self.tenant)
+        self.version.refresh_from_db()
+        self.assertEqual(self.version.checksum, calculate_version_checksum(self.version))
+        register = self.make_register()
+        self.auth(self.viewer)
+        response = self.client.get(f"/api/v1/soa/registers/{register['id']}/readiness/")
+        self.assertEqual(response.status_code, 200, response.content)
+        data = response.json()
+        self.assertEqual(data["locked_framework_content_integrity"], "internal_checksum_matches")
+        self.assertNotIn("framework_content_checksum_mismatch", data["register_findings"])
+        self.assertEqual(data["source_control_inventory_coverage"], "not_verified")
+        self.assertEqual(data["approval_workflow"], "not_available")
+        self.assertFalse(data["formal_attestation_allowed"])
+        self.assertNotIn(self.version.checksum, response.content.decode())
+        self.assertNotIn("Synthetic internal reference title", response.content.decode())
+
+    def test_post_lock_content_change_is_detected_without_leaking_content(self):
+        req = Requirement.objects.create(
+            framework_version=self.version, code="SYN-INTEGRITY-02",
+            title="Synthetic version baseline",
+        )
+        self.version.is_locked = False
+        self.version.save(update_fields=["is_locked"])
+        lock_framework_version(self.version, self.tenant)
+        register = self.make_register()
+        self.auth(self.viewer)
+        url = f"/api/v1/soa/registers/{register['id']}/readiness/"
+        baseline = self.client.get(url)
+        self.assertEqual(baseline.status_code, 200, baseline.content)
+        self.assertEqual(baseline.json()["locked_framework_content_integrity"], "internal_checksum_matches")
+        Requirement.objects.filter(pk=req.pk).update(title="Tampered synthetic content after lock")
+        altered = self.client.get(url)
+        self.assertEqual(altered.status_code, 200, altered.content)
+        self.assertEqual(altered.json()["locked_framework_content_integrity"], "checksum_mismatch")
+        self.assertIn("framework_content_checksum_mismatch", altered.json()["register_findings"])
+        self.assertNotIn("Tampered synthetic content", altered.content.decode())
+        self.assertFalse(altered.json()["formal_attestation_allowed"])
+
+    def test_lock_flag_removed_after_register_creation_is_flagged(self):
+        register = self.make_register()
+        FrameworkVersion.objects.filter(pk=self.version.pk).update(is_locked=False)
+        self.auth(self.viewer)
+        data = self.client.get(
+            f"/api/v1/soa/registers/{register['id']}/readiness/"
+        ).json()
+        self.assertFalse(data["source_version_locked"])
+        self.assertEqual(data["locked_framework_content_integrity"], "unlocked")
+        self.assertIn("framework_content_unlocked", data["register_findings"])
+        self.assertFalse(data["formal_attestation_allowed"])
+
+    def test_unrelated_tenant_framework_change_cannot_change_integrity_result(self):
+        register = self.make_register()
+        framework = Framework.objects.create(
+            tenant=self.foreign_tenant, code="other-synthetic-integrity-source",
+            name="Another tenant's unrelated internal framework",
+        )
+        other_version = FrameworkVersion.objects.create(
+            framework=framework, version_code="v1",
+        )
+        other_req = Requirement.objects.create(
+            framework_version=other_version, code="SYN-OTHER-01",
+            title="Unrelated synthetic title",
+        )
+        self.auth(self.viewer)
+        url = f"/api/v1/soa/registers/{register['id']}/readiness/"
+        before = self.client.get(url)
+        self.assertEqual(before.status_code, 200)
+        Requirement.objects.filter(pk=other_req.pk).update(title="Changed other tenant's reference")
+        after = self.client.get(url)
+        self.assertEqual(after.status_code, 200)
+        self.assertEqual(
+            before.json()["locked_framework_content_integrity"],
+            after.json()["locked_framework_content_integrity"],
+        )
+        self.assertNotIn("Changed other tenant", after.content.decode())
 
     def test_empty_register_is_explicitly_flagged_and_never_approvable(self):
         register = self.make_register()
