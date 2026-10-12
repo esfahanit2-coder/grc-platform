@@ -85,6 +85,7 @@ export default function SoAListPage() {
 
   useEffect(() => {
     void load();
+    void loadReferences();
     // Load only for the selected authenticated tenant. Server enforces scoping.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -136,7 +137,7 @@ export default function SoAListPage() {
         <button type="button" className="secondaryButton" onClick={() => void load()} disabled={loading}>بروزرسانی</button>
         <button type="button" className="primary" onClick={() => {
           setShowCreate(x => !x);
-          if (!showCreate) void loadReferences();
+          if (!showCreate && refError) void loadReferences();
         }}>{showCreate ? "بستن فرم" : "+ پرونده پیش‌نویس"}</button>
       </div>
     </div>
