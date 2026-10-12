@@ -106,6 +106,8 @@ def parse_xlsx_pack(raw):
 
 def normalize_rows(framework, version, rows):
     errors = []
+    if not rows:
+        errors.append({"field": "requirements", "message": "At least one requirement is required; metadata-only templates cannot be imported."})
     normalized = []
     seen = set()
     translation_languages = set()
