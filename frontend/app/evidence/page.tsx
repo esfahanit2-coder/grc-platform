@@ -322,11 +322,11 @@ export default function EvidencePage() {
       <div className="pageHead">
         <div>
           <Link href="/">← داشبورد</Link>
-          <h1>Evidence Library</h1>
+          <h1>کتابخانه شواهد</h1>
           <p>شواهد قابل استفاده مجدد با Provenance، Integrity، Validity و وضعیت اسکن امنیتی</p>
         </div>
         <button className="primary" type="button" onClick={() => setShowCreate(value => !value)}>
-          {showCreate ? "بستن فرم" : "+ Evidence جدید"}
+          {showCreate ? "بستن فرم" : "+ ثبت شاهد"}
         </button>
       </div>
 
@@ -335,12 +335,12 @@ export default function EvidencePage() {
 
       {showCreate && (
         <section className="panel" style={{ marginBottom: 20 }}>
-          <h2>ثبت Evidence جدید</h2>
+          <h2>ثبت شاهد جدید</h2>
           <p className="muted">ثبت یا اسکن موفق Evidence به‌تنهایی به معنی Compliance نیست؛ Evidence باید در Flowهای کنترل/ارزیابی/ممیزی بررسی و استفاده شود.</p>
           <form className="settingsForm" onSubmit={create}>
             <label>
               عنوان *
-              <input value={form.title} onChange={event => update("title", event.target.value)} placeholder="عنوان قابل پیگیری Evidence" maxLength={255} />
+              <input value={form.title} onChange={event => update("title", event.target.value)} placeholder="عنوان قابل پیگیری شاهد" maxLength={255} />
             </label>
             <label>
               نوع Evidence
@@ -431,11 +431,11 @@ export default function EvidencePage() {
       </div>
 
       <section className="panel">
-        {loading ? <p className="muted">در حال بارگذاری Evidence Library...</p> : rows.length === 0 ? <p className="muted">Evidence مطابق این فیلتر وجود ندارد.</p> : (
+        {loading ? <p className="muted">در حال بارگذاری شواهد…</p> : rows.length === 0 ? <p className="muted">شاهدی مطابق این فیلتر وجود ندارد.</p> : (
           <div style={{ overflowX: "auto" }}>
             <table className="dataTable">
               <thead>
-                <tr><th>Evidence</th><th>نوع / منبع</th><th>دامنه / مالک</th><th>اعتبار</th><th>اسکن فایل</th><th>مصرف</th><th>Integrity / فایل</th></tr>
+                <tr><th>شاهد</th><th>نوع / منبع</th><th>دامنه / مالک</th><th>اعتبار</th><th>اسکن فایل</th><th>مصرف</th><th>Integrity / فایل</th></tr>
               </thead>
               <tbody>{rows.map(row => (
                 <tr key={row.id}>
