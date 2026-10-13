@@ -251,7 +251,7 @@ export default function Home() {
       value: data ? formatNumber(data.high_critical_residual_risks) : "—",
       tone: data && data.high_critical_residual_risks > 0 ? "bad" : "good",
       glyph: "△",
-      description: "بر اساس آخرین ارزیابی Residual هر ریسک",
+      description: "بر اساس آخرین ارزیابی ریسک باقیمانده برای هر ریسک",
     },
     {
       label: "یافته‌های باز",
