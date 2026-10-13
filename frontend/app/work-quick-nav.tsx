@@ -6,7 +6,9 @@ import { usePathname } from "next/navigation";
 export default function WorkQuickNav() {
   const pathname = usePathname();
   if (pathname.startsWith("/login") || pathname.startsWith("/mfa")) return null;
-  if (pathname === "/work") return null;
+  if (pathname === "/work" || pathname === "/" ||
+      ["/risks", "/controls", "/evidence", "/soa", "/admin/operations"]
+        .some(route => pathname === route || pathname.startsWith(route + "/"))) return null;
 
   return (
     <div
