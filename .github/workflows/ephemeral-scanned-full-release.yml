@@ -6,6 +6,7 @@ on:
   pull_request:
     paths:
       - ".github/workflows/ephemeral-scanned-full-release.yml"
+      - "docs/release/scanned-qualification-request.md"
       - "scripts/scanned-offline-release-prepare.sh"
       - "scripts/ephemeral-scanned-release-install.sh"
       - "scripts/offline-release-build.sh"
@@ -16,6 +17,7 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/ephemeral-scanned-full-release.yml"
+      - "docs/release/scanned-qualification-request.md"
       - "scripts/scanned-offline-release-prepare.sh"
       - "scripts/ephemeral-scanned-release-install.sh"
       - "scripts/offline-release-build.sh"
