@@ -136,6 +136,20 @@ def main() -> int:
                     except Exception:
                         fail(f"Expected scoped synthetic fixture NOT visible at {viewport}:{route}")
                     verify_viewport(page, width, route)
+                    # Known backend enums must render as readable Persian;
+                    # unknown values remain visible (never silently relabeled).
+                    if route == "/risks":
+                        for heading in ("ریسک ذاتی", "ریسک باقیمانده", "ریسک هدف"):
+                            if page.get_by_role("columnheader", name=heading, exact=True).count() != 1:
+                                fail(f"Risk column label not localized: {heading}")
+                        if page.locator("table tbody tr").first.get_by_text("باز", exact=True).count() != 1:
+                            fail("Known OPEN risk status not localized")
+                    elif route == "/controls":
+                        if page.locator("table tbody tr").first.get_by_text("پیش‌نویس", exact=True).count() != 1:
+                            fail("Known DRAFT control status not localized")
+                    elif route == "/evidence":
+                        if page.locator("table tbody tr").first.get_by_text("داخلی", exact=True).count() != 1:
+                            fail("Known INTERNAL evidence classification not localized")
                     snap = photo(page, output, viewport + "-" + name, width)
                     snapshots.append({"viewport": viewport, "route": route, **snap})
                 if unexpected:

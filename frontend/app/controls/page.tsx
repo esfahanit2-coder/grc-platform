@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { apiFetch } from "../../lib/api";
+import { controlNatureLabel, controlStatusLabel, controlTypeLabel } from "../../lib/domain-labels";
 import { Button, EmptyState, FormField, Input, StatusMessage, Textarea } from "../../components/ui";
 
 type Control = {
@@ -231,10 +232,10 @@ export default function ControlsPage() {
                       <Link href={`/controls/${control.id}`}>{control.title}</Link>
                       {control.is_global && <span className="pill">مشترک سراسری</span>}
                     </td>
-                    <td className="productControlType">{control.control_type} · {control.nature}</td>
+                    <td className="productControlType">{controlTypeLabel(control.control_type)} · {controlNatureLabel(control.nature)}</td>
                     <td>{control.frameworks_count ?? 0}</td>
                     <td>{control.implementations_count ?? 0}</td>
-                    <td><span className="pill">{control.status}</span></td>
+                    <td><span className="pill">{controlStatusLabel(control.status)}</span></td>
                   </tr>
                 ))}
               </tbody>
