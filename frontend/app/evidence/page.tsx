@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState, type FormEvent } from "react";
 import { apiFetch } from "../../lib/api";
+import { evidenceClassificationLabel, evidenceTypeLabel } from "../../lib/domain-labels";
 
 type EvidenceMetadata = {
   malware_scan_required?: boolean;
@@ -94,20 +95,6 @@ function userLabel(user: User) {
   return fullName ? `${fullName} (${user.username})` : user.username;
 }
 
-function typeLabel(value: string) {
-  const labels: Record<string, string> = {
-    file: "فایل",
-    url: "URL",
-    text: "متن",
-    screenshot: "Screenshot",
-    report: "گزارش",
-    log: "Log",
-    configuration: "Configuration",
-    other: "سایر",
-  };
-  return labels[value] ?? value;
-}
-
 function scanLabel(row: Row) {
   if (!row.original_filename) return "غیرفایلی";
   const status = String(row.metadata?.malware_scan_status || "not_scanned").toLowerCase();
@@ -180,7 +167,7 @@ export default function EvidencePage() {
       const body = (await evidenceRes.json()) as Row[] | { results?: Row[] };
       setRows(unpack(body));
     } else {
-      setLoadError("بارگذاری Evidence Library ناموفق بود.");
+      setLoadError("بارگذاری کتابخانه شواهد ناموفق بود.");
     }
 
     const referenceFailures: string[] = [];
@@ -192,7 +179,7 @@ export default function EvidencePage() {
     if (userRes.ok) {
       const body = (await userRes.json()) as User[] | { results?: User[] };
       setUsers(unpack(body).filter(user => user.membership_active !== false));
-    } else referenceFailures.push("کاربران Tenant");
+    } else referenceFailures.push("کاربران سازمان");
 
     if (referenceFailures.length) {
       setLoadError(current => [current, `داده مرجع قابل بارگذاری نیست: ${referenceFailures.join("، ")}.`].filter(Boolean).join(" "));
@@ -222,11 +209,11 @@ export default function EvidencePage() {
     event.preventDefault();
     setMsg("");
     if (!referencesReady) {
-      setMsg("برای ثبت Evidence ابتدا داده‌های مرجع صفحه را بدون خطا بارگذاری کنید و حداقل یک کاربر فعال داشته باشید.");
+      setMsg("برای ثبت شاهد ابتدا داده‌های مرجع صفحه را بدون خطا بارگذاری کنید و حداقل یک کاربر فعال داشته باشید.");
       return;
     }
     if (!form.title.trim() || !form.owner) {
-      setMsg("عنوان و مالک Evidence الزامی هستند.");
+      setMsg("عنوان و مالک شاهد الزامی هستند.");
       return;
     }
     if (form.valid_until && form.collected_at && new Date(form.valid_until) < new Date(form.collected_at)) {
@@ -234,15 +221,15 @@ export default function EvidencePage() {
       return;
     }
     if (form.evidence_type === "file" && !file) {
-      setMsg("برای Evidence نوع فایل، انتخاب فایل الزامی است.");
+      setMsg("برای شاهد از نوع فایل، انتخاب فایل الزامی است.");
       return;
     }
     if (form.evidence_type === "url" && !form.url.trim()) {
-      setMsg("برای Evidence نوع URL، آدرس منبع الزامی است.");
+      setMsg("برای شاهد از نوع نشانی اینترنتی، آدرس منبع الزامی است.");
       return;
     }
     if (form.evidence_type === "text" && !form.text_content.trim()) {
-      setMsg("برای Evidence متنی، محتوای Evidence الزامی است.");
+      setMsg("برای شاهد متنی، ثبت محتوا الزامی است.");
       return;
     }
 
@@ -281,12 +268,12 @@ export default function EvidencePage() {
     }
 
     if (response.ok) {
-      setMsg(form.evidence_type === "file" ? "Evidence ثبت و برای پردازش امنیتی ارسال شد." : "Evidence ثبت شد.");
+      setMsg(form.evidence_type === "file" ? "شاهد ثبت و برای پردازش امنیتی ارسال شد." : "شاهد ثبت شد.");
       resetCreate();
       await load();
     } else {
       const body = await response.json().catch(() => null) as unknown;
-      setMsg(apiError(body, "ثبت Evidence ناموفق بود."));
+      setMsg(apiError(body, "ثبت شاهد ناموفق بود."));
     }
     setSaving(false);
   }
@@ -297,13 +284,13 @@ export default function EvidencePage() {
     const response = await apiFetch(`/evidence/${row.id}/download/`);
     const body = await response.json().catch(() => null) as unknown;
     if (!response.ok) {
-      setMsg(apiError(body, "دانلود Evidence مجاز یا در دسترس نیست."));
+      setMsg(apiError(body, "دانلود شاهد مجاز نیست یا فایل در دسترس نیست."));
       setDownloading("");
       return;
     }
     const record = body && typeof body === "object" ? body as Record<string, unknown> : {};
     if (typeof record.url !== "string" || !record.url) {
-      setMsg("Backend لینک دانلود معتبر برنگرداند.");
+      setMsg("سامانه لینک دانلود معتبر برنگرداند.");
       setDownloading("");
       return;
     }
@@ -323,40 +310,40 @@ export default function EvidencePage() {
         <div>
           <Link href="/">← داشبورد</Link>
           <h1>کتابخانه شواهد</h1>
-          <p>شواهد قابل استفاده مجدد با Provenance، Integrity، Validity و وضعیت اسکن امنیتی</p>
+          <p>شواهد قابل استفاده مجدد با مشخصات منبع، یکپارچگی، اعتبار و وضعیت اسکن امنیتی</p>
         </div>
         <button className="primary" type="button" onClick={() => setShowCreate(value => !value)}>
           {showCreate ? "بستن فرم" : "+ ثبت شاهد"}
         </button>
       </div>
 
-      {msg && <p className="message">{msg}</p>}
-      {loadError && <p className="message">{loadError}</p>}
+      {msg && <p className="message" role="status">{msg}</p>}
+      {loadError && <p className="message" role="alert">{loadError}</p>}
 
       {showCreate && (
         <section className="panel" style={{ marginBottom: 20 }}>
           <h2>ثبت شاهد جدید</h2>
-          <p className="muted">ثبت یا اسکن موفق Evidence به‌تنهایی به معنی Compliance نیست؛ Evidence باید در Flowهای کنترل/ارزیابی/ممیزی بررسی و استفاده شود.</p>
+          <p className="muted">ثبت یا اسکن موفق شاهد به‌تنهایی به معنی احراز انطباق نیست؛ شواهد باید در فرایند کنترل، ارزیابی یا ممیزی بررسی شوند.</p>
           <form className="settingsForm" onSubmit={create}>
             <label>
               عنوان *
               <input value={form.title} onChange={event => update("title", event.target.value)} placeholder="عنوان قابل پیگیری شاهد" maxLength={255} />
             </label>
             <label>
-              نوع Evidence
+              نوع شاهد
               <select value={form.evidence_type} onChange={event => { update("evidence_type", event.target.value as EvidenceForm["evidence_type"]); setFile(null); }}>
                 <option value="file">فایل</option>
                 <option value="text">متن</option>
-                <option value="url">URL</option>
+                <option value="url">نشانی اینترنتی</option>
               </select>
             </label>
             <label>
               توضیح
-              <textarea style={{ minHeight: 88, border: "1px solid #cad7e4", borderRadius: 8, padding: 10 }} value={form.description} onChange={event => update("description", event.target.value)} placeholder="Evidence چیست و چرا نگهداری می‌شود؟" />
+              <textarea style={{ minHeight: 88, border: "1px solid #cad7e4", borderRadius: 8, padding: 10 }} value={form.description} onChange={event => update("description", event.target.value)} placeholder="این شاهد چیست و چرا نگهداری می‌شود؟" />
             </label>
             <label>
-              منبع / Provenance
-              <input value={form.source} onChange={event => update("source", event.target.value)} placeholder="مثلاً Manual upload، AD، FortiGate، Veeam..." maxLength={255} />
+              منبع / منشأ شاهد
+              <input value={form.source} onChange={event => update("source", event.target.value)} placeholder="مثلاً بارگذاری دستی، AD، FortiGate یا Veeam" maxLength={255} />
             </label>
             <label>
               دامنه سازمانی
@@ -375,10 +362,10 @@ export default function EvidencePage() {
             <label>
               طبقه‌بندی
               <select value={form.classification} onChange={event => update("classification", event.target.value as EvidenceForm["classification"])}>
-                <option value="public">Public</option>
-                <option value="internal">Internal</option>
-                <option value="confidential">Confidential</option>
-                <option value="secret">Secret</option>
+                <option value="public">عمومی</option>
+                <option value="internal">داخلی</option>
+                <option value="confidential">محرمانه</option>
+                <option value="secret">خیلی محرمانه</option>
               </select>
             </label>
             <label>
@@ -405,13 +392,13 @@ export default function EvidencePage() {
             )}
             {form.evidence_type === "text" && (
               <label>
-                محتوای Evidence *
+                محتوای شاهد *
                 <textarea style={{ minHeight: 140, border: "1px solid #cad7e4", borderRadius: 8, padding: 10 }} value={form.text_content} onChange={event => update("text_content", event.target.value)} />
               </label>
             )}
 
             <div className="headActions">
-              <button className="primary" type="submit" disabled={saving || !referencesReady}>{saving ? "در حال ثبت..." : "ثبت Evidence"}</button>
+              <button className="primary" type="submit" disabled={saving || !referencesReady}>{saving ? "در حال ثبت..." : "ثبت شاهد"}</button>
               <button type="button" onClick={resetCreate}>انصراف</button>
             </div>
           </form>
@@ -419,13 +406,13 @@ export default function EvidencePage() {
       )}
 
       <div className="toolbar evidenceFilters">
-        <input value={search} onChange={event => setSearch(event.target.value)} onKeyDown={event => { if (event.key === "Enter") void load(); }} placeholder="جستجو در عنوان، توضیح یا منبع..." />
-        <select value={classification} onChange={event => setClassification(event.target.value)} style={{ border: "1px solid #cad7e4", borderRadius: 9, padding: "10px 12px", background: "white" }}>
+        <input aria-label="جستجو در شواهد" value={search} onChange={event => setSearch(event.target.value)} onKeyDown={event => { if (event.key === "Enter") void load(); }} placeholder="جستجو در عنوان، توضیح یا منبع..." />
+        <select aria-label="فیلتر طبقه‌بندی شواهد" value={classification} onChange={event => setClassification(event.target.value)} style={{ border: "1px solid #cad7e4", borderRadius: 9, padding: "10px 12px", background: "white" }}>
           <option value="">همه طبقه‌بندی‌ها</option>
-          <option value="public">Public</option>
-          <option value="internal">Internal</option>
-          <option value="confidential">Confidential</option>
-          <option value="secret">Secret</option>
+          <option value="public">عمومی</option>
+          <option value="internal">داخلی</option>
+          <option value="confidential">محرمانه</option>
+          <option value="secret">خیلی محرمانه</option>
         </select>
         <button type="button" onClick={() => void load()} disabled={loading}>{loading ? "در حال بارگذاری..." : "اعمال فیلتر"}</button>
       </div>
@@ -435,17 +422,17 @@ export default function EvidencePage() {
           <div style={{ overflowX: "auto" }}>
             <table className="dataTable">
               <thead>
-                <tr><th>شاهد</th><th>نوع / منبع</th><th>دامنه / مالک</th><th>اعتبار</th><th>اسکن فایل</th><th>مصرف</th><th>Integrity / فایل</th></tr>
+                <tr><th>شاهد</th><th>نوع / منبع</th><th>دامنه / مالک</th><th>اعتبار</th><th>اسکن فایل</th><th>مصرف</th><th>یکپارچگی / فایل</th></tr>
               </thead>
               <tbody>{rows.map(row => (
                 <tr key={row.id}>
                   <td>
                     <strong>{row.title}</strong>
                     {row.description && <small className="muted" style={{ display: "block", marginTop: 5 }}>{row.description}</small>}
-                    <span className="pill">{row.classification}</span>
+                    <span className="pill">{evidenceClassificationLabel(row.classification)}</span>
                   </td>
                   <td>
-                    <strong>{typeLabel(row.evidence_type)}</strong>
+                    <strong>{evidenceTypeLabel(row.evidence_type)}</strong>
                     <small className="muted" style={{ display: "block", marginTop: 5 }}>{row.source || "منبع ثبت نشده"}</small>
                     <small className="muted" style={{ display: "block" }}>جمع‌آوری: {dateLabel(row.collected_at)}</small>
                   </td>
