@@ -3,52 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { apiFetch } from "../lib/api";
-
-const menuSections = [
-  {
-    label: "اصلی",
-    items: [
-      { label: "داشبورد", href: "/", glyph: "⌂" },
-      { label: "سازمان", href: "/organization", glyph: "◎" },
-      { label: "دارایی‌ها", href: "/assets", glyph: "▦" },
-      { label: "چارچوب‌ها", href: "/frameworks", glyph: "▤" },
-      { label: "کنترل‌ها", href: "/controls", glyph: "◇" },
-      { label: "ریسک", href: "/risks", glyph: "△" },
-      { label: "انطباق و ارزیابی", href: "/assessments", glyph: "✓" },
-      { label: "پیش‌نویس کاربردپذیری SoA", href: "/soa", glyph: "▧" },
-    ],
-  },
-  {
-    label: "عملیات",
-    items: [
-      { label: "ممیزی", href: "/audits", glyph: "◉" },
-      { label: "یافته‌ها", href: "/findings", glyph: "!" },
-      { label: "اقدامات", href: "/actions", glyph: "□" },
-      { label: "شواهد", href: "/evidence", glyph: "◈" },
-      { label: "مستندات", href: "/documents", glyph: "▱" },
-      { label: "اتصال‌ها", href: "/connectors", glyph: "↔" },
-      { label: "گزارش‌ها", href: "/reports", glyph: "▥" },
-    ],
-  },
-  {
-    label: "اتوماسیون",
-    items: [
-      { label: "آزمون کنترل‌ها", href: "/control-tests", glyph: "⌁" },
-      { label: "گردش‌کار", href: "/workflows", glyph: "⇄" },
-      { label: "اعلان‌ها", href: "/notifications", glyph: "•" },
-      { label: "هوش مصنوعی", href: "/ai", glyph: "✦" },
-    ],
-  },
-  {
-    label: "مدیریت",
-    items: [
-      { label: "کاربران", href: "/admin/users", glyph: "♙" },
-      { label: "نقش‌ها و مجوزها", href: "/admin/roles", glyph: "⌘" },
-      { label: "تنظیمات امنیتی", href: "/settings/security", glyph: "⚙" },
-      { label: "عملیات سامانه", href: "/admin/operations", glyph: "◷" },
-    ],
-  },
-];
+import ProductWorkspace from "../components/product-workspace";
 
 type Finding = {
   id: string;
@@ -214,7 +169,7 @@ function HomeHeatmap({ cells }: { cells: RiskHeatCell[] }) {
   );
 
   if (!cells.length) {
-    return <EmptyState>هنوز ارزیابی Residual برای ساخت نقشه ریسک ثبت نشده است.</EmptyState>;
+    return <EmptyState>هنوز ارزیابی ریسک باقیمانده برای ساخت نقشه ثبت نشده است.</EmptyState>;
   }
 
   return (
@@ -338,43 +293,8 @@ export default function Home() {
   const upcomingDeadlines = data?.upcoming_deadlines ?? [];
 
   return (
-    <main className="shell dashboardShell">
-      <aside className="sidebar dashboardSidebar">
-        <div className="brand dashboardBrand">
-          <div className="brandMark dashboardShield">G</div>
-          <div>
-            <strong>GRC Platform</strong>
-            <small>Governance · Risk · Compliance</small>
-          </div>
-        </div>
-        <nav className="dashboardNav">
-          {menuSections.map((section) => (
-            <div className="navSection" key={section.label}>
-              <span className="navSectionTitle">{section.label}</span>
-              {section.items.map((item) => (
-                <Link key={item.href} href={item.href} className={item.href === "/" ? "active" : ""}>
-                  <span className="navGlyph" aria-hidden="true">{item.glyph}</span>
-                  <span>{item.label}</span>
-                </Link>
-              ))}
-            </div>
-          ))}
-        </nav>
-      </aside>
-
-      <section className="workspace dashboardWorkspace">
-        <header className="topbar dashboardTopbar">
-          <div className="liveStatus">
-            <strong>داشبورد مدیریتی</strong>
-            <small>فقط داده‌های tenant و محدوده دسترسی جاری</small>
-          </div>
-          <div className="topbarLinks dashboardTopbarLinks">
-            <Link className="secondaryLink" href="/reports">گزارش مدیریتی</Link>
-            <Link className="secondaryLink" href="/connectors">وضعیت اتصال‌ها</Link>
-            <Link className="ai" href="/ai">دستیار هوشمند ✦</Link>
-          </div>
-        </header>
-
+    <ProductWorkspace>
+      <main className="dashboardShell dashboardWorkspace dashboardMain">
         <div className="content dashboardContent">
           <div className="titleRow dashboardTitleRow">
             <div>
@@ -449,7 +369,7 @@ export default function Home() {
               <div className="panelHead dashboardPanelHead">
                 <div>
                   <h2>پیشرفت ارزیابی‌ها</h2>
-                  <small>پیشرفت و وضعیت واقعی Assessmentها</small>
+                  <small>پیشرفت و وضعیت واقعی ارزیابی‌ها</small>
                 </div>
                 <Link href="/assessments">همه ارزیابی‌ها</Link>
               </div>
@@ -486,7 +406,7 @@ export default function Home() {
                 <Link href="/risks">مشاهده همه</Link>
               </div>
               {!loading && topRisks.length === 0 ? (
-                <EmptyState>ریسک Residual ارزیابی‌شده‌ای وجود ندارد.</EmptyState>
+                <EmptyState>ریسک باقیمانده ارزیابی‌شده‌ای وجود ندارد.</EmptyState>
               ) : (
                 <div className="dashboardTableWrap">
                   <table className="dashboardTable">
@@ -575,19 +495,19 @@ export default function Home() {
           <section className="dashboardPanel dashboardOperations">
             <div className="panelHead dashboardPanelHead">
               <div>
-                <h2>عملیات Pilot / RC</h2>
+                <h2>عملیات نسخه آزمایشی</h2>
                 <small>میان‌بر به مسیرهای عملیاتی واقعی محصول</small>
               </div>
             </div>
             <div className="operationsLinks executiveOperationsLinks">
-              <Link href="/connectors">Connector Health & Sync</Link>
+              <Link href="/connectors">سلامت و همگام‌سازی اتصال‌ها</Link>
               <Link href="/reports">گزارش مدیریتی</Link>
               <Link href="/control-tests">آزمون کنترل‌ها</Link>
-              <Link href="/frameworks/crosswalk">Crosswalk چارچوب‌ها</Link>
+              <Link href="/frameworks/crosswalk">نگاشت بین چارچوب‌ها</Link>
             </div>
           </section>
         </div>
-      </section>
-    </main>
+      </main>
+    </ProductWorkspace>
   );
 }
