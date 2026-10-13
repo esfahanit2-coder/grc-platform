@@ -21,7 +21,7 @@ ROUTES = (
     ("/", "dashboard", "داشبورد"),
     ("/risks", "risks", "ریسک"),
     ("/controls", "controls", "کنترل"),
-    ("/evidence", "evidence", "شواهد",
+    ("/evidence", "evidence", "شواهد"),
     ("/soa", "soa-draft", "SoA"),
     ("/admin/operations", "operations", "عملیات"),
 )
