@@ -18,6 +18,15 @@
 | ۶ | GRC-RTM-006 | [Requirements Traceability Matrix](GRC-RTM-006_FA.md) | PM/QA؛ اتصال FR/NFR به تست و شاهد |
 | ۷ | GRC-UAT-007 | [Acceptance & Evidence Test Plan](GRC-UAT-007_FA.md) | QA/Operator/Customer؛ مراحل، انتظار، گیت |
 
+## اسناد تکمیلی سطح ماژول (افزوده‌شده)
+
+| شناسه | سند | کاربرد |
+|---|---|---|
+| GRC-RISK-101 | [مشخصات تفصیلی مدیریت ریسک](modules/GRC-RISK-101_FA.md) | تمام فیلدهای Risk/Method/Evaluation/Treatment/Appetite/Acceptance، قواعد، API، UI، AI، گزارش و Gapها |
+| GRC-RISK-UAT-102 | [آزمون‌های تفصیلی مدیریت ریسک](modules/GRC-RISK-UAT-102_FA.md) | ۱۳ سناریوی مثبت و ۲۰ سناریوی منفی، شواهد و گیت پذیرش |
+
+**وضعیت:** DRAFT؛ اسناد جدید هیچ کد یا Migrationی را تغییر نمی‌دهند. مسائل #161، #182 و #183 همچنان باز و مرتبط‌اند.
+
 ## ۲. اصول کنترل سند
 - شناسه و نسخه ثابت باشند؛ هر تغییر محتوای مهم به PR و Change Log نیاز دارد.
 - اصطلاح `existing/implemented` بر اساس کد/مدل merged تفسیر شود؛ `observed` فقط وقتی خروجی آزمون مربوطه وجود دارد.
