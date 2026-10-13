@@ -36,6 +36,7 @@ export default function ControlsPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [notice, setNotice] = useState("");
+  const [noticeTone, setNoticeTone] = useState<"success" | "danger">("success");
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState<CreateControl>(initialForm);
   const [saving, setSaving] = useState(false);
@@ -71,6 +72,7 @@ export default function ControlsPage() {
     const code = form.code.trim();
     const title = form.title.trim();
     if (!code || !title) {
+      setNoticeTone("danger");
       setNotice("کد و عنوان کنترل الزامی هستند.");
       return;
     }
@@ -98,8 +100,10 @@ export default function ControlsPage() {
       setShowCreate(false);
       setSearch("");
       await load("");
+      setNoticeTone("success");
       setNotice("پیش‌نویس کنترل ایجاد شد. ثبت کنترل به معنی اجرای آن یا تأیید انطباق نیست.");
     } catch (error) {
+      setNoticeTone("danger");
       setNotice(error instanceof Error ? error.message : "ثبت کنترل انجام نشد.");
     } finally {
       setSaving(false);
@@ -125,7 +129,7 @@ export default function ControlsPage() {
       </div>
 
       {notice && (
-        <StatusMessage className="productInlineStatus" tone={notice.includes("انجام نشد") || notice.includes("ناموفق") || notice.includes("الزامی") || notice.includes("خطا") ? "danger" : "success"}>
+        <StatusMessage className="productInlineStatus" tone={noticeTone}>
           {notice}
         </StatusMessage>
       )}
