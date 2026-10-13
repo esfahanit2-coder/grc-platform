@@ -19,9 +19,9 @@ from playwright.sync_api import sync_playwright
 
 ROUTES = (
     ("/", "dashboard", "داشبورد"),
-    ("/risks", "risks", "Risk"),
+    ("/risks", "risks", "ریسک"),
     ("/controls", "controls", "کنترل"),
-    ("/evidence", "evidence", "Evidence"),
+    ("/evidence", "evidence", "شواهد",
     ("/soa", "soa-draft", "SoA"),
     ("/admin/operations", "operations", "عملیات"),
 )
@@ -143,6 +143,19 @@ def main() -> int:
                         die(f"{name}:{route} HTML document is not RTL.")
                     if console_errors or server_failures:
                         die(f"{name}:{route} experienced Javascript or HTTP 5xx errors.")
+                    # All six product views must use the *same* RTL workspace,
+                    # including the executive dashboard; never ship duplicate
+                    # page shells or a bottom floating shortcut over forms.
+                    if page.locator(".productSidebar").count() != 1 or page.locator(".productTopbar").count() != 1:
+                        die(f"{name}:{route} does not have exactly one shared app shell.")
+                    if page.locator(".dashboardSidebar").count() != 0:
+                        die(f"{name}:{route} still renders the legacy dashboard sidebar.")
+                    active = page.locator('.productNavLink[aria-current="page"]')
+                    if active.count() != 1 or active.first.get_attribute("href") != route:
+                        die(f"{name}:{route} does not highlight the current route.")
+                    if page.locator('a[href="/work"]').count() < 1:
+                        die(f"{name}:{route} is missing the shared Work navigation.")
+
                     measured = page.evaluate("""() => ({
                         doc: document.documentElement.scrollWidth,
                         body: document.body.scrollWidth,
