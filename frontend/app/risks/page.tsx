@@ -194,7 +194,7 @@ export default function RisksPage() {
       <div className="pageHead">
         <div>
           <Link href="/">← داشبورد</Link>
-          <h1>Risk Register</h1>
+          <h1>دفتر ثبت ریسک‌ها</h1>
           <p>Inherent، Residual و Target Risk با تاریخچه کامل</p>
         </div>
         <div className="headActions">

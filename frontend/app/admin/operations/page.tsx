@@ -22,11 +22,31 @@ type OperationalStatus = {
 
 const componentLabels: Record<string, string> = {
   database: "پایگاه داده",
-  redis: "Redis / Broker",
+  redis: "ردیس و واسط صف",
   object_storage: "ذخیره‌سازی شواهد",
-  queue: "صف Celery",
-  async_pipeline: "Beat → Broker → Worker",
-  backup: "آخرین Backup",
+  queue: "صف پردازش سلری",
+  async_pipeline: "زنجیره زمان‌بند، صف و پردازشگر",
+  backup: "آخرین پشتیبان",
+};
+
+const detailLabels: Record<string, string> = {
+  database_version: "نسخه پایگاه داده",
+  pgvector_version: "نسخه افزونه برداری",
+  queue_name: "نام صف پردازش",
+  queue_depth: "تعداد پیام‌های صف",
+  depth: "عمق صف",
+  warning_threshold: "آستانه هشدار",
+  error_type: "نوع خطا",
+  reason: "دلیل وضعیت",
+  source: "منبع سیگنال",
+  backup_name: "شناسه نسخه پشتیبان",
+  duration_seconds: "مدت عملیات (ثانیه)",
+};
+const detailValues: Record<string, string> = {
+  not_recorded: "سیگنال ثبت نشده است",
+  broker_unreachable: "اتصال به واسط پیام برقرار نیست",
+  queue_depth_not_available: "عمق صف در دسترس نیست",
+  stale: "سیگنال قدیمی است",
 };
 
 const statusLabels: Record<string, string> = {
@@ -48,8 +68,9 @@ function formatAge(value?: number | null) {
 function formatDetail(key: string, value: string | number | boolean | null) {
   if (value == null) return "—";
   if (typeof value === "boolean") return value ? "بله" : "خیر";
-  if (key === "depth") return new Intl.NumberFormat("fa-IR").format(Number(value));
-  return String(value);
+  if (key === "depth" || key === "queue_depth" || key === "warning_threshold")
+    return new Intl.NumberFormat("fa-IR").format(Number(value));
+  return typeof value === "string" ? (detailValues[value] ?? value) : String(value);
 }
 
 export default function OperationsPage() {
@@ -65,7 +86,7 @@ export default function OperationsPage() {
       const body = await response.json().catch(() => ({}));
       if (!response.ok) {
         throw new Error(response.status === 403
-          ? "برای مشاهده وضعیت Deployment به دسترسی سراسری security.view نیاز دارید."
+          ? "برای مشاهده وضعیت استقرار، مجوز سراسری security.view لازم است."
           : "دریافت وضعیت عملیاتی ناموفق بود.");
       }
       setData(body as OperationalStatus);
@@ -87,7 +108,7 @@ export default function OperationsPage() {
         <div>
           <Link href="/">بازگشت به داشبورد</Link>
           <h1>عملیات و سلامت سامانه</h1>
-          <p>نمای Secret-safe از وابستگی‌های runtime، صف پردازش، heartbeat و تازگی Backup</p>
+          <p>نمای وضعیت خدمات، صف پردازش، سیگنال‌های دوره‌ای و تازگی پشتیبان؛ بدون افشای اطلاعات محرمانه</p>
         </div>
         <div className="headActions">
           <button type="button" onClick={() => void load()} disabled={loading}>
@@ -104,17 +125,17 @@ export default function OperationsPage() {
             <article className={`kpi ${data.overall_status === "healthy" ? "good" : "warn"}`}>
               <span>وضعیت کل</span>
               <strong>{statusLabels[data.overall_status] ?? data.overall_status}</strong>
-              <small>محاسبه‌شده از مؤلفه‌های runtime</small>
+              <small>محاسبه‌شده از مؤلفه‌های عملیاتی</small>
             </article>
             <article className="kpi">
               <span>محیط</span>
               <strong dir="ltr">{data.environment}</strong>
-              <small>بدون نمایش متغیرها یا Secretها</small>
+              <small>بدون نمایش تنظیمات محرمانه</small>
             </article>
             <article className="kpi">
               <span>مؤلفه‌های بحرانی</span>
               <strong>{components.filter(([, item]) => item.status === "critical").length}</strong>
-              <small>برای Alert خارجی قابل استفاده است</small>
+              <small>قابل استفاده برای اعلام هشدار</small>
             </article>
             <article className="kpi">
               <span>هشدار / نامشخص</span>
@@ -139,7 +160,7 @@ export default function OperationsPage() {
                   <dl>
                     {Object.entries(item.details).map(([detailKey, value]) => (
                       <div key={detailKey} style={{ display: "flex", gap: 8, marginBottom: 6 }}>
-                        <dt dir="ltr">{detailKey}</dt>
+                        <dt title={detailKey}>{detailLabels[detailKey] ?? detailKey}</dt>
                         <dd style={{ margin: 0 }} dir="auto">{formatDetail(detailKey, value)}</dd>
                       </div>
                     ))}
@@ -152,7 +173,7 @@ export default function OperationsPage() {
           <section className="panel" style={{ marginTop: 18 }}>
             <h2>مرز این وضعیت</h2>
             <p className="muted">
-              این صفحه جایگزین مانیتورینگ بیرونی، Restore Drill، RPO/RTO یا Pentest نیست. هدف آن ارائه وضعیت قابل‌هشدار و Secret-safe برای عملیات روزانه است.
+              این صفحه جایگزین پایش مستقل، تمرین بازیابی، سنجش RPO/RTO یا آزمون نفوذ نیست. وضعیت‌ها فقط بر اساس سیگنال‌های واقعی سامانه نمایش داده می‌شوند.
             </p>
           </section>
         </>
