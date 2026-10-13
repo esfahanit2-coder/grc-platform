@@ -1,0 +1,98 @@
+name: ephemeral-browser-rtl
+
+# Captures actual installed Next/Django screens; no AI mockups, customer data or keys.
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/ephemeral-browser-rtl.yml"
+      - "scripts/ephemeral-browser-rtl.py"
+      - "scripts/ephemeral-real-core-install.sh"
+      - "frontend/app/**"
+      - "frontend/components/**"
+      - "frontend/lib/**"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/ephemeral-browser-rtl.yml"
+      - "scripts/ephemeral-browser-rtl.py"
+      - "scripts/ephemeral-real-core-install.sh"
+      - "frontend/app/**"
+      - "frontend/components/**"
+      - "frontend/lib/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: browser-rtl-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  actual-browser:
+    name: real Chromium / synthetic scoped GRC pages
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Prepare Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - name: Check isolated runner environment
+        run: |
+          test ! -e .env
+          docker version
+          docker compose version
+          python -m py_compile scripts/ephemeral-browser-rtl.py
+          bash -n scripts/ephemeral-real-core-install.sh
+          df -h .
+          free -m
+          test "$(df -Pk . | awk 'END {print $4}')" -gt 9000000
+      - name: Install pinned Playwright and Chromium
+        timeout-minutes: 15
+        run: |
+          python -m pip install --disable-pip-version-check "playwright==1.56.0"
+          python -m playwright install --with-deps chromium
+      - name: Run actual signed core on disposable Linux; render authenticated RTL pages
+        timeout-minutes: 70
+        env:
+          GRC_CORE_INSTALL_EPHEMERAL_ONLY: "YES"
+          GRC_BROWSER_VISUAL_EPHEMERAL_ONLY: "YES"
+          GRC_BROWSER_SCREENSHOT_DIR: ${{ runner.temp }}/grc-actual-browser
+          GRC_CORE_DR_EPHEMERAL_ONLY: "NO"
+          GRC_CORE_REPLACEMENT_EPHEMERAL_ONLY: "NO"
+        run: |
+          bash scripts/ephemeral-real-core-install.sh
+          python - "$RUNNER_TEMP/grc-actual-browser/MANIFEST.json" <<'PY'
+          import json, sys
+          from pathlib import Path
+          path=Path(sys.argv[1])
+          manifest=json.loads(path.read_text())
+          assert manifest["real_django_next_postgres_tls"] is True
+          assert manifest["visual_approval"] is False
+          assert manifest["full_design_parity"] is False
+          assert len(manifest["images"])==12
+          for row in manifest["images"]:
+              assert (path.parent/row["file"]).is_file()
+          print("Twelve actual browser captures present; no mock UI.")
+          PY
+      - name: Retain only generated non-sensitive PNGs and evidence manifest
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: real-browser-rtl-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/grc-actual-browser/
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Record evidence boundary
+        if: always()
+        run: |
+          echo '### Real browser screenshots: CI-only, not design approval' >> "$GITHUB_STEP_SUMMARY"
+          echo '- Actual Chromium rendered installed Next.js and Django API with disposable tenant; not generated mock screenshots.' >> "$GITHUB_STEP_SUMMARY"
+          echo '- CI-issued backend JWT used to reach screens; browser login and MFA are explicitly NOT verified.' >> "$GITHUB_STEP_SUMMARY"
+          echo '- PNG artifact includes SHA-bound manifest and 12 authentic captures if the test passed.' >> "$GITHUB_STEP_SUMMARY"
+          echo '- No real customer TLS, production signing key, licensed content or human RTL accessibility UAT signoff.' >> "$GITHUB_STEP_SUMMARY"
