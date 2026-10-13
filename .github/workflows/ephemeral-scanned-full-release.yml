@@ -1,0 +1,133 @@
+name: ephemeral-scanned-full-release
+
+# Heavy, bounded, public-repo disposable integration; NOT customer release signing.
+# Rehearses full application/infrastructure images with real security scans.
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/ephemeral-scanned-full-release.yml"
+      - "scripts/scanned-offline-release-prepare.sh"
+      - "scripts/offline-release-build.sh"
+      - "scripts/offline-release-ci-test.sh"
+      - "scripts/release-evidence-provenance.py"
+  # Verify the exact merged main source independently of the PR preview.
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/ephemeral-scanned-full-release.yml"
+      - "scripts/scanned-offline-release-prepare.sh"
+      - "scripts/offline-release-build.sh"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: scanned-full-release-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  actual-scanned-bundle:
+    name: scanned exact images / unsigned full bundle / disposable signature
+    runs-on: ubuntu-24.04
+    timeout-minutes: 115
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - name: Verify runner disk and exact script syntax
+        run: |
+          docker version
+          docker compose version
+          bash -n scripts/scanned-offline-release-prepare.sh
+          df -h .
+          free -m
+          test "$(df -Pk . | awk 'END {print $4}')" -gt 25000000
+          test ! -e .env
+      - name: Install fail-closed Python security scanner
+        run: |
+          python -m pip install bandit==1.9.4
+          bandit --version
+      - name: Set up Trivy with synthetic-only filesystem preflight
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: secret
+          format: json
+          output: /tmp/grc-disposable-trivy-preflight.json
+          # Trivy Action's default .cache/trivy is INSIDE the source checkout,
+          # which would violate the release builder's required clean-Git invariant.
+          cache-dir: ${{ runner.temp }}/trivy-cache
+          exit-code: "1"
+          skip-dirs: .git,.next,node_modules
+      - name: Assemble real seven-image candidate from freshly scanned application images
+        timeout-minutes: 100
+        env:
+          GRC_SCANNED_RELEASE_TEST_ONLY: "YES"
+        run: |
+          command -v trivy
+          trivy --version
+          SOURCE_SHA="$(git rev-parse HEAD)"
+          VERSION="v-ci-scanned-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          BASE="$RUNNER_TEMP/grc-scanned-release"
+          bash scripts/scanned-offline-release-prepare.sh "$VERSION" "$SOURCE_SHA" "$BASE"
+          test -s "$BASE/stages/$VERSION/release-manifest.json"
+          python scripts/offline-release-manifest.py verify \
+            --stage "$BASE/stages/$VERSION"
+          # One-run disposable key; never uploaded, logged, or presented as trusted.
+          umask 077
+          openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 \
+            -out "$RUNNER_TEMP/ci-private.pem" >/dev/null 2>&1
+          openssl pkey -in "$RUNNER_TEMP/ci-private.pem" -pubout \
+            -out "$RUNNER_TEMP/ci-public.pem" >/dev/null 2>&1
+          SIGNED="$RUNNER_TEMP/ci-only-signed.tar.gz"
+          bash scripts/offline-release-sign.sh \
+            "$BASE/stages/$VERSION" "$RUNNER_TEMP/ci-private.pem" "$SIGNED"
+          bash scripts/offline-release-verify.sh "$SIGNED" "$RUNNER_TEMP/ci-public.pem"
+          (cd "$RUNNER_TEMP"; sha256sum -c ci-only-signed.tar.gz.sha256)
+          python - "$SOURCE_SHA" "$BASE/stages/$VERSION" "$SIGNED" "$RUNNER_TEMP/grc-test-only-summary.json" <<'PY'
+          import hashlib,json,sys
+          from pathlib import Path
+          sha,stage,archive,out=sys.argv[1:]
+          manifest=json.loads((Path(stage)/"release-manifest.json").read_text())
+          images=json.loads((Path(stage)/"metadata/images.json").read_text())
+          bundle=Path(archive)
+          digest=hashlib.sha256()
+          with bundle.open("rb") as reader:
+            for chunk in iter(lambda:reader.read(1024*1024),b""):
+              digest.update(chunk)
+          summary={
+            "schema":"grc-ephemeral-scanned-release-observation-v1",
+            "source_commit":sha,
+            "release_version":manifest.get("release_version"),
+            "image_roles":sorted(row["role"] for row in images["images"]),
+            "application_image_ids":{row["role"]:row["image_id"] for row in images["images"] if row["role"] in ("backend","frontend")},
+            "bundle_sha256":digest.hexdigest(),
+            "bundle_bytes":bundle.stat().st_size,
+            "synthetic_disposable_signing_key":True,
+            "customer_release_approved":False,
+            "customer_install_verified":False,
+            "independent_pentest_verified":False
+          }
+          Path(out).write_text(json.dumps(summary,indent=2,sort_keys=True)+"\n")
+          print("Actual scanned-image seven-role bundle was assembled and verified with a disposable CI-only signing key. NOT approved release.")
+          PY
+          rm -f "$RUNNER_TEMP/ci-private.pem"
+      - name: Retain only non-sensitive outcome metadata (never full images or scanner findings)
+        if: success()
+        uses: actions/upload-artifact@v7
+        with:
+          name: grc-ephemeral-scanned-release-summary
+          path: ${{ runner.temp }}/grc-test-only-summary.json
+          if-no-files-found: error
+          retention-days: 7
+      - name: Report strict approval boundary
+        if: always()
+        run: |
+          echo '### Real images and scans, disposable runner only' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Even SUCCESS is not a licensed/approved release: runner key and certificate ephemeral, no customer host, actual independent pentest, customer rights or human UAT.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'No production keys or raw customer evidence were used or uploaded.' >> "$GITHUB_STEP_SUMMARY"

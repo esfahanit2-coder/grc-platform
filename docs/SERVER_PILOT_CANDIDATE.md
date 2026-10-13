@@ -102,6 +102,17 @@ Both artifact sets contain `release-evidence-provenance.json`, which binds the e
 
 **Important distinction:** `release-security-reports-<sha>` and `release-sbom-<sha>` produced on a GitHub-hosted runner identify the **Docker image IDs actually scanned on that runner**. A later `docker build --pull` on a different computer is not guaranteed to produce the same IDs (even at the same Git SHA). Do not assert that source-SHA matching alone proves image-byte identity.
 
+**Operator helper (same scan and package boundary, not production attestation):** `scripts/scanned-offline-release-prepare.sh` builds the application images once on a connected **trusted** machine, runs Bandit and Trivy fail-closed on those exact images and the clean repository, produces CycloneDX SBOMs/provenance, tags rather than rebuilding, and invokes the canonical unsigned package builder with `OFFLINE_RELEASE_USE_PREBUILT=YES`. It requires installed `docker`, `python`, `bandit`, `trivy`, and a clean checkout; its output path MUST be outside the repository. Do not point it at any directory containing customer secrets or code/content not approved for scanning.
+
+```bash
+SOURCE_SHA="<main-sha-after-independent-gates>"
+VERSION="v0.9.0-pilot-${SOURCE_SHA:0:12}"
+bash scripts/scanned-offline-release-prepare.sh \
+  "$VERSION" "$SOURCE_SHA" /approved/private/release-evidence/attempt-001
+```
+
+**This script has a release-operator boundary:** no production signing keys, image upload, confidential standard texts or client data belong in CI or public logs; it produces an **unsigned** candidate. Scanner failure, missing prerequisite, missing tagged image or provenance mismatch MUST prevent promotion. The same operator still has to provide controlled signing/verification, real target-host deployment, license clearance and UAT. Actual end-to-end execution is NOT VERIFIED until evidence is collected.
+
 **Preferred controlled-builder procedure (requires a real operator and has not yet been independently accepted):**
 
 1. On the **same trusted release-build workstation**, checkout the exact accepted main SHA cleanly; build backend/frontend and scan **those exact image IDs** using the same fail-closed Bandit, Trivy secrets/image and CycloneDX SBOM policies as `.github/workflows/release-gate.yml`. Keep raw security reports under authorized custody, not in the public repo.
