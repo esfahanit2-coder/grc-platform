@@ -13,6 +13,7 @@ import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+import struct
 
 from playwright.sync_api import sync_playwright
 
@@ -142,11 +143,24 @@ def main() -> int:
                         die(f"{name}:{route} HTML document is not RTL.")
                     if console_errors or server_failures:
                         die(f"{name}:{route} experienced Javascript or HTTP 5xx errors.")
+                    measured = page.evaluate("""() => ({
+                        doc: document.documentElement.scrollWidth,
+                        body: document.body.scrollWidth,
+                        viewport: window.innerWidth
+                    })""")
+                    if max(measured["doc"], measured["body"]) > measured["viewport"] + 1:
+                        die(f"{name}:{route} exceeds viewport width; responsive clipping detected.")
                     filename = f"{name}-{label}.png"
                     screenshot = output / filename
                     page.screenshot(path=str(screenshot), full_page=True, animations="disabled")
                     if screenshot.stat().st_size < 5000:
                         die(f"{name}:{route} screenshot too small.")
+                    raw = screenshot.read_bytes()
+                    if raw[:8] != b"\x89PNG\r\n\x1a\n":
+                        die(f"{name}:{route} screenshot is not valid PNG.")
+                    image_width, _ = struct.unpack(">II", raw[16:24])
+                    if image_width != width:
+                        die(f"{name}:{route} PNG width {image_width} != viewport {width}.")
                     results.append({
                         "viewport": name,
                         "route": route,
