@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { apiFetch } from "../../lib/api";
+import { riskLevelLabel, riskStatusLabel } from "../../lib/domain-labels";
 
 type Eval = { score: string; level: string };
 type Risk = {
@@ -110,7 +111,7 @@ export default function RisksPage() {
     if (userRes.ok) {
       const body = (await userRes.json()) as User[] | { results?: User[] };
       setUsers(unpack(body).filter(user => user.membership_active !== false));
-    } else referenceFailures.push("کاربران Tenant");
+    } else referenceFailures.push("کاربران سازمان");
 
     if (assetRes.ok) {
       const body = (await assetRes.json()) as Asset[] | { results?: Asset[] };
@@ -195,7 +196,7 @@ export default function RisksPage() {
         <div>
           <Link href="/">← داشبورد</Link>
           <h1>دفتر ثبت ریسک‌ها</h1>
-          <p>Inherent، Residual و Target Risk با تاریخچه کامل</p>
+          <p>ارزیابی ریسک ذاتی، باقیمانده و هدف با حفظ تاریخچه</p>
         </div>
         <div className="headActions">
           <Link className="secondaryLink" href="/risks/governance">اشتهای ریسک و پذیرش</Link>
@@ -275,10 +276,12 @@ export default function RisksPage() {
       </div>
 
       <section className="panel">
-        {loading ? <p className="muted">در حال بارگذاری Risk Register...</p> : rows.length === 0 ? <p className="muted">ریسکی در این دامنه ثبت نشده است.</p> : (
-          <div className="tableWrap" role="region" aria-label="جدول ریسک‌ها" tabIndex={0}>
+        {loading ? <p className="muted">در حال بارگذاری دفتر ریسک‌ها…</p> : rows.length === 0 ? <p className="muted">ریسکی در این دامنه ثبت نشده است.</p> : (
+          <>
+          <p className="riskMobileTableHint" id="risk-table-scroll-help">برای مشاهده همه ستون‌ها، جدول را به‌صورت افقی پیمایش کنید.</p>
+          <div className="tableWrap" role="region" aria-label="جدول ریسک‌ها" aria-describedby="risk-table-scroll-help" tabIndex={0}>
           <table className="dataTable">
-            <thead><tr><th>کد</th><th>ریسک</th><th>واحد</th><th>مالک</th><th>Inherent</th><th>Residual</th><th>Target</th><th>وضعیت</th></tr></thead>
+            <thead><tr><th>کد</th><th>ریسک</th><th>واحد</th><th>مالک</th><th scope="col">ریسک ذاتی</th><th scope="col">ریسک باقیمانده</th><th scope="col">ریسک هدف</th><th>وضعیت</th></tr></thead>
             <tbody>{rows.map(risk => (
               <tr key={risk.id}>
                 <td><Link href={`/risks/${risk.id}`}>{risk.code}</Link></td>
@@ -288,11 +291,12 @@ export default function RisksPage() {
                 <td><RiskCell x={risk.latest_evaluations?.inherent} /></td>
                 <td><RiskCell x={risk.latest_evaluations?.residual} /></td>
                 <td><RiskCell x={risk.latest_evaluations?.target} /></td>
-                <td><span className="pill">{risk.status}</span></td>
+                <td><span className="pill">{riskStatusLabel(risk.status)}</span></td>
               </tr>
             ))}</tbody>
           </table>
           </div>
+          </>
         )}
       </section>
     </main>
@@ -301,5 +305,5 @@ export default function RisksPage() {
 
 function RiskCell({ x }: { x?: Eval }) {
   if (!x) return <span className="muted">—</span>;
-  return <span className={`riskLevel ${x.level}`}>{x.score} · {x.level}</span>;
+  return <span className={`riskLevel ${x.level}`}>{x.score} · {riskLevelLabel(x.level)}</span>;
 }
