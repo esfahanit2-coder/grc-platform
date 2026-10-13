@@ -186,6 +186,29 @@ def main() -> int:
             browser.close()
     if len(results) != len(ROUTES) * 2:
         die("Incomplete real-browser screenshot set.")
+
+    # Second phase runs AFTER successful empty-tenant evidence. It seeds only
+    # disposable fictional GRC records and exercises real browser forms.
+    # Token travels solely via process stdin; never args/files/logs/artifacts.
+    if os.environ.get("GRC_BROWSER_POPULATED_EPHEMERAL_ONLY") != "YES":
+        die("Populated GRC journey is mandatory for this CI visual contract.")
+    journey = subprocess.run(
+        [
+            sys.executable,
+            str(Path(__file__).parent / "ephemeral-browser-populated-journey.py"),
+            str(install), str(output / "populated"),
+        ],
+        input=json.dumps(token),
+        text=True, capture_output=True, timeout=220, check=False,
+    )
+    if journey.returncode != 0:
+        die("Actual populated tenant browser journey failed; do not treat empty screenshots as complete UX coverage.")
+    populated_path = output / "populated" / "POPULATED_MANIFEST.json"
+    if not populated_path.is_file():
+        die("Missing real populated journey evidence manifest.")
+    populated = json.loads(populated_path.read_text(encoding="utf-8"))
+    if len(populated.get("screenshots", [])) != 8 or len(populated.get("checks", [])) != 3:
+        die("Incomplete populated journey proof.")
     manifest = {
         "schema": "grc-ci-browser-rtl-v1",
         "source_sha": sha,
@@ -198,11 +221,14 @@ def main() -> int:
         "production_release_or_host_verified": False,
         "full_design_parity": False,
         "images": results,
+        "populated_journey": "populated/POPULATED_MANIFEST.json",
+        "populated_screenshots": len(populated["screenshots"]),
+        "populated_actual_form_checks": populated["checks"],
     }
     (output / "MANIFEST.json").write_text(
         json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
-    print(f"CI real-browser RTL screenshots PASS: {len(results)} views (synthetic tenant only).")
+    print(f"CI real-browser RTL PASS: {len(results)} empty and {len(populated['screenshots'])} populated synthetic views + 3 live browser journeys.")
     return 0
 
 
