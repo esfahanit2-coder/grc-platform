@@ -7,6 +7,7 @@ on:
     paths:
       - ".github/workflows/ephemeral-scanned-full-release.yml"
       - "scripts/scanned-offline-release-prepare.sh"
+      - "scripts/ephemeral-scanned-release-install.sh"
       - "scripts/offline-release-build.sh"
       - "scripts/offline-release-ci-test.sh"
       - "scripts/release-evidence-provenance.py"
@@ -16,6 +17,7 @@ on:
     paths:
       - ".github/workflows/ephemeral-scanned-full-release.yml"
       - "scripts/scanned-offline-release-prepare.sh"
+      - "scripts/ephemeral-scanned-release-install.sh"
       - "scripts/offline-release-build.sh"
   workflow_dispatch:
 
@@ -43,6 +45,7 @@ jobs:
           docker version
           docker compose version
           bash -n scripts/scanned-offline-release-prepare.sh
+          bash -n scripts/ephemeral-scanned-release-install.sh
           df -h .
           free -m
           test "$(df -Pk . | awk 'END {print $4}')" -gt 25000000
@@ -89,6 +92,13 @@ jobs:
             "$BASE/stages/$VERSION" "$RUNNER_TEMP/ci-private.pem" "$SIGNED"
           bash scripts/offline-release-verify.sh "$SIGNED" "$RUNNER_TEMP/ci-public.pem"
           (cd "$RUNNER_TEMP"; sha256sum -c ci-only-signed.tar.gz.sha256)
+          # Prove the *same real scanned, fully signed seven-image archive*
+          # can be cold-loaded (no image tags left) and run the installed GRC
+          # golden journey on an isolated Linux host with one-run TLS.
+          GRC_SCANNED_INSTALL_EPHEMERAL_ONLY=YES \
+            bash scripts/ephemeral-scanned-release-install.sh \
+              "$SIGNED" "$RUNNER_TEMP/ci-public.pem" "$SOURCE_SHA" \
+              "$BASE/stages/$VERSION/metadata/images.json"
           python - "$SOURCE_SHA" "$BASE/stages/$VERSION" "$SIGNED" "$RUNNER_TEMP/grc-test-only-summary.json" <<'PY'
           import hashlib,json,sys
           from pathlib import Path
@@ -110,6 +120,7 @@ jobs:
             "bundle_bytes":bundle.stat().st_size,
             "synthetic_disposable_signing_key":True,
             "customer_release_approved":False,
+            "disposable_signed_full_archive_cold_install_golden_passed":True,
             "customer_install_verified":False,
             "independent_pentest_verified":False
           }
