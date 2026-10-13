@@ -200,6 +200,12 @@ echo '[GRC UAT-SMOKE] Bootstrapping synthetic tenant and admin through the insta
       --admin-email "ci-installed-admin@example.invalid" >/dev/null
   unset bootstrap_password
 )
+if [[ "${GRC_BROWSER_VISUAL_EPHEMERAL_ONLY:-NO}" == "YES" ]]; then
+  echo '[GRC VISUAL] Capturing actual Next/Django app in Chromium with disposable tenant.'
+  python "$ROOT/scripts/ephemeral-browser-rtl.py" \
+    "$INSTALL/repository" \
+    "${GRC_BROWSER_SCREENSHOT_DIR:-${RUNNER_TEMP:?}/grc-actual-browser}"
+fi
 echo '[GRC UAT-SMOKE] Executing golden risk-control-evidence-action-audit-report journey in installed backend image.'
 (
   cd "$INSTALL/repository"

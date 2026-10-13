@@ -418,7 +418,7 @@ export default function EvidencePage() {
         </section>
       )}
 
-      <div className="toolbar">
+      <div className="toolbar evidenceFilters">
         <input value={search} onChange={event => setSearch(event.target.value)} onKeyDown={event => { if (event.key === "Enter") void load(); }} placeholder="جستجو در عنوان، توضیح یا منبع..." />
         <select value={classification} onChange={event => setClassification(event.target.value)} style={{ border: "1px solid #cad7e4", borderRadius: 9, padding: "10px 12px", background: "white" }}>
           <option value="">همه طبقه‌بندی‌ها</option>

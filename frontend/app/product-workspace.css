@@ -223,3 +223,30 @@
   .productControlStats { grid-template-columns: 1fr; }
   .productWorkspaceBody .adminPage .pageHead { flex-wrap: wrap; gap: 12px; }
 }
+/* Real Chromium mobile regression #172: evidence search must not force
+   390px viewport wider than the device. Keep long tables internally scrollable. */
+.productWorkspaceBody .toolbar.evidenceFilters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  max-width: 100%;
+}
+.productWorkspaceBody .toolbar.evidenceFilters input {
+  flex: 1 1 240px;
+  min-width: 0;
+  max-width: 100%;
+}
+.productWorkspaceBody .toolbar.evidenceFilters select {
+  min-width: 0;
+  flex: 0 1 170px;
+  max-width: 100%;
+}
+.productWorkspaceBody .toolbar.evidenceFilters button {
+  flex: 0 1 auto;
+  white-space: normal;
+}
+@media (max-width: 600px) {
+  .productWorkspaceBody .toolbar.evidenceFilters input { flex-basis: 100%; }
+  .productWorkspaceBody .toolbar.evidenceFilters select { flex: 1 1 150px; }
+  .productWorkspaceBody .toolbar.evidenceFilters button { flex: 0 1 auto; }
+}
