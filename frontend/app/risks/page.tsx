@@ -276,6 +276,7 @@ export default function RisksPage() {
 
       <section className="panel">
         {loading ? <p className="muted">در حال بارگذاری Risk Register...</p> : rows.length === 0 ? <p className="muted">ریسکی در این دامنه ثبت نشده است.</p> : (
+          <div className="tableWrap" role="region" aria-label="جدول ریسک‌ها" tabIndex={0}>
           <table className="dataTable">
             <thead><tr><th>کد</th><th>ریسک</th><th>واحد</th><th>مالک</th><th>Inherent</th><th>Residual</th><th>Target</th><th>وضعیت</th></tr></thead>
             <tbody>{rows.map(risk => (
@@ -291,6 +292,7 @@ export default function RisksPage() {
               </tr>
             ))}</tbody>
           </table>
+          </div>
         )}
       </section>
     </main>

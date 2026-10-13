@@ -6,6 +6,8 @@ on:
     paths:
       - ".github/workflows/ephemeral-browser-rtl.yml"
       - "scripts/ephemeral-browser-rtl.py"
+      - "scripts/ephemeral-browser-populate.py"
+      - "scripts/ephemeral-browser-populated-journey.py"
       - "scripts/ephemeral-real-core-install.sh"
       - "frontend/app/**"
       - "frontend/components/**"
@@ -15,6 +17,8 @@ on:
     paths:
       - ".github/workflows/ephemeral-browser-rtl.yml"
       - "scripts/ephemeral-browser-rtl.py"
+      - "scripts/ephemeral-browser-populate.py"
+      - "scripts/ephemeral-browser-populated-journey.py"
       - "scripts/ephemeral-real-core-install.sh"
       - "frontend/app/**"
       - "frontend/components/**"
@@ -47,7 +51,7 @@ jobs:
           test ! -e .env
           docker version
           docker compose version
-          python -m py_compile scripts/ephemeral-browser-rtl.py
+          python -m py_compile scripts/ephemeral-browser-rtl.py scripts/ephemeral-browser-populate.py scripts/ephemeral-browser-populated-journey.py
           bash -n scripts/ephemeral-real-core-install.sh
           df -h .
           free -m
@@ -62,6 +66,7 @@ jobs:
         env:
           GRC_CORE_INSTALL_EPHEMERAL_ONLY: "YES"
           GRC_BROWSER_VISUAL_EPHEMERAL_ONLY: "YES"
+          GRC_BROWSER_POPULATED_EPHEMERAL_ONLY: "YES"
           GRC_BROWSER_SCREENSHOT_DIR: ${{ runner.temp }}/grc-actual-browser
           GRC_CORE_DR_EPHEMERAL_ONLY: "NO"
           GRC_CORE_REPLACEMENT_EPHEMERAL_ONLY: "NO"
@@ -78,7 +83,17 @@ jobs:
           assert len(manifest["images"])==12
           for row in manifest["images"]:
               assert (path.parent/row["file"]).is_file()
-          print("Twelve actual browser captures present; no mock UI.")
+          populated_path = path.parent / manifest["populated_journey"]
+          populated = json.loads(populated_path.read_text(encoding="utf-8"))
+          assert populated["fictional_only"] is True
+          assert populated["human_approved"] is False
+          assert populated["source_sha"] == manifest["source_sha"]
+          assert len(populated["screenshots"]) == 8
+          assert len(populated["checks"]) == 3
+          for row in populated["screenshots"]:
+              assert (populated_path.parent / row["file"]).is_file()
+              assert row["viewport_width"] in (390, 1440)
+          print("Twelve real empty-state screens, eight real populated screens, and three browser interactions recorded.")
           PY
       - name: Retain only generated non-sensitive PNGs and evidence manifest
         if: always()
@@ -94,5 +109,5 @@ jobs:
           echo '### Real browser screenshots: CI-only, not design approval' >> "$GITHUB_STEP_SUMMARY"
           echo '- Actual Chromium rendered installed Next.js and Django API with disposable tenant; not generated mock screenshots.' >> "$GITHUB_STEP_SUMMARY"
           echo '- CI-issued backend JWT used to reach screens; browser login and MFA are explicitly NOT verified.' >> "$GITHUB_STEP_SUMMARY"
-          echo '- PNG artifact includes SHA-bound manifest and 12 authentic captures if the test passed.' >> "$GITHUB_STEP_SUMMARY"
+          echo '- Artifact includes SHA-bound manifests, twelve empty-state PNGs, eight populated fictional-tenant PNGs, real control/risk creation and mobile navigation checks on successful runs.' >> "$GITHUB_STEP_SUMMARY"
           echo '- No real customer TLS, production signing key, licensed content or human RTL accessibility UAT signoff.' >> "$GITHUB_STEP_SUMMARY"
