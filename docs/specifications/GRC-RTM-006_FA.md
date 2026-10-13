@@ -108,3 +108,21 @@ defect_issue: "ISSUE-TBD"
 - تغییر Requirement باید مسیر `PRD → SRS → Data/API/UX → Test → Evidence` را به‌روز کند.
 - پیش از Merge باید Product Owner وضعیت‌ها و QA Lead Test Evidence را بازبینی کنند.
 - زمان‌بندی R0/R1/R2 در `PRD` مرجع است؛ RTM تغییر دامنه مجاز نمی‌دهد.
+
+## ۷. ردیابی تفصیلی ماژول مدیریت ریسک
+
+اسناد سطح ماژول:
+- [GRC-RISK-101](modules/GRC-RISK-101_FA.md): Field Dictionary، روابط، State Machine، API، UI، هوش مصنوعی، گزارش و شکاف‌ها.
+- [GRC-RISK-UAT-102](modules/GRC-RISK-UAT-102_FA.md): ۱۳ سناریوی مثبت + ۲۰ مورد منفی؛ پذیرش اجرای واقعی نیازمند شواهد است.
+
+| Requirement | آزمون جزئی | وضعیت اولیه |
+|---|---|---|
+| FR-RSK-001 | RSK-TC-001, 002؛ NEG-01..03,09 | ثبت/FK PARTIAL؛ Edit BLOCKED |
+| FR-RSK-002 | RSK-TC-003؛ NEG-04,06,07 | POST HTTP 400، BLOCKED |
+| FR-RSK-003 | RSK-TC-004, 005؛ NEG-05,08 | BLOCKED به‌دلیل Method |
+| FR-RSK-004 | RSK-TC-006, 011؛ NEG-11,18 | NOT-RUN |
+| FR-RSK-005 | RSK-TC-007..010؛ NEG-12..16,19 | NOT-RUN |
+| FR-AI-001/002/003 | RSK-TC-013؛ NEG-20 | AI خاموش؛ NOT-RUN |
+| FR-LOC-001 | RSK-TC-012 | FAIL برای رابط جلالی (#182) |
+| FR-UX-001 | RSK-TC-002,003 | GAP ویرایش/خطای فرم |
+| FR-RPT-001 | RSK-TC-011؛ NEG-10 | NOT-RUN |
