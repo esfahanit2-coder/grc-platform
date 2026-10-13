@@ -3,6 +3,7 @@ import "./globals.css";
 import "./design-system.css";
 import "./operations.css";
 import "./dashboard.css";
+import "./product-workspace.css";
 import WorkQuickNav from "./work-quick-nav";
 
 export const metadata: Metadata = {
