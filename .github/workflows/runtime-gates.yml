@@ -99,6 +99,7 @@ jobs:
           bash -n scripts/migration-rehearsal.sh
           bash -n scripts/offline-release-build.sh
           bash -n scripts/scanned-offline-release-prepare.sh
+          bash -n scripts/ephemeral-scanned-release-install.sh
           bash -n scripts/offline-release-sign.sh
           bash -n scripts/offline-release-verify.sh
           bash -n scripts/offline-release-apply.sh
