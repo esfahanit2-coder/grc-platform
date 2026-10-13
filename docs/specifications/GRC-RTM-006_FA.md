@@ -126,3 +126,21 @@ defect_issue: "ISSUE-TBD"
 | FR-LOC-001 | RSK-TC-012 | FAIL برای رابط جلالی (#182) |
 | FR-UX-001 | RSK-TC-002,003 | GAP ویرایش/خطای فرم |
 | FR-RPT-001 | RSK-TC-011؛ NEG-10 | NOT-RUN |
+
+## ۸. ردیابی تفصیلی ماژول مدیریت کنترل‌ها
+
+- [GRC-CONTROL-201](modules/GRC-CONTROL-201_FA.md): ۱۶ معیار پذیرش، مشخصات Control/Mapping/Implementation/Test/Run/Evidence، API و گزارش‌ها؛ وضعیت AS-IS و هدف جداست.
+- [GRC-CONTROL-UAT-202](modules/GRC-CONTROL-UAT-202_FA.md): ۱۳ Test مثبت و ۲۰ Test منفی؛ **تست‌های جدید اجرا نشده‌اند**.
+
+| نیازمندی | Test IDهای مرتبط | وضعیت فعلی شواهد |
+|---|---|---|
+| FR-CTL-001 | CTL-TC-001..004؛ CTL-NEG-01..09 | کد و چهار تست repository بررسی شد؛ UAT واقعی NOT-RUN |
+| FR-CTL-002 | CTL-TC-005؛ CTL-NEG-10..15 | Interface موجود؛ اثربخشی بدون Review شکاف |
+| FR-CTL-003 | CTL-TC-006..007؛ CTL-NEG-16..18 | API موجود؛ UI ایجاد/اجرا/تاریخچه ناقص؛ UAT NOT-RUN |
+| FR-EVD-001/002 | CTL-TC-008؛ CTL-NEG-19..20 | File Gate وابسته به Config/Scanner؛ UAT NOT-RUN |
+| FR-RSK-004 | CTL-TC-009..010 | RiskControl + Finding/Action؛ UAT NOT-RUN |
+| FR-RPT-001 | CTL-TC-011 | گزارش‌های اختصاصی هدف؛ NOT-RUN / بخشی PLANNED |
+| FR-LOC-001 | CTL-TC-012 | Gap تاریخ شمسی #182 |
+| FR-AI-001/002/003 | CTL-TC-013 | AI runtime محلی غیرفعال؛ NOT-RUN |
+
+**شرط تغییر وضعیت RTM:** SHA و نسخه جدید، نام Test، Actor/زمان، Expectation/Observation، شواهد قابل بررسی و Defect/PR ذکر شود؛ PASS بر اساس وجود فایل مستند صادر نمی‌شود.
