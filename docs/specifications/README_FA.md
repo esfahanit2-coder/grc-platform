@@ -96,3 +96,13 @@
 | GRC-COMPLIANCE-UAT-302 | [آزمون پذیرش تفصیلی استانداردها و انطباق](modules/GRC-COMPLIANCE-UAT-302_FA.md) | ۱۸ سناریوی مثبت، ۲۰ تست منفی، روش امتیازدهی مرجع و Gateهای آزمایش |
 
 **هشدار امنیتی:** ممیزی Source یک عدم اعمال فیلتر صریح Tenant در `AssessmentItem.mapped_controls` نشان داده؛ Test چند Tenant هنوز اجرا نشده و Issue [#186](https://github.com/esfahanit2-coder/grc-platform/issues/186) برای بررسی P0 باز است. صدور اسناد صرفاً DRAFT است و کد/داده پایلوت تغییر نکرده است.
+
+
+### مدیریت شواهد، ممیزی، یافته‌ها و اقدامات اصلاحی — اسناد سطح ماژول
+
+| شناسه | سند | کاربرد |
+|---|---|---|
+| GRC-EVIDENCE-AUDIT-401 | [مشخصات جامع شواهد و ممیزی](modules/GRC-EVIDENCE-AUDIT-401_FA.md) | Evidence/Link/Malware، AuditPlan/Engagement/Team/Workpaper، Finding/CAPA/Action، AuditEvent، API/RBAC/UI/AI/Reports |
+| GRC-EVIDENCE-AUDIT-UAT-402 | [آزمون‌های تفصیلی شواهد و ممیزی](modules/GRC-EVIDENCE-AUDIT-UAT-402_FA.md) | ۱۹ سناریوی مثبت و ۲۴ تست منفی، کنترل امنیت دو Tenant/Unit و گیت‌های عملیاتی |
+
+**مرز ادعا:** وجود تست در Repo یا Source با اجرای پایلوت یکسان نیست؛ این دو سند `DRAFT` و UAT آن‌ها `NOT-RUN` هستند. اولویت‌های جدید: [#188](https://github.com/esfahanit2-coder/grc-platform/issues/188) Security Tenant/Scope **نیازمند بازتولید**؛ [#189](https://github.com/esfahanit2-coder/grc-platform/issues/189) Approval/Effectiveness/Closure. هیچ کد، Migration یا Runtime تغییر نکرده است.
