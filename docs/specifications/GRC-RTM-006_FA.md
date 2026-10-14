@@ -144,3 +144,24 @@ defect_issue: "ISSUE-TBD"
 | FR-AI-001/002/003 | CTL-TC-013 | AI runtime محلی غیرفعال؛ NOT-RUN |
 
 **شرط تغییر وضعیت RTM:** SHA و نسخه جدید، نام Test، Actor/زمان، Expectation/Observation، شواهد قابل بررسی و Defect/PR ذکر شود؛ PASS بر اساس وجود فایل مستند صادر نمی‌شود.
+
+## ۹. ردیابی تفصیلی استانداردها و ارزیابی انطباق
+
+- [GRC-COMPLIANCE-301](modules/GRC-COMPLIANCE-301_FA.md): فرهنگ داده و Workflow همه Framework/Requirement/Assessmentهای Legacy و Generic، ۲۴ Validation Rule، ۱۸ Acceptance Criteria و ۱۵ Gap Source/Design.
+- [GRC-COMPLIANCE-UAT-302](modules/GRC-COMPLIANCE-UAT-302_FA.md): ۱۸ تست مثبت و ۲۰ منفی **تدوین‌شده اما اجرا‌نشده**.
+
+| Requirement | Test Cases | وضعیت/پیگیری |
+|---|---|---|
+| FR-FWK-001 | CMP-TC-001/002؛ CMP-NEG-01..05 | AS-IS کد موجود؛ UAT NOT-RUN |
+| FR-FWK-002 | CMP-TC-003/014؛ CMP-NEG-06..09 | حقوق محتوا / Import/Export؛ UAT NOT-RUN |
+| FR-FWK-003 | CMP-TC-004؛ CMP-NEG-10..12 | Approval invalidation P1 GAP |
+| FR-CTL-001 | CMP-TC-005/018؛ CMP-NEG-14 | **P0 SECURITY REVIEW #186** |
+| FR-ASM-001 | CMP-TC-006..009/018؛ CMP-NEG-13..16 | Score/Snapshot در کد؛ Review Gate GAP؛ UAT NOT-RUN |
+| FR-ASM-002 | CMP-TC-010..012؛ CMP-NEG-17..20 | Generic published template/typed answers؛ UAT NOT-RUN |
+| FR-EVD-001 / FR-FND-001 / FR-ACT-001 | CMP-TC-013 | API در کد؛ UI Auto-first GAP |
+| FR-RPT-001 | CMP-TC-016 | Gap Report رسمی TO-BE / NOT-RUN |
+| FR-AI-001..003 | CMP-TC-017 | AI خاموش / NOT-RUN |
+| FR-LOC-001 / FR-UX-001 | CMP-TC-015 | Jalali #182 + UX GAP |
+| NFR-SEC-001 / NFR-LEGAL-001 | CMP-TC-014/018 | Tenant leakage #186 + حقوق محتوا نیازمند Test/Approval |
+
+**قانون:** Evidence واقعی و SHA دقیق برای تغییر وضعیت TEST الزامی است؛ متن Source-reviewed Gap به معنای وقوع Incident واقعی نیست.
