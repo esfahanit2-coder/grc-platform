@@ -186,3 +186,24 @@ defect_issue: "ISSUE-TBD"
 | NFR-SEC-002 / NFR-OPS-001 | EAU-TC-016؛ EAU-NEG-23 | Audit HMAC/SIEM Source؛ Retest و Key Backup NOT-RUN |
 
 **Gate:** وضعیت PASS فقط همراه SHA/Runtime/Operator/Time/Expected/Observed و Evidence مستقل؛ باز کردن Issue نشان‌دهنده برطرف‌شدن نقص نیست.
+
+
+## ۱۱. ردیابی تفصیلی اسناد، قالب‌ها، گزارش و SoA
+
+- [GRC-DOCUMENT-SOA-501](modules/GRC-DOCUMENT-SOA-501_FA.md): مدل و قرارداد اسناد/نسخه/تصویب/Template/SoA، ۲۶ Validation Rule، ۱۸ معیار پذیرش، ۱۶ Gap.
+- [GRC-DOCUMENT-SOA-UAT-502](modules/GRC-DOCUMENT-SOA-UAT-502_FA.md): ۲۰ سناریوی مثبت و ۲۴ منفی، **تعریف‌شده ولی اجرا‌نشده**.
+
+| Requirement | تست‌های مرتبط | وضعیت/Gap |
+|---|---|---|
+| FR-DOC-001 | DOC-TC-001..007؛ DOC-NEG-01..13 | Source lifecycle دارد؛ Review Independence و DocumentLink GAP |
+| FR-SOA-001 | DOC-TC-012..017؛ DOC-NEG-19..23 | Draft-only واقعی؛ Formal SoA Approval **موجود نیست** |
+| FR-WFL-001 | DOC-TC-003..006/016؛ DOC-NEG-06..10/22 | Approval داخلی و Feedback SoA مجزا |
+| FR-RPT-001/002 | DOC-TC-008..011/019؛ DOC-NEG-14..18 | **P0 security review #190**؛ Print/RTL UAT NOT-RUN |
+| FR-AI-001/002/003 | DOC-TC-018؛ DOC-NEG-24 | AI disabled در نصب فعلی؛ فقط Suggestion |
+| FR-EVD-001 | DOC-TC-007/013/014؛ DOC-NEG-13/21 | Evidence/Document scope، Readiness غیراعتباری |
+| FR-LOC-001 / FR-UX-001 | DOC-TC-019؛ DOC-NEG-17..18 | Jalali #182، UI و فارسی DOCX |
+| NFR-SEC-001 | DOC-TC-008/011/012؛ DOC-NEG-03/14..16/19..22 | Tenant/Scope/Template Write P0 Test |
+| NFR-LEGAL-001 | DOC-TC-015/017/018 | حقوق متن استاندارد و SoA Formal Gate |
+| NFR-OPS-001 | DOC-TC-020 | Export/Release/Backup/Restore نیازمند UAT مستقل |
+
+**شرط تغییر وضعیت:** Release دقیق + Actor/Time + Expected/Observed + HTTP/DB/Screenshot Sanitized + Audit + فایل/Hash در صورت وجود؛ باز بودن #190 یا این سند به معنی اصلاح کد نیست.
