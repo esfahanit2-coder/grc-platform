@@ -116,3 +116,14 @@
 | GRC-DOCUMENT-SOA-UAT-502 | [آزمون‌های تفصیلی اسناد و SoA](modules/GRC-DOCUMENT-SOA-UAT-502_FA.md) | ۲۰ سناریوی مثبت، ۲۴ منفی، آزمون استقلال/مجوز/SoA غیراعتباری و گیت‌های پایلوت/مشتری |
 
 **مرز پذیرش:** گردش‌کار تأیید نسخه اسناد با `SoA Draft Review` متفاوت است؛ هیچ `SoARegister` در این Baseline حالت Approved/Formal ندارد. خطر احتمالی دسترسی نوشتن به ReportTemplate در [#190](https://github.com/esfahanit2-coder/grc-platform/issues/190) برای بازتولید P0 ثبت شد. همه اسناد DRAFT و تست‌های تازه NOT-RUN هستند؛ بدون تغییر کد یا استقرار پایلوت. گردش‌کار استقلال تأییدکننده، انتشار و پیوست نسخه اسناد نیز در [#191](https://github.com/esfahanit2-coder/grc-platform/issues/191) برای توسعه P1 ثبت شده است.
+
+
+### معماری AI و اتصال‌دهنده‌های زیرساختی — مرحله ششم
+
+| شناسه | سند | کاربرد |
+|---|---|---|
+| GRC-AI-INTEGRATIONS-601 | [مشخصات فنی AI، RAG و چهار Connector](modules/GRC-AI-INTEGRATIONS-601_FA.md) | مدل داده، مجوزها، Source Rights، Context Input/Output، Endpoints، AD/FortiGate/Veeam/Tenable، Egress/Privacy، UI و گزارش‌ها |
+| GRC-AI-INTEGRATIONS-UAT-602 | [آزمون‌های پذیرش AI و Connector](modules/GRC-AI-INTEGRATIONS-UAT-602_FA.md) | ۲۲ آزمون مثبت و ۲۸ منفی، سناریوهای AI data-leak/SSRF، Scope و Vendor Contracts |
+| GRC-DELIVERY-GATES-603 | [ارزیابی یکپارچه معماری و گیت‌های تحویل](GRC-DELIVERY-GATES-603_FA.md) | فهرست P0/P1، اولویت اصلاح کد، Golden Journey، نصب DC، Backup/Restore و شرایط پذیرش مشتری |
+
+**وضعیت:** `DRAFT / NOT-RUN`. AI روی Pilot قبلی disabled بوده و اتصال‌های Vendor واقعی در این نوبت تست نشده‌اند. نگرانی‌های امنیتی Source با [#192](https://github.com/esfahanit2-coder/grc-platform/issues/192) (P0؛ Egress/RAG Classification/Knowledge Scope) و [#193](https://github.com/esfahanit2-coder/grc-platform/issues/193) (P1؛ LDAP/TLS/Secrets/Connector Scope) ثبت شده‌اند. تست، اصلاح یا تغییر Runtime انجام نشده است.
