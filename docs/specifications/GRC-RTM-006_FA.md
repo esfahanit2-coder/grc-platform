@@ -165,3 +165,24 @@ defect_issue: "ISSUE-TBD"
 | NFR-SEC-001 / NFR-LEGAL-001 | CMP-TC-014/018 | Tenant leakage #186 + حقوق محتوا نیازمند Test/Approval |
 
 **قانون:** Evidence واقعی و SHA دقیق برای تغییر وضعیت TEST الزامی است؛ متن Source-reviewed Gap به معنای وقوع Incident واقعی نیست.
+
+
+## ۱۰. ردیابی تفصیلی مدیریت شواهد، ممیزی و CAPA
+
+- [GRC-EVIDENCE-AUDIT-401](modules/GRC-EVIDENCE-AUDIT-401_FA.md): موجودیت‌ها و حق دسترسی، ۲۶ قاعده اعتبارسنجی، ۱۸ معیار پذیرش، ۱۶ شکاف شناسایی‌شده.
+- [GRC-EVIDENCE-AUDIT-UAT-402](modules/GRC-EVIDENCE-AUDIT-UAT-402_FA.md): ۱۹ سناریوی مثبت، ۲۴ سناریوی منفی، Fixtures و شواهد/گیت‌های پذیرش. **آزمون تازه اجرا نشده است.**
+
+| Requirement | Test Cases | وضعیت شواهد |
+|---|---|---|
+| FR-EVD-001 | EAU-TC-001/002/005؛ EAU-NEG-01/02/05/08/09 | Model/API و Unit Tests موجود؛ UAT NOT-RUN |
+| FR-EVD-002 | EAU-TC-002..004؛ EAU-NEG-03..07 | Scanner و Production download gate نیازمند آزمون مستقل |
+| FR-AUD-001 | EAU-TC-006..009/015؛ EAU-NEG-12..16 | P0 Cross-Tenant #188؛ Review/Plan gap P1 #189 |
+| FR-FND-001 | EAU-TC-009/010/013/014؛ EAU-NEG-17..19 | Closing effectiveness gap #189 |
+| FR-ACT-001 | EAU-TC-011..014؛ EAU-NEG-20/21 | Action Done≠Verified #189 |
+| FR-RPT-001 | EAU-TC-015/016 | DOCX/API Source موجود؛ UAT صادرات رسمی NOT-RUN |
+| FR-AI-001/002/003 | EAU-TC-018؛ EAU-NEG-24 | AI نصب‌شده خاموش / NOT-RUN |
+| FR-LOC-001 / FR-UX-001 | EAU-TC-017 | شمسی #182 و UX Gap |
+| FR-IAM-003 / NFR-SEC-001 | EAU-TC-005/007؛ EAU-NEG-08..13/22 | **P0 Review #188**؛ Issue #186 از Compliance مرتبط |
+| NFR-SEC-002 / NFR-OPS-001 | EAU-TC-016؛ EAU-NEG-23 | Audit HMAC/SIEM Source؛ Retest و Key Backup NOT-RUN |
+
+**Gate:** وضعیت PASS فقط همراه SHA/Runtime/Operator/Time/Expected/Observed و Evidence مستقل؛ باز کردن Issue نشان‌دهنده برطرف‌شدن نقص نیست.
