@@ -207,3 +207,26 @@ defect_issue: "ISSUE-TBD"
 | NFR-OPS-001 | DOC-TC-020 | Export/Release/Backup/Restore نیازمند UAT مستقل |
 
 **شرط تغییر وضعیت:** Release دقیق + Actor/Time + Expected/Observed + HTTP/DB/Screenshot Sanitized + Audit + فایل/Hash در صورت وجود؛ باز بودن #190 یا این سند به معنی اصلاح کد نیست.
+
+
+## ۱۲. ردیابی تفصیلی معماری هوش مصنوعی و اتصال‌دهنده‌ها
+
+- [GRC-AI-INTEGRATIONS-601](modules/GRC-AI-INTEGRATIONS-601_FA.md): فرهنگ داده و API/Scope، AI Provider/RAG/Suggestion، ۴ اتصال‌دهنده read-only، ۳۰ قاعده، ۲۲ معیار پذیرش و ۱۸ شکاف شناسایی‌شده.
+- [GRC-AI-INTEGRATIONS-UAT-602](modules/GRC-AI-INTEGRATIONS-UAT-602_FA.md): ۲۲ سناریوی مثبت و ۲۸ منفی با Fixture مصنوعی؛ `NOT-RUN`.
+- [GRC-DELIVERY-GATES-603](GRC-DELIVERY-GATES-603_FA.md): گیت امنیتی/آزمون/نصب/رندر/Backup، تفکیک R1 core با AI/Connector Optional.
+
+| نیازمندی | سناریوهای UAT | Status / Defect |
+|---|---|---|
+| FR-AI-001 | AII-TC-001..004/009/011/016؛ AII-NEG-01..05/13/14 | **P0 #192** Provider Egress؛ Local AI Disabled |
+| FR-AI-002 | AII-TC-005..009/012؛ AII-NEG-06..11 | **P0 #192** Source Classification / Knowledge Collision، Prompt Injection Human Review |
+| FR-AI-003 | AII-TC-003/010/011؛ AII-NEG-12/13 | AISuggestion AS-IS؛ Replay/Independent Apply gap |
+| FR-CON-001 | AII-TC-013..021؛ AII-NEG-15..27 | چهار Connector Source موجود؛ **P1 #193**؛ Vendor live NOT-RUN |
+| FR-EVD-001/002 | AII-TC-013/019/021؛ AII-NEG-25..27 | Collected Evidence ≠ Verified؛ Scope/Classification |
+| FR-CTL-001/003 | AII-TC-004/021/022؛ AII-NEG-26 | No Control Effective from Sync؛ Assurance #185 |
+| FR-DOC-001 | AII-TC-011/022؛ AII-NEG-13 | AI Document Draft صرفاً Suggestion |
+| FR-RPT-001 | AII-TC-022 | Connector/AI audit/provenance reports TO-BE |
+| NFR-AI-001 | AII-TC-005..012/018؛ AII-NEG-04..14 | Adversarial evaluation Source موجود؛ Real Model Human Review NOT-RUN |
+| NFR-SEC-001 / NFR-OPS-001 | AII-TC-001/007..009/017..021؛ AII-NEG-01..10/17..25 | Provider Secret/Egress، TLS LDAP، Tenant/Unit |
+| NFR-DEP-002 | AII-TC-009/022؛ AII-NEG-04/05/21/22 | Airgap/TLS network capture EXTERNAL-PROOF |
+
+**تغییر وضعیت فقط با Test Runner/Network Evidence واقعی، Build SHA/Digest، Actor/Time، Expected/Observed و Retest مجاز است.** #192/#193 هنوز رفع نشده‌اند و احتمال‌های Source-reviewed را نباید Incident اثبات‌شده تعبیر کرد.
