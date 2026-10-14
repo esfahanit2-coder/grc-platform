@@ -87,3 +87,12 @@
 | GRC-CONTROL-UAT-202 | [آزمون تفصیلی مدیریت کنترل‌ها](modules/GRC-CONTROL-UAT-202_FA.md) | ۱۳ تست مثبت و ۲۰ تست منفی؛ مرزهای اثربخشی، مجوز و پذیرش |
 
 **یادداشت انتشار:** این دو سند DRAFT هستند و نسخه جاری `pilot-20261013-r1`، کد اجرایی، تنظیمات و اطلاعات پایگاه داده را تغییر نمی‌دهند. موارد Effectiveness بدون Review و UI ناقص Control Test به‌عنوان شکاف طراحی/آزمون ثبت شده‌اند.
+
+### موتور استانداردها و انطباق — اسناد سطح ماژول
+
+| شناسه | سند | محتوا |
+|---|---|---|
+| GRC-COMPLIANCE-301 | [مشخصات تفصیلی استانداردها و ارزیابی انطباق](modules/GRC-COMPLIANCE-301_FA.md) | Framework/Version/Requirement/Translation/Crosswalk، حقوق محتوا، Import، Legacy و Generic Assessment، Score/Review، API، UI، Evidence/AI/Reports و شکاف‌ها |
+| GRC-COMPLIANCE-UAT-302 | [آزمون پذیرش تفصیلی استانداردها و انطباق](modules/GRC-COMPLIANCE-UAT-302_FA.md) | ۱۸ سناریوی مثبت، ۲۰ تست منفی، روش امتیازدهی مرجع و Gateهای آزمایش |
+
+**هشدار امنیتی:** ممیزی Source یک عدم اعمال فیلتر صریح Tenant در `AssessmentItem.mapped_controls` نشان داده؛ Test چند Tenant هنوز اجرا نشده و Issue [#186](https://github.com/esfahanit2-coder/grc-platform/issues/186) برای بررسی P0 باز است. صدور اسناد صرفاً DRAFT است و کد/داده پایلوت تغییر نکرده است.
