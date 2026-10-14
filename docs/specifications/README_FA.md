@@ -106,3 +106,13 @@
 | GRC-EVIDENCE-AUDIT-UAT-402 | [آزمون‌های تفصیلی شواهد و ممیزی](modules/GRC-EVIDENCE-AUDIT-UAT-402_FA.md) | ۱۹ سناریوی مثبت و ۲۴ تست منفی، کنترل امنیت دو Tenant/Unit و گیت‌های عملیاتی |
 
 **مرز ادعا:** وجود تست در Repo یا Source با اجرای پایلوت یکسان نیست؛ این دو سند `DRAFT` و UAT آن‌ها `NOT-RUN` هستند. اولویت‌های جدید: [#188](https://github.com/esfahanit2-coder/grc-platform/issues/188) Security Tenant/Scope **نیازمند بازتولید**؛ [#189](https://github.com/esfahanit2-coder/grc-platform/issues/189) Approval/Effectiveness/Closure. هیچ کد، Migration یا Runtime تغییر نکرده است.
+
+
+### مدیریت اسناد، تولید مستندات و SoA — اسناد سطح ماژول
+
+| شناسه | سند | کاربرد |
+|---|---|---|
+| GRC-DOCUMENT-SOA-501 | [مشخصات تفصیلی DMS، قالب‌ها، گزارش و SoA](modules/GRC-DOCUMENT-SOA-501_FA.md) | Document/Version/Approval/ReportTemplate، UI/API/RBAC، Word/PDF، AI Context، SoA Draft/Decision/Review و قرارداد نسخه نهایی هدف |
+| GRC-DOCUMENT-SOA-UAT-502 | [آزمون‌های تفصیلی اسناد و SoA](modules/GRC-DOCUMENT-SOA-UAT-502_FA.md) | ۲۰ سناریوی مثبت، ۲۴ منفی، آزمون استقلال/مجوز/SoA غیراعتباری و گیت‌های پایلوت/مشتری |
+
+**مرز پذیرش:** گردش‌کار تأیید نسخه اسناد با `SoA Draft Review` متفاوت است؛ هیچ `SoARegister` در این Baseline حالت Approved/Formal ندارد. خطر احتمالی دسترسی نوشتن به ReportTemplate در [#190](https://github.com/esfahanit2-coder/grc-platform/issues/190) برای بازتولید P0 ثبت شد. همه اسناد DRAFT و تست‌های تازه NOT-RUN هستند؛ بدون تغییر کد یا استقرار پایلوت.
